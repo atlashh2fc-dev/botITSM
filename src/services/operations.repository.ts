@@ -81,3 +81,61 @@ export function getKnowledgeUsage(): ChartPoint[] {
     .sort((a, b) => b.value - a.value)
     .slice(0, 7);
 }
+
+export function getSlaBreachesByDay(): ChartPoint[] {
+  const buckets = new Map<string, number>();
+  for (const item of operationalCases) {
+    if (item.duration_minutes <= item.sla_minutes) continue;
+
+    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: "UTC" }).format(
+      new Date(item.created_at),
+    );
+    buckets.set(label, (buckets.get(label) ?? 0) + 1);
+  }
+
+  return Array.from(buckets.entries())
+    .map(([label, value]) => ({ label, value }))
+    .reverse()
+    .slice(-10);
+}
+
+export function getAgingBuckets(): ChartPoint[] {
+  const buckets = [
+    { label: "<4h", value: 0 },
+    { label: "4-8h", value: 0 },
+    { label: "8-24h", value: 0 },
+    { label: ">24h", value: 0 },
+  ];
+
+  for (const item of operationalCases) {
+    if (item.status === "Resuelto") continue;
+    const hours = item.duration_minutes / 60;
+    if (hours < 4) buckets[0].value += 1;
+    else if (hours < 8) buckets[1].value += 1;
+    else if (hours < 24) buckets[2].value += 1;
+    else buckets[3].value += 1;
+  }
+
+  return buckets;
+}
+
+export function getEscalationFunnel(): ChartPoint[] {
+  return [
+    { label: "Intake", value: operationalCases.length },
+    { label: "Clasificados", value: operationalCases.filter((item) => item.issue_type).length },
+    { label: "Con KB", value: operationalCases.filter((item) => item.knowledge_article).length },
+    { label: "Escalados", value: operationalCases.filter((item) => item.escalated).length },
+    { label: "Resueltos", value: operationalCases.filter((item) => item.status === "Resuelto").length },
+  ];
+}
+
+export function getSentimentBreakdown(): ChartPoint[] {
+  const buckets = new Map<string, number>();
+  for (const item of operationalCases) {
+    buckets.set(item.sentiment, (buckets.get(item.sentiment) ?? 0) + 1);
+  }
+
+  return Array.from(buckets.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}

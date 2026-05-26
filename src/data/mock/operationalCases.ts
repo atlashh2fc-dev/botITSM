@@ -50,6 +50,7 @@ const issueCatalog: Array<{
   summary: string;
   article: string;
   baseSla: number;
+  weight: number;
 }> = [
   {
     intent: "ACCESS_REQUEST",
@@ -57,6 +58,7 @@ const issueCatalog: Array<{
     summary: "Validación de credenciales, MFA y restablecimiento guiado de acceso corporativo.",
     article: "Reset y validación de acceso a correo corporativo",
     baseSla: 240,
+    weight: 18,
   },
   {
     intent: "NETWORK_ISSUE",
@@ -64,6 +66,7 @@ const issueCatalog: Array<{
     summary: "Diagnóstico de conectividad remota, cliente VPN y alcance de red afectado.",
     article: "Validación de conectividad VPN",
     baseSla: 480,
+    weight: 20,
   },
   {
     intent: "ACCESS_REQUEST",
@@ -71,6 +74,7 @@ const issueCatalog: Array<{
     summary: "Solicitud de acceso a recurso compartido con dueño funcional y vigencia.",
     article: "Solicitud de acceso a carpeta compartida",
     baseSla: 480,
+    weight: 13,
   },
   {
     intent: "SOFTWARE_REQUEST",
@@ -78,6 +82,7 @@ const issueCatalog: Array<{
     summary: "Revisión de catálogo autorizado, licencia disponible y ventana de instalación.",
     article: "Instalación de software autorizado",
     baseSla: 1440,
+    weight: 11,
   },
   {
     intent: "HARDWARE_ISSUE",
@@ -85,6 +90,7 @@ const issueCatalog: Array<{
     summary: "Diagnóstico de rendimiento, espacio en disco, reinicio y revisión de salud del equipo.",
     article: "Diagnóstico básico de notebook lento",
     baseSla: 480,
+    weight: 9,
   },
   {
     intent: "INCIDENT",
@@ -92,6 +98,7 @@ const issueCatalog: Array<{
     summary: "Confirmación de alcance, impacto operacional y activación de grupo resolutor.",
     article: "Incidente crítico de aplicación corporativa",
     baseSla: 60,
+    weight: 7,
   },
   {
     intent: "ACCESS_REQUEST",
@@ -99,6 +106,7 @@ const issueCatalog: Array<{
     summary: "Preparación de accesos iniciales, perfil de cargo y equipamiento asignado.",
     article: "Alta de usuario y accesos base",
     baseSla: 1440,
+    weight: 6,
   },
   {
     intent: "NETWORK_ISSUE",
@@ -106,6 +114,7 @@ const issueCatalog: Array<{
     summary: "Validación de segmento, servicio DNS, conectividad local y alcance por sede.",
     article: "Diagnóstico de red corporativa",
     baseSla: 240,
+    weight: 14,
   },
   {
     intent: "SECURITY_INCIDENT",
@@ -113,6 +122,7 @@ const issueCatalog: Array<{
     summary: "Detección de riesgo, preservación de evidencia y derivación a seguridad TI.",
     article: "Contención inicial de incidente de seguridad",
     baseSla: 30,
+    weight: 5,
   },
   {
     intent: "ACCESS_REQUEST",
@@ -120,15 +130,22 @@ const issueCatalog: Array<{
     summary: "Restablecimiento controlado de contraseña y validación de sesión corporativa.",
     article: "Reset y validación de acceso a correo corporativo",
     baseSla: 120,
+    weight: 16,
   },
 ];
 
+const weightedIssueCatalog = issueCatalog.flatMap((item) => Array.from({ length: item.weight }, () => item));
+const dayOffsets = [0, 0, 0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 6, 7, 8, 10, 12, 14];
+const demandHours = [8, 8, 9, 9, 9, 10, 10, 10, 10, 11, 11, 12, 12, 13, 14, 14, 15, 16, 17, 18, 19];
+
 export const operationalCases: OperationalCase[] = Array.from({ length: 128 }, (_, index) => {
-  const catalog = issueCatalog[index % issueCatalog.length];
+  const catalog = weightedIssueCatalog[(index * 7 + Math.floor(index / 6)) % weightedIssueCatalog.length];
   const priority = resolvePriority(index, catalog.intent);
   const escalated = priority === "P1" || index % 5 === 0 || catalog.intent === "SECURITY_INCIDENT";
   const status = resolveStatus(index, escalated);
-  const created = new Date(Date.UTC(2026, 4, 25 - (index % 15), 8 + (index % 11), (index * 7) % 60));
+  const created = new Date(
+    Date.UTC(2026, 4, 25 - dayOffsets[(index * 5 + catalog.category.length) % dayOffsets.length], demandHours[(index * 3 + catalog.weight) % demandHours.length], (index * 7) % 60),
+  );
   const duration = resolveDuration(priority, escalated, index);
   const resolved = status === "Resuelto" ? new Date(created.getTime() + duration * 60_000) : null;
 

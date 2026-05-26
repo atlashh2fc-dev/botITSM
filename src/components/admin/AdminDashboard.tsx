@@ -22,8 +22,12 @@ import { BrandMark } from "@/components/shared/BrandMark";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   getAdminKpis,
+  getAgingBuckets,
+  getEscalationFunnel,
   getHourlyHeatmap,
   getKnowledgeUsage,
+  getSentimentBreakdown,
+  getSlaBreachesByDay,
   getVolumeByDay,
   groupByField,
   listOperationalCases,
@@ -175,8 +179,11 @@ function AdminWorkspace() {
   const heatmap = useMemo(() => getHourlyHeatmap(), []);
   const topIntents = useMemo(() => groupByField("issue_type", 7), []);
   const escalated = useMemo(() => cases.filter((item) => item.escalated).slice(0, 7), [cases]);
-  const technicians = useMemo(() => groupByField("assigned_technician", 8), []);
   const knowledge = useMemo(() => getKnowledgeUsage(), []);
+  const slaBreachesByDay = useMemo(() => getSlaBreachesByDay(), []);
+  const escalationFunnel = useMemo(() => getEscalationFunnel(), []);
+  const agingBuckets = useMemo(() => getAgingBuckets(), []);
+  const sentimentBreakdown = useMemo(() => getSentimentBreakdown(), []);
   const operationalModel = useMemo(() => buildOperationalModel(cases, kpis, knowledge), [cases, kpis, knowledge]);
 
   function goToSection(id: string) {
@@ -270,10 +277,22 @@ function AdminWorkspace() {
                 <HorizontalBars items={topIntents} compact />
               </Panel>
               <Panel title="Escalation funnel" icon={UsersRound}>
-                <HorizontalBars items={technicians} compact />
+                <FunnelBars items={escalationFunnel} />
               </Panel>
               <Panel title="Knowledge articles used" icon={BookOpen}>
                 <KnowledgeList items={knowledge} />
+              </Panel>
+            </div>
+
+            <div className="grid gap-2.5 xl:grid-cols-3">
+              <Panel title="SLA breaches by day" icon={Clock3}>
+                <LineBars items={slaBreachesByDay} />
+              </Panel>
+              <Panel title="Aging open workload" icon={Gauge}>
+                <HorizontalBars items={agingBuckets} />
+              </Panel>
+              <Panel title="User sentiment mix" icon={UsersRound}>
+                <HorizontalBars items={sentimentBreakdown} />
               </Panel>
             </div>
 
@@ -440,6 +459,27 @@ function HorizontalBars({ items, compact = false }: { items: ChartPoint[]; compa
           <div className={`overflow-hidden rounded-full bg-white/[0.075] ${compact ? "h-1" : "h-1.5"}`}>
             <div className="h-full rounded-full bg-cyan-300/90" style={{ width: `${Math.max((item.value / max) * 100, 8)}%` }} />
           </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FunnelBars({ items }: { items: ChartPoint[] }) {
+  const max = Math.max(...items.map((item) => item.value));
+
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={item.label} className="grid grid-cols-[78px_1fr_34px] items-center gap-2 text-xs">
+          <span className="truncate text-slate-400">{item.label}</span>
+          <div className="h-5 overflow-hidden rounded-md bg-white/[0.055]">
+            <div
+              className={`h-full rounded-md ${index < 3 ? "bg-cyan-300/85" : index === 3 ? "bg-amber-300/80" : "bg-emerald-300/80"}`}
+              style={{ width: `${Math.max((item.value / max) * 100, 6)}%` }}
+            />
+          </div>
+          <span className="text-right font-semibold text-white">{item.value}</span>
         </div>
       ))}
     </div>
