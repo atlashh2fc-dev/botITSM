@@ -25,6 +25,7 @@ export type DiagnosticStage =
   | "qualify_connection"
   | "run_first_check"
   | "isolate_component"
+  | "validate_entitlement"
   | "prepare_escalation"
   | "ticket_created"
   | "resolved";

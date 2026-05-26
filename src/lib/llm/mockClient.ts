@@ -1,5 +1,11 @@
 import { findKnowledgeArticleById, findKnowledgeMatches } from "@/data/mock/knowledgeBase";
 import {
+  buildSoftwareDiagnostic,
+  buildSoftwareEntitlementMessage,
+  buildSoftwareTicketMessage,
+  resolveSoftwareEntitlement,
+} from "@/lib/itsm/corporateContext";
+import {
   buildTicketDraft,
   detectIntent,
   determinePriority,
@@ -33,12 +39,15 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
     article,
     context: mergedContext,
   });
+  const softwareEntitlement = detectedIntent === "SOFTWARE_REQUEST" ? resolveSoftwareEntitlement(input.userMessage, ticketDraft) : undefined;
+  const softwareDiagnostic = softwareEntitlement ? buildSoftwareDiagnostic(softwareEntitlement) : undefined;
+  const softwareReadyForTicket = Boolean(softwareDiagnostic?.facts.escalationReady);
   const baseShouldEscalate =
     priority === "P1" || detectedIntent === "SECURITY_INCIDENT" || shouldCreateTicketFromMessage(input.userMessage, priority, detectedIntent);
   const serviceDeskReadyForEscalation = serviceDeskTurn?.stage === "prepare_escalation";
   const shouldEscalate = serviceDeskTurn && serviceDeskTurn.stage !== "prepare_escalation" ? false : baseShouldEscalate || serviceDeskReadyForEscalation;
   const shouldCreateTicket =
-    ((shouldEscalate || serviceDeskReadyForEscalation) && hasMinimumRequesterData) && !isResolvedMessage(input.userMessage);
+    ((shouldEscalate || serviceDeskReadyForEscalation || softwareReadyForTicket) && hasMinimumRequesterData) && !isResolvedMessage(input.userMessage);
   if (isGreetingOnly(input.userMessage)) {
     return {
       assistantMessage: "Hola. Escríbeme qué falla y te guío con el siguiente paso.",
@@ -49,7 +58,7 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
       operationalStatuses: ["Detectando intención"],
       shouldCreateTicket: false,
       shouldEscalate: false,
-      diagnostic: serviceDeskTurn?.diagnostic,
+      diagnostic: serviceDeskTurn?.diagnostic ?? softwareDiagnostic,
       ticketDraft,
     };
   }
@@ -67,7 +76,9 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
       shouldEscalate: false,
       diagnostic: serviceDeskTurn?.diagnostic
         ? { ...serviceDeskTurn.diagnostic, stage: "resolved", facts: { ...serviceDeskTurn.diagnostic.facts, resolvedByUser: true } }
-        : undefined,
+        : softwareDiagnostic
+          ? { ...softwareDiagnostic, stage: "resolved", facts: { ...softwareDiagnostic.facts, resolvedByUser: true } }
+          : undefined,
       ticketDraft: { ...ticketDraft, status: "resolved" },
     };
   }
@@ -79,17 +90,21 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
       requiredFields,
       shouldCreateTicket,
       serviceDeskTurn,
+      softwareEntitlement,
     }),
     classification: detectedIntent,
     priority,
     requiredFields,
-    suggestedActions: serviceDeskTurn?.suggestedActions ?? (article?.resolutionSteps[0] ? [article.resolutionSteps[0]] : ["Recopilar contexto"]),
+    suggestedActions:
+      serviceDeskTurn?.suggestedActions ??
+      softwareDiagnostic?.completedSteps ??
+      (article?.resolutionSteps[0] ? [article.resolutionSteps[0]] : ["Recopilar contexto"]),
     operationalStatuses: shouldCreateTicket
       ? ["Detectando intención", "Consultando base de conocimiento", "Preparando ticket"]
       : ["Detectando intención", "Consultando base de conocimiento", "Ejecutando guía de descarte"],
     shouldCreateTicket,
     shouldEscalate,
-    diagnostic: serviceDeskTurn?.diagnostic,
+    diagnostic: serviceDeskTurn?.diagnostic ?? softwareDiagnostic,
     ticketDraft,
   };
 }
@@ -100,14 +115,20 @@ function buildOperationalMessage({
   requiredFields,
   shouldCreateTicket,
   serviceDeskTurn,
+  softwareEntitlement,
 }: {
   intent: ITSMIntent;
   article?: KnowledgeArticle;
   requiredFields: string[];
   shouldCreateTicket: boolean;
   serviceDeskTurn?: ServiceDeskTurn;
+  softwareEntitlement?: ReturnType<typeof resolveSoftwareEntitlement>;
 }) {
   if (shouldCreateTicket) {
+    if (softwareEntitlement) {
+      return buildSoftwareTicketMessage(softwareEntitlement);
+    }
+
     if (serviceDeskTurn?.stage === "prepare_escalation") {
       return [
         "Perfecto. Con los descartes realizados y tus datos, voy a registrar el caso para revisión o reemplazo.",
@@ -125,6 +146,10 @@ function buildOperationalMessage({
 
   if (article?.id === "kb-excel-wont-open") {
     return "Entendido: vamos con Excel/Office.\n\nPrimero confirma si falla solo Excel o también Word/Outlook; si es solo Excel, intenta abrirlo en modo seguro para descartar complementos.";
+  }
+
+  if (intent === "SOFTWARE_REQUEST" && softwareEntitlement) {
+    return buildSoftwareEntitlementMessage(softwareEntitlement, requiredFields);
   }
 
   if (intent === "HARDWARE_ISSUE" && serviceDeskTurn) {

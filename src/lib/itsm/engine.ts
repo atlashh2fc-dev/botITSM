@@ -62,7 +62,7 @@ export function detectIntent(message: string): ITSMIntent {
     return "ACCESS_REQUEST";
   }
 
-  if (hasAny(text, ["instalar", "software", "licencia", "aplicación", "aplicacion", "programa"])) {
+  if (hasAny(text, ["instalar", "software", "licencia", "aplicación", "aplicacion", "programa", "power point", "powerpoint", "power-point"])) {
     return "SOFTWARE_REQUEST";
   }
 
@@ -153,6 +153,10 @@ export function extractFields(message: string, context: SessionContext): Session
 
   if (!collected.sistema) {
     collected.sistema = inferProductivitySystem(normalizedText);
+  }
+
+  if (!collected.sistema && hasAny(normalizedText, ["power point", "powerpoint", "power-point"])) {
+    collected.sistema = "Microsoft PowerPoint";
   }
 
   if (hasAny(normalize(text), ["alto", "varios", "todos", "crítico", "critico", "detenido"])) {

@@ -12,6 +12,10 @@ export async function generateITSMResponse(input: ITSMResponseInput): Promise<IT
     return generateMockITSMResponse(input);
   }
 
+  if (isReadyDiagnosticFollowUp(input)) {
+    return generateMockITSMResponse(input);
+  }
+
   const contextualResponse = resolveContextualContinuation(input);
   if (contextualResponse) {
     return contextualResponse;
@@ -22,6 +26,10 @@ export async function generateITSMResponse(input: ITSMResponseInput): Promise<IT
   }
 
   return generateMockITSMResponse(input);
+}
+
+function isReadyDiagnosticFollowUp(input: ITSMResponseInput) {
+  return input.sessionContext.diagnostic?.stage === "prepare_escalation";
 }
 
 function isGreetingOnly(message: string) {
