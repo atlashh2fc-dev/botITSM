@@ -656,15 +656,15 @@ function isServiceDeskAsset(value: string | undefined): value is ServiceDeskAsse
 function resolveAsset(current: string, allUserText: string): ServiceDeskAsset | undefined {
   if (mentionsInternalDisplay(current)) return "notebook_display";
   if (mentionsExternalMonitor(current)) return "external_monitor";
-  if (current.includes("mouse") || current.includes("raton")) return "mouse";
+  if (current.includes("mouse") || current.includes("moouse") || current.includes("mause") || current.includes("mouuse") || current.includes("raton")) return "mouse";
   if (current.includes("teclado")) return "keyboard";
-  if (current.includes("impresora")) return "printer";
+  if (current.includes("impresora") || current.includes("implresora") || current.includes("inpresora") || current.includes("imprimir") || current.includes("imprimit") || current.includes("improimit") || current.includes("printer")) return "printer";
 
   if (mentionsInternalDisplay(allUserText)) return "notebook_display";
   if (mentionsExternalMonitor(allUserText)) return "external_monitor";
-  if (allUserText.includes("mouse") || allUserText.includes("raton")) return "mouse";
+  if (allUserText.includes("mouse") || allUserText.includes("moouse") || allUserText.includes("mause") || allUserText.includes("mouuse") || allUserText.includes("raton")) return "mouse";
   if (allUserText.includes("teclado")) return "keyboard";
-  if (allUserText.includes("impresora")) return "printer";
+  if (allUserText.includes("impresora") || allUserText.includes("implresora") || allUserText.includes("inpresora") || allUserText.includes("imprimir") || allUserText.includes("imprimit") || allUserText.includes("improimit") || allUserText.includes("printer")) return "printer";
   if (current.includes("notebook") || current.includes("note") || current.includes("laptop")) return "notebook";
   return undefined;
 }

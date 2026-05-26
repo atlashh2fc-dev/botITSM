@@ -404,7 +404,7 @@ export const knowledgeBase: KnowledgeArticle[] = [
       "Hay error físico, atasco o falta de insumos.",
       "La impresión es crítica para operación de sucursal o bodega.",
     ],
-    tags: ["impresora", "imprimir", "cola", "no imprime", "printer", "no aparece impresora"],
+    tags: ["impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "imprime", "cola", "no imprime", "printer", "no aparece impresora"],
   },
   {
     id: "kb-printer-paper-toner",
@@ -860,6 +860,12 @@ function resolvePreferredArticleId(normalizedMessage: string) {
     hasAnySearchText(normalizedMessage, ["mouse", "raton", "ratón", "moouse", "mause", "teclado"])
   ) {
     return "kb-wired-peripheral";
+  }
+
+  if (
+    hasAnySearchText(normalizedMessage, ["impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "printer", "inprimir", "imprime", "improimit"])
+  ) {
+    return "kb-printer-not-printing";
   }
 
   return undefined;

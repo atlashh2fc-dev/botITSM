@@ -66,7 +66,7 @@ export function detectIntent(message: string): ITSMIntent {
     return "SOFTWARE_REQUEST";
   }
 
-  if (hasAny(text, ["notebook", "equipo", "lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "se queda pegado", "congelada", "congeladas", "pantalla", "batería", "bateria", "hardware", "mouse", "moouse", "mause", "mouuse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
+  if (hasAny(text, ["notebook", "equipo", "lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "se queda pegado", "congelada", "congeladas", "pantalla", "batería", "bateria", "hardware", "mouse", "moouse", "mause", "mouuse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
     return "HARDWARE_ISSUE";
   }
 
@@ -96,8 +96,9 @@ export function detectTurnIntent(message: string, context?: SessionContext): ITS
     "no funciona", "no sirve", "falla", "error", "problema", "problrma", "malo", 
     "no responde", "no abre", "no conecta", "se cayo", "caida", "se pega", 
     "pegado", "congelado", "lento", "lentitud", "moouse", "mouse", "mause", "mouuse",
-    "teclado", "raton", "ratón"
-  ]);
+    "teclado", "raton", "ratón",
+    "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "imprime"
+  ]) || detectedIntent === "HARDWARE_ISSUE";
 
   if (isProblem) {
     return detectedIntent;
@@ -206,7 +207,7 @@ export function extractFields(message: string, context: SessionContext): Session
   const normalizedText = normalize(text);
   if (mentionsInternalDisplay(normalizedText)) {
     collected.activo = "Pantalla integrada del notebook";
-  } else if (!collected.activo && hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton", "teclado", "monitor", "pantalla", "impresora", "equipo", "notebook", "laptop"])) {
+  } else if (!collected.activo && hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton", "teclado", "monitor", "pantalla", "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "equipo", "notebook", "laptop"])) {
     const userEmail = collected.correo || "";
     if (userEmail.toLowerCase() === "lilian.leon@sonda.cl") {
       if (hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton"])) {
@@ -409,7 +410,7 @@ function inferAssetFromText(text: string) {
   if (text.includes("mouse") || text.includes("moouse") || text.includes("mause") || text.includes("mouuse") || text.includes("raton") || text.includes("ratón")) return "Mouse";
   if (text.includes("teclado")) return "Teclado";
   if (text.includes("monitor") || text.includes("pantalla")) return "Monitor";
-  if (text.includes("impresora")) return "Impresora";
+  if (text.includes("impresora") || text.includes("implresora") || text.includes("inpresora") || text.includes("printer")) return "Impresora";
   return "Periférico";
 }
 
