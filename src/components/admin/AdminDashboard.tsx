@@ -13,7 +13,6 @@ import {
   KeyRound,
   LockKeyhole,
   MessageSquareText,
-  Settings,
   ShieldAlert,
   Ticket,
   UsersRound,
@@ -31,11 +30,11 @@ import {
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
 
 const navItems = [
-  { label: "Conversaciones", icon: MessageSquareText },
-  { label: "Tickets", icon: Ticket },
-  { label: "Analytics", icon: BarChart3 },
-  { label: "Knowledge", icon: BookOpen },
-  { label: "Configuración", icon: Settings },
+  { id: "kpis", label: "Analytics", icon: BarChart3 },
+  { id: "itil-report", label: "Reporte ITIL", icon: CheckCircle2 },
+  { id: "tickets", label: "Tickets", icon: Ticket },
+  { id: "knowledge", label: "Knowledge", icon: BookOpen },
+  { id: "cases", label: "Conversaciones", icon: MessageSquareText },
 ];
 
 export function AdminDashboard() {
@@ -158,7 +157,12 @@ function CredentialLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function kpiValue(kpis: AdminKpi[], label: string) {
+  return kpis.find((kpi) => kpi.label === label)?.value ?? "-";
+}
+
 function AdminWorkspace() {
+  const [activeSection, setActiveSection] = useState("kpis");
   const kpis = useMemo(() => getAdminKpis(), []);
   const cases = useMemo(() => listOperationalCases(100), []);
   const byDay = useMemo(() => getVolumeByDay(), []);
@@ -170,34 +174,41 @@ function AdminWorkspace() {
   const technicians = useMemo(() => groupByField("assigned_technician", 8), []);
   const knowledge = useMemo(() => getKnowledgeUsage(), []);
 
+  function goToSection(id: string) {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <main className="min-h-screen bg-[#07111f] text-slate-100">
-      <div className="grid min-h-screen lg:grid-cols-[228px_1fr]">
-        <aside className="border-b border-white/10 bg-[#0a1525] p-4 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-screen lg:grid-cols-[188px_1fr]">
+        <aside className="border-b border-white/10 bg-[#0a1525] p-3 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
             <BrandMark compact variant="dark" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold leading-5 text-white">Soporte ITSM</p>
+              <p className="text-[13px] font-semibold leading-4 text-white">Soporte ITSM</p>
               <p className="truncate text-[11px] text-slate-500">SONDA · Geimser</p>
             </div>
           </div>
-          <nav className="mt-8 grid gap-1">
-            {navItems.map((item, index) => (
+          <nav className="mt-6 grid gap-1">
+            {navItems.map((item) => (
               <button
                 key={item.label}
-                className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition ${
-                  index === 2 ? "bg-cyan-300/10 text-cyan-100 ring-1 ring-cyan-300/15" : "text-slate-400 hover:bg-white/[0.045] hover:text-white"
+                type="button"
+                onClick={() => goToSection(item.id)}
+                className={`flex h-8 items-center gap-2 rounded-lg px-2 text-[12px] font-medium transition ${
+                  activeSection === item.id ? "bg-cyan-300/10 text-cyan-100 ring-1 ring-cyan-300/15" : "text-slate-400 hover:bg-white/[0.045] hover:text-white"
                 }`}
               >
-                <item.icon size={15} aria-hidden />
+                <item.icon size={14} aria-hidden />
                 {item.label}
               </button>
             ))}
           </nav>
-          <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.035] p-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-cyan-200/80">Gobierno</p>
-            <p className="mt-2 text-xs leading-5 text-slate-400">
-              Trazabilidad activa por conversación, decisión, clasificación y grupo resolutor.
+          <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.035] p-2.5">
+            <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-cyan-200/80">ITIL control</p>
+            <p className="mt-1.5 text-[11px] leading-4 text-slate-400">
+              Incidentes, solicitudes, SLA y escalamiento trazables.
             </p>
           </div>
         </aside>
@@ -220,14 +231,18 @@ function AdminWorkspace() {
             </div>
           </header>
 
-          <div className="space-y-3.5 p-4 lg:p-5">
-            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-3 p-3 lg:p-4">
+            <div id="kpis" className="scroll-mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
               {kpis.map((kpi) => (
                 <AdminKpiCard key={kpi.label} kpi={kpi} />
               ))}
             </div>
 
-            <div className="grid gap-3.5 xl:grid-cols-[1.18fr_0.82fr_0.82fr]">
+            <section id="itil-report" className="scroll-mt-4">
+              <ITILReportLine kpis={kpis} />
+            </section>
+
+            <div id="tickets" className="scroll-mt-4 grid gap-3 xl:grid-cols-[1.18fr_0.82fr_0.82fr]">
               <Panel title="Volumen por día" icon={Activity}>
                 <LineBars items={byDay} />
               </Panel>
@@ -239,7 +254,7 @@ function AdminWorkspace() {
               </Panel>
             </div>
 
-            <div className="grid gap-3.5 xl:grid-cols-4">
+            <div id="knowledge" className="scroll-mt-4 grid gap-3 xl:grid-cols-4">
               <Panel title="Incidentes por tipo" icon={Gauge}>
                 <HorizontalBars items={byType} />
               </Panel>
@@ -254,7 +269,7 @@ function AdminWorkspace() {
               </Panel>
             </div>
 
-            <div className="grid gap-3.5 xl:grid-cols-[0.72fr_1.28fr]">
+            <div id="cases" className="scroll-mt-4 grid gap-3 xl:grid-cols-[0.72fr_1.28fr]">
               <Panel title="Casos escalados" icon={Ticket}>
                 <EscalatedList cases={escalated} />
               </Panel>
@@ -280,6 +295,37 @@ function AdminKpiCard({ kpi }: { kpi: AdminKpi }) {
       <p className="text-[12px] font-medium text-slate-400">{kpi.label}</p>
       <p className="mt-1.5 text-[26px] font-semibold leading-7 tracking-[-0.03em]">{kpi.value}</p>
       <p className="mt-1.5 text-[12px] text-slate-500">{kpi.delta}</p>
+    </article>
+  );
+}
+
+function ITILReportLine({ kpis }: { kpis: AdminKpi[] }) {
+  const items = [
+    { label: "Incidentes", value: kpiValue(kpis, "Conversaciones"), meta: "intake ITSM" },
+    { label: "Solicitudes", value: kpiValue(kpis, "Tickets generados"), meta: "tickets creados" },
+    { label: "SLA", value: kpiValue(kpis, "Cumplimiento SLA"), meta: "cumplimiento" },
+    { label: "Resolución", value: kpiValue(kpis, "Resolución autónoma"), meta: "autónoma" },
+    { label: "Escalamiento", value: kpiValue(kpis, "Escalados humanos"), meta: "humano" },
+    { label: "P1/P2 activos", value: kpiValue(kpis, "Críticos activos"), meta: "seguimiento" },
+  ];
+
+  return (
+    <article className="rounded-xl border border-cyan-300/14 bg-cyan-300/[0.035] px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 className="text-[12px] font-semibold uppercase tracking-[0.16em] text-cyan-100/85">KPI ITIL operativo</h2>
+        <span className="text-[11px] text-slate-500">Incidentes · Solicitudes · SLA · Escalamiento</span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3 2xl:grid-cols-6">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-lg border border-white/8 bg-slate-950/24 px-2.5 py-2">
+            <p className="text-[11px] font-medium text-slate-400">{item.label}</p>
+            <div className="mt-1 flex items-end justify-between gap-2">
+              <p className="text-xl font-semibold leading-6 text-white">{item.value}</p>
+              <p className="text-[10px] text-slate-500">{item.meta}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </article>
   );
 }
