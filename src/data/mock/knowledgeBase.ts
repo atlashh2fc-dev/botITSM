@@ -117,7 +117,7 @@ export const knowledgeBase: KnowledgeArticle[] = [
       "Otro periférico tampoco funciona en el equipo.",
       "El usuario queda sin capacidad operativa para trabajar.",
     ],
-    tags: ["mouse", "raton", "ratón", "teclado", "usb", "cable", "puerto", "enciende", "detecta", "conectado", "periferico", "periférico"],
+    tags: ["mouse", "moouse", "mause", "raton", "ratón", "teclado", "usb", "cable", "puerto", "enciende", "detecta", "conectado", "periferico", "periférico"],
   },
   {
     id: "kb-notebook-display",
@@ -854,6 +854,12 @@ function resolvePreferredArticleId(normalizedMessage: string) {
     hasAnySearchText(normalizedMessage, ["lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "quedo pegado", "queda pegado"])
   ) {
     return "kb-slow-notebook";
+  }
+
+  if (
+    hasAnySearchText(normalizedMessage, ["mouse", "raton", "ratón", "moouse", "mause", "teclado"])
+  ) {
+    return "kb-wired-peripheral";
   }
 
   return undefined;

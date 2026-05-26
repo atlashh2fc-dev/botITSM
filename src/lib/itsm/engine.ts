@@ -66,7 +66,7 @@ export function detectIntent(message: string): ITSMIntent {
     return "SOFTWARE_REQUEST";
   }
 
-  if (hasAny(text, ["notebook", "equipo", "lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "se queda pegado", "congelada", "congeladas", "pantalla", "batería", "bateria", "hardware", "mouse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
+  if (hasAny(text, ["notebook", "equipo", "lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "se queda pegado", "congelada", "congeladas", "pantalla", "batería", "bateria", "hardware", "mouse", "moouse", "mause", "mouuse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
     return "HARDWARE_ISSUE";
   }
 
@@ -81,17 +81,52 @@ export function detectTurnIntent(message: string, context?: SessionContext): ITS
   const detectedIntent = detectIntent(message);
   const text = normalize(message);
 
-  if (context?.detectedIntent && (context.activeArticleId || context.diagnostic) && isRequesterDataMessage(text)) {
-    return context.detectedIntent;
-  }
-
-  if (detectedIntent !== "INCIDENT" || !context?.detectedIntent) {
+  // Si no hay contexto anterior, usar el detectado directamente
+  if (!context?.detectedIntent) {
     return detectedIntent;
   }
 
-  const explicitIncident = hasAny(text, ["se cayo", "caida", "indisponible", "produccion", "detenido", "sistema", "aplicacion", "servicio", "barra", "windows", "inicio", "escritorio"]);
+  // Si es un saludo puro o mensaje vacío, no cambiar el anterior
+  if (isGreetingOnly(text)) {
+    return context.detectedIntent;
+  }
 
-  return explicitIncident ? detectedIntent : context.detectedIntent;
+  // Si el mensaje es una declaración de problema explícita, usar el detectado de inmediato
+  const isProblem = hasAny(text, [
+    "no funciona", "no sirve", "falla", "error", "problema", "problrma", "malo", 
+    "no responde", "no abre", "no conecta", "se cayo", "caida", "se pega", 
+    "pegado", "congelado", "lento", "lentitud", "moouse", "mouse", "mause", "mouuse",
+    "teclado", "raton", "ratón"
+  ]);
+
+  if (isProblem) {
+    return detectedIntent;
+  }
+
+  // Si el usuario está aportando datos de contacto/requeridos (nombre, correo, área),
+  // conservar el intent activo para no perder el flujo de recopilación.
+  if ((context.activeArticleId || context.diagnostic) && isRequesterDataMessage(text)) {
+    return context.detectedIntent;
+  }
+
+  // Si es un incidente de infraestructura explícito, usar el detectado
+  const explicitIncident = hasAny(text, [
+    "se cayo", "caida", "indisponible", "produccion", "detenido", "sistema", 
+    "aplicacion", "servicio", "barra", "windows", "inicio", "escritorio"
+  ]);
+
+  if (explicitIncident) {
+    return detectedIntent;
+  }
+
+  // Si la última interacción fue solo un saludo, liberar el intent de inmediato
+  const userMessages = context.messages.filter(m => m.role === "user");
+  const isFirstRealMessage = userMessages.length <= 1 || (userMessages.length === 2 && isGreetingOnly(userMessages[0].content));
+  if (isFirstRealMessage) {
+    return detectedIntent;
+  }
+
+  return context.detectedIntent;
 }
 
 export function determinePriority(message: string, intent: ITSMIntent, context?: SessionContext): ITSMPriority {
@@ -171,10 +206,10 @@ export function extractFields(message: string, context: SessionContext): Session
   const normalizedText = normalize(text);
   if (mentionsInternalDisplay(normalizedText)) {
     collected.activo = "Pantalla integrada del notebook";
-  } else if (!collected.activo && hasAny(normalizedText, ["mouse", "raton", "teclado", "monitor", "pantalla", "impresora", "equipo", "notebook", "laptop"])) {
+  } else if (!collected.activo && hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton", "teclado", "monitor", "pantalla", "impresora", "equipo", "notebook", "laptop"])) {
     const userEmail = collected.correo || "";
     if (userEmail.toLowerCase() === "lilian.leon@sonda.cl") {
-      if (hasAny(normalizedText, ["mouse", "raton"])) {
+      if (hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton"])) {
         collected.activo = "Mouse HP Cableado de Escritorio";
       } else if (hasAny(normalizedText, ["notebook", "laptop", "equipo"])) {
         collected.activo = "HP EliteBook 840 G8";
@@ -182,7 +217,7 @@ export function extractFields(message: string, context: SessionContext): Session
         collected.activo = inferAssetFromText(normalizedText);
       }
     } else if (userEmail.toLowerCase() === "francisco.martinez@sonda.cl") {
-      if (hasAny(normalizedText, ["mouse", "raton"])) {
+      if (hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton"])) {
         collected.activo = "Mouse Inalámbrico Logitech MX Master";
       } else if (hasAny(normalizedText, ["notebook", "laptop", "equipo"])) {
         collected.activo = "Lenovo ThinkPad T14";
@@ -371,7 +406,7 @@ function cleanValue(value: string) {
 }
 
 function inferAssetFromText(text: string) {
-  if (text.includes("mouse") || text.includes("raton")) return "Mouse";
+  if (text.includes("mouse") || text.includes("moouse") || text.includes("mause") || text.includes("mouuse") || text.includes("raton") || text.includes("ratón")) return "Mouse";
   if (text.includes("teclado")) return "Teclado";
   if (text.includes("monitor") || text.includes("pantalla")) return "Monitor";
   if (text.includes("impresora")) return "Impresora";
