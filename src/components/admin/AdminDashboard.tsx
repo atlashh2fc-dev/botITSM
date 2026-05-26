@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock3,
   Gauge,
+  KeyRound,
   LockKeyhole,
   MessageSquareText,
   Settings,
@@ -51,10 +52,12 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const demoUser = "admin";
+  const demoPassword = "sonda2026demo";
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (user.trim().toLowerCase() === "admin" && password === "demo") {
+    if (user.trim().toLowerCase() === demoUser && (password === demoPassword || password === "demo")) {
       setError("");
       onSuccess();
       return;
@@ -62,11 +65,18 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
     setError("Credenciales no válidas para el panel.");
   }
 
+  function enterDemo() {
+    setUser(demoUser);
+    setPassword(demoPassword);
+    setError("");
+    onSuccess();
+  }
+
   return (
     <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_20%_0%,rgba(14,165,233,0.22),transparent_34%),linear-gradient(135deg,#07111f_0%,#0f172a_48%,#111827_100%)] px-4 py-8 text-white">
       <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.07] p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
         <BrandMark variant="dark" />
-        <div className="mt-10">
+        <div className="mt-8">
           <div className="mb-5 grid size-12 place-items-center rounded-2xl bg-cyan-400/12 text-cyan-200">
             <LockKeyhole size={22} aria-hidden />
           </div>
@@ -76,7 +86,30 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
           </p>
         </div>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <div className="mt-6 rounded-2xl border border-cyan-200/20 bg-cyan-200/[0.08] p-4">
+          <div className="flex items-start gap-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-cyan-200/12 text-cyan-100">
+              <KeyRound size={17} aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">Credenciales demo</p>
+              <div className="mt-3 grid gap-2 text-sm">
+                <CredentialLine label="Usuario" value={demoUser} />
+                <CredentialLine label="Clave" value={demoPassword} />
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={enterDemo}
+            className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-cyan-100/20 bg-white/10 text-sm font-semibold text-cyan-50 transition hover:bg-white/15"
+          >
+            Ingresar como demo
+            <ChevronRight size={16} aria-hidden />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
             <label className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400" htmlFor="admin-user">
               Usuario
@@ -113,6 +146,15 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
         </form>
       </section>
     </main>
+  );
+}
+
+function CredentialLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/24 px-3 py-2">
+      <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">{label}</span>
+      <span className="font-mono text-xs font-semibold text-cyan-100">{value}</span>
+    </div>
   );
 }
 
