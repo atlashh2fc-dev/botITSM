@@ -341,11 +341,17 @@ function resolveExternalMonitorTurn(params: {
 }
 
 function resolveAsset(current: string, allUserText: string): ServiceDeskAsset | undefined {
-  if (mentionsInternalDisplay(current) || mentionsInternalDisplay(allUserText)) return "notebook_display";
-  if (current.includes("mouse") || allUserText.includes("mouse") || allUserText.includes("raton")) return "mouse";
-  if (current.includes("teclado") || allUserText.includes("teclado")) return "keyboard";
-  if (current.includes("impresora") || allUserText.includes("impresora")) return "printer";
-  if (current.includes("monitor") || allUserText.includes("monitor") || hasAnyText(current, ["pantalla externa", "segunda pantalla"])) return "external_monitor";
+  if (mentionsInternalDisplay(current)) return "notebook_display";
+  if (mentionsExternalMonitor(current)) return "external_monitor";
+  if (current.includes("mouse") || current.includes("raton")) return "mouse";
+  if (current.includes("teclado")) return "keyboard";
+  if (current.includes("impresora")) return "printer";
+
+  if (mentionsInternalDisplay(allUserText)) return "notebook_display";
+  if (mentionsExternalMonitor(allUserText)) return "external_monitor";
+  if (allUserText.includes("mouse") || allUserText.includes("raton")) return "mouse";
+  if (allUserText.includes("teclado")) return "keyboard";
+  if (allUserText.includes("impresora")) return "printer";
   if (current.includes("notebook") || current.includes("note") || current.includes("laptop")) return "notebook";
   return undefined;
 }
@@ -403,6 +409,20 @@ function mentionsInternalDisplay(text: string) {
     hasAnyText(text, ["pantalla de mi note", "pantalla del note", "pantalla de mi notebook", "pantalla del notebook", "pantalla integrada", "pantalla de laptop"]) ||
     ((text.includes("pantalla") || text.includes("display")) && hasAnyText(text, ["note", "notebook", "laptop"]))
   );
+}
+
+function mentionsExternalMonitor(text: string) {
+  return hasAnyText(text, [
+    "monitor",
+    "monitor complementario",
+    "pantalla externa",
+    "pantalla complementaria",
+    "segunda pantalla",
+    "hdmi",
+    "displayport",
+    "cable de video",
+    "vga",
+  ]);
 }
 
 function hasAnyText(value: string, terms: string[]) {

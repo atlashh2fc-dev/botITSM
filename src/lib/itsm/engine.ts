@@ -62,7 +62,7 @@ export function detectIntent(message: string): ITSMIntent {
     return "SOFTWARE_REQUEST";
   }
 
-  if (hasAny(text, ["notebook", "equipo", "lento", "pantalla", "batería", "bateria", "hardware", "mouse", "raton", "ratón", "teclado", "monitor", "impresora", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
+  if (hasAny(text, ["notebook", "equipo", "lento", "pantalla", "batería", "bateria", "hardware", "mouse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
     return "HARDWARE_ISSUE";
   }
 
