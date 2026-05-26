@@ -69,7 +69,7 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
     };
   }
 
-  if (isResolvedMessage(input.userMessage)) {
+  if (isResolvedMessage(input.userMessage) && input.sessionContext.diagnostic?.stage !== "isolate_component") {
     return {
       assistantMessage:
         "¡Excelente! Qué bueno saber que se solucionó el inconveniente con el descarte realizado. ¿Necesitas ayuda con algún otro requerimiento o podemos dar por cerrado este caso aquí?",

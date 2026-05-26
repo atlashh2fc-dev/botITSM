@@ -219,6 +219,7 @@ export function SondaAssistant() {
     setMessages((current) => [...current, optimisticMessage]);
 
     const activeContext = overrideContext ?? context;
+    const startTime = Date.now();
 
     try {
       const response = await fetch("/api/chat", {
@@ -235,6 +236,14 @@ export function SondaAssistant() {
       if (!response.ok) throw new Error("Error de red");
 
       const payload = (await response.json()) as ChatApiResponse;
+      
+      // Simular tiempo de pensamiento/procesamiento técnico humano (mínimo 1600ms)
+      const elapsedTime = Date.now() - startTime;
+      const minDelay = 1600;
+      if (elapsedTime < minDelay) {
+        await new Promise((resolve) => setTimeout(resolve, minDelay - elapsedTime));
+      }
+
       const refinedContext = refineAssistantTurn(payload.sessionContext, cleanMessage || `[Evidencia: ${activeFile?.name}]`);
       setContext(refinedContext);
       storeSessionContext(refinedContext);
@@ -861,9 +870,21 @@ function Bubble({ message }: { message: ChatMessage }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-center gap-2 pl-8 text-[13px]" style={{ color: "rgba(255, 255, 255, 0.4)" }}>
-      <Loader2 size={13} className="animate-spin" style={{ color: "#00FFFF" }} aria-hidden />
-      <span>revisando contexto...</span>
+    <div className="flex items-center gap-3 pl-8 text-[12.5px]" style={{ color: "rgba(255, 255, 255, 0.45)" }}>
+      <span className="flex gap-1.5 items-center">
+        {[0, 1, 2].map(i => (
+          <span key={i} style={{
+            width: 5,
+            height: 5,
+            borderRadius: "50%",
+            background: "#00FFFF",
+            boxShadow: "0 0 6px rgba(0, 255, 255, 0.6)",
+            animation: `sonda-dot-blink 1.4s ease-in-out ${i * 0.18}s infinite`,
+            display: "inline-block",
+          }} />
+        ))}
+      </span>
+      <span style={{ fontStyle: "italic" }}>Soporte SONDA está analizando tu caso...</span>
     </div>
   );
 }

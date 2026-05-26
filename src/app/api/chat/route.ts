@@ -155,7 +155,7 @@ export async function POST(request: Request) {
   };
   const diagnosticForTurn = llmResponse.diagnostic ?? sessionContextForEngine.diagnostic;
   const conversationTurns = sessionContextForEngine.messages.filter((m) => m.role === "user").length;
-  const isResolved = isResolvedMessage(userMessage);
+  const isResolved = isResolvedMessage(userMessage) && sessionContextForEngine.diagnostic?.stage !== "isolate_component";
 
   // ── Determinar si crear ticket ────────────────────────────────────────────
   // Además del flujo normal (shouldCreateTicket = true), registramos:
