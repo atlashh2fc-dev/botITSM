@@ -788,53 +788,25 @@ export const knowledgeBase: KnowledgeArticle[] = [
   },
 ];
 
-export type KnowledgeMatchWithScore = {
-  article: KnowledgeArticle;
-  /** Score total (tag + symptom + intent + preferred). Usado para umbrales de confianza. */
-  score: number;
-  /** Score de contenido puro (sin bonus de intención). */
-  contentScore: number;
-};
-
-/**
- * Retorna artículos ordenados por relevancia **con su score** expuesto.
- * Usar cuando se necesita evaluar confianza (ej: routing Tier 2).
- */
-export function findKnowledgeMatchesWithScore(
-  message: string,
-  intent?: ITSMIntent,
-): KnowledgeMatchWithScore[] {
+export function findKnowledgeMatches(message: string, intent?: ITSMIntent) {
   const normalizedMessage = normalizeSearchText(message);
   const preferredArticleId = resolvePreferredArticleId(normalizedMessage);
 
   return knowledgeBase
     .map((article) => {
-      const tagScore =
-        article.tags.filter((tag) =>
-          normalizedMessage.includes(normalizeSearchText(tag)),
-        ).length * 2;
+      const tagScore = article.tags.filter((tag) => normalizedMessage.includes(normalizeSearchText(tag))).length * 2;
       const symptomScore = article.symptoms.filter((symptom) =>
         normalizedMessage.includes(normalizeSearchText(symptom)),
       ).length;
-      const rawContent = tagScore + symptomScore;
+      const contentScore = tagScore + symptomScore;
+      const intentScore = contentScore > 0 && intent && article.intent === intent ? 3 : 0;
       const preferredScore = preferredArticleId === article.id ? 8 : 0;
-      const contentScore = rawContent + preferredScore;
-      const intentScore =
-        contentScore > 0 && intent && article.intent === intent ? 3 : 0;
-      const score = intentScore + contentScore;
 
-      return { article, score, contentScore };
+      return { article, contentScore: contentScore + preferredScore, score: intentScore + contentScore + preferredScore };
     })
     .filter(({ contentScore }) => contentScore > 0)
-    .sort((a, b) => b.score - a.score);
-}
-
-/**
- * Versión original: retorna solo los artículos (sin score).
- * Mantiene compatibilidad con el resto del codebase.
- */
-export function findKnowledgeMatches(message: string, intent?: ITSMIntent) {
-  return findKnowledgeMatchesWithScore(message, intent).map(({ article }) => article);
+    .sort((a, b) => b.score - a.score)
+    .map(({ article }) => article);
 }
 
 export function findKnowledgeArticleById(id: string | undefined) {

@@ -19,17 +19,11 @@ export function resolveContextualContinuation(input: ITSMResponseInput): ITSMRes
     return undefined;
   }
 
-  // Extraer historial del asistente para que los handlers puedan detectar
-  // qué pasos ya fueron propuestos y no repetirlos.
-  const assistantHistory = input.sessionContext.messages
-    .filter((m) => m.role === "assistant")
-    .map((m) => normalizeText(m.content));
-
   if (activeArticle.id === "kb-excel-wont-open") {
     return buildContinuationResponse({
       input,
       article: activeArticle,
-      message: resolveExcelFollowUp(input.userMessage, assistantHistory),
+      message: resolveExcelFollowUp(input.userMessage),
       suggestedActions: activeArticle.resolutionSteps,
     });
   }
@@ -38,7 +32,7 @@ export function resolveContextualContinuation(input: ITSMResponseInput): ITSMRes
     return buildContinuationResponse({
       input,
       article: activeArticle,
-      message: resolveTaskbarFollowUp(input.userMessage, assistantHistory),
+      message: resolveTaskbarFollowUp(input.userMessage),
       suggestedActions: activeArticle.resolutionSteps,
     });
   }
@@ -102,143 +96,45 @@ function buildContinuationResponse({
   };
 }
 
-// ─── Excel ────────────────────────────────────────────────────────────────────
-
-/**
- * Maneja el flujo multi-turno de Excel no abre.
- * Recibe el historial del asistente para detectar qué pasos ya fueron
- * propuestos y avanzar en lugar de repetirlos.
- */
-function resolveExcelFollowUp(message: string, assistantHistory: string[]): string {
+function resolveExcelFollowUp(message: string) {
   const text = normalizeText(message);
 
-  // ¿El asistente ya propuso modo seguro en algún turno anterior?
-  const safeModeAlreadyProposed = assistantHistory.some(
-    (h) => h.includes("excel /safe") || h.includes("modo seguro"),
-  );
-
-  // ¿El usuario indica que el último paso NO funcionó?
-  const userReportsFailure = hasAny(text, [
-    "no",
-    "tampoco",
-    "igual",
-    "sigue",
-    "sigue igual",
-    "no abre",
-    "no funciona",
-    "no resulto",
-    "no resultó",
-    "tampoco abre",
-    "tambien falla",
-    "también falla",
-    "vez",         // "2 vez", "otra vez"
-    "de nuevo",
-    "mismo",
-  ]);
-
-  // ── Modo seguro ya propuesto Y usuario reporta que falló ─────────────────
-  if (safeModeAlreadyProposed && userReportsFailure) {
-    return resolveAfterSafeModeFailed(text);
-  }
-
-  // ── Cómo abrir en modo seguro (usuario pregunta) ─────────────────────────
   if (hasAny(text, ["como", "cómo", "modo seguro", "safe mode", "excel /safe", "abrirlo"])) {
     return [
       "Para abrir Excel en modo seguro en Windows:",
-      "Presiona Windows + R, escribe `excel /safe` y pulsa Enter. Si Excel abre así, el problema está en un complemento; dime si abre así o también se cierra.",
+      "Presiona Windows + R, escribe `excel /safe` y pulsa Enter. Si Excel abre así, probablemente el problema está en un complemento; dime si abre en modo seguro o si también se cierra.",
     ].join("\n\n");
   }
 
-  // ── Excel se cierra al abrirlo (primera mención) ─────────────────────────
   if (hasAny(text, ["se cierra", "cierra de inmediato", "se cae", "crashea", "crash", "abre y se cierra"])) {
-    if (safeModeAlreadyProposed) {
-      return resolveAfterSafeModeFailed(text);
-    }
     return [
       "Eso apunta a un cierre al iniciar Excel.",
       "Probemos modo seguro: presiona Windows + R, escribe `excel /safe` y pulsa Enter. ¿Excel abre así o también se cierra?",
     ].join("\n\n");
   }
 
-  // ── Solo Excel (no Word ni Outlook) ─────────────────────────────────────
   if (hasAny(text, ["solo excel", "solo con excel", "solo esa app"])) {
-    if (safeModeAlreadyProposed) {
-      return resolveAfterSafeModeFailed(text);
-    }
     return [
       "Perfecto, queda acotado a Excel.",
-      "Abre Excel en modo seguro: Windows + R, escribe `excel /safe` y pulsa Enter. ¿Abre de esa forma?",
+      "Abre Excel en modo seguro con Windows + R, escribe `excel /safe` y pulsa Enter. ¿Abre de esa forma?",
     ].join("\n\n");
   }
 
-  // ── También fallan otras aplicaciones de Office ──────────────────────────
   if (hasAny(text, ["word", "outlook", "powerpoint", "tambien", "también", "todo office"])) {
     return [
-      "Si también fallan otras aplicaciones de Office, el problema no es aislado de Excel.",
-      "Reinicia el equipo y vuelve a probar. Si persiste, lo escalamos con versión de Office y mensaje de error.",
-    ].join("\n\n");
-  }
-
-  // ── Default: si modo seguro no fue propuesto, proponerlo ─────────────────
-  if (!safeModeAlreadyProposed) {
-    return [
-      "Primer descarte para Excel: modo seguro.",
-      "Presiona Windows + R, escribe `excel /safe` y pulsa Enter. ¿Excel abre así?",
-    ].join("\n\n");
-  }
-
-  // Si llegamos aquí, el modo seguro fue propuesto y la respuesta del usuario
-  // no matcheó ningún patrón de éxito → tratar como fallo y avanzar.
-  return resolveAfterSafeModeFailed(text);
-}
-
-/**
- * Siguiente paso cuando el modo seguro también falló.
- * Paso 3 del KB: reiniciar equipo + buscar mensaje de error.
- */
-function resolveAfterSafeModeFailed(text: string): string {
-  // Si el usuario menciona un mensaje de error → pedirlo
-  if (hasAny(text, ["mensaje", "error", "codigo", "código", "dice", "sale"])) {
-    return [
-      "El modo seguro también falla: el problema no es un complemento.",
-      "Anota el mensaje o código exacto que aparece al cerrarse Excel. Con ese dato lo derivamos con el contexto completo.",
-    ].join("\n\n");
-  }
-
-  // Si el usuario menciona que ya reinició
-  if (hasAny(text, ["reinicie", "reinicié", "reinicie", "ya reinicie", "ya lo reinicie"])) {
-    return [
-      "Reinicio hecho y sigue fallando. Necesito dos datos para derivarlo:",
-      "¿Qué versión de Office tienes (Office 365, 2021, 2019)? ¿Aparece algún mensaje o simplemente se cierra sin aviso?",
+      "Si también fallan otras aplicaciones de Office, ya no parece un problema aislado de Excel.",
+      "Reinicia el equipo y vuelve a probar una aplicación de Office. Si persiste, lo escalamos con versión de Office, equipo afectado y mensaje de error.",
     ].join("\n\n");
   }
 
   return [
-    "Modo seguro también falla: el problema no es un complemento dañado.",
-    "Reinicia el equipo ahora (especialmente si lleva muchas horas encendido) y vuelve a intentar. ¿Aparece algún mensaje de error al cerrarse, o se cierra sin aviso?",
+    "Sigo con el caso de Excel.",
+    "El siguiente descarte es abrirlo en modo seguro: Windows + R, escribe `excel /safe` y pulsa Enter. ¿Abre así?",
   ].join("\n\n");
 }
 
-// ─── Barra de tareas ──────────────────────────────────────────────────────────
-
-function resolveTaskbarFollowUp(message: string, assistantHistory: string[]): string {
+function resolveTaskbarFollowUp(message: string) {
   const text = normalizeText(message);
-
-  const explorerRestartAlreadyProposed = assistantHistory.some(
-    (h) => h.includes("explorador de windows") || h.includes("ctrl + shift + esc"),
-  );
-
-  const userReportsFailure = hasAny(text, [
-    "no", "tampoco", "igual", "sigue", "no aparece", "no funciona", "no responde",
-  ]);
-
-  // Si ya se propuso reiniciar el Explorador y falló → reinicio completo
-  if (explorerRestartAlreadyProposed && userReportsFailure) {
-    return [
-      "Si reiniciar el Explorador no resolvió, el siguiente paso es cerrar sesión y volver a entrar.",
-      "Si después del cierre de sesión sigue igual, corresponde reiniciar el equipo completo. ¿Puedes hacerlo ahora?",
-    ].join("\n\n");
-  }
 
   if (hasAny(text, ["como", "cómo", "explorador", "reinicio", "reiniciar"])) {
     return [
@@ -249,27 +145,18 @@ function resolveTaskbarFollowUp(message: string, assistantHistory: string[]): st
 
   if (hasAny(text, ["no aparece", "no se ve", "desaparece", "barra de abajo", "barra inferior"])) {
     return [
-      "Eso suena a barra de tareas oculta o Explorador de Windows congelado.",
+      "Eso suena a barra de tareas oculta o Explorador de Windows congelado, no a falla física de pantalla.",
       "Presiona la tecla Windows. ¿Aparece el menú Inicio o tampoco responde?",
     ].join("\n\n");
   }
 
-  if (!explorerRestartAlreadyProposed) {
-    return [
-      "Para recuperar la barra de tareas:",
-      "Presiona la tecla Windows para validar si aparece el menú Inicio. Si no responde, reiniciamos el Explorador de Windows con Ctrl + Shift + Esc.",
-    ].join("\n\n");
-  }
-
   return [
-    "Si el menú Inicio tampoco responde, el Explorador de Windows está congelado.",
-    "Presiona Ctrl + Shift + Esc, busca `Explorador de Windows` y elige Reiniciar. ¿La barra vuelve después de eso?",
+    "Sigo con la barra de tareas de Windows.",
+    "Presiona la tecla Windows para validar si aparece el menú Inicio. Si no responde, reiniciamos el Explorador de Windows.",
   ].join("\n\n");
 }
 
-// ─── Monitor externo ──────────────────────────────────────────────────────────
-
-function resolveExternalMonitorFollowUp(message: string): string {
+function resolveExternalMonitorFollowUp(message: string) {
   const text = normalizeText(message);
 
   if (hasAny(text, ["hdmi", "displayport", "dp", "vga", "cable de video"])) {
@@ -306,28 +193,14 @@ function resolveExternalMonitorFollowUp(message: string): string {
   ].join("\n\n");
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function resolveNextKnowledgeStep(article: KnowledgeArticle, context: SessionContext) {
   return article.resolutionSteps.find((step) => !context.stepsExecuted.includes(step)) ?? article.resolutionSteps[0];
 }
 
-/**
- * Detecta si el mensaje actual es una continuación de un diagnóstico activo.
- * Más permisivo que antes: reconoce negaciones cortas ("no", "tampoco")
- * cuando ya hay un artículo KB activo.
- */
 function isFollowUp(message: string, context: SessionContext) {
   if (!context.activeArticleId && context.messages.length === 0) return false;
 
   const text = normalizeText(message);
-
-  // Si hay artículo activo, una respuesta corta como "no" o "tampoco" es
-  // claramente una continuación del diagnóstico.
-  if (context.activeArticleId && isShortNegation(text)) {
-    return true;
-  }
-
   return (
     context.awaitingResolutionConfirmation ||
     hasAny(text, [
@@ -339,7 +212,6 @@ function isFollowUp(message: string, context: SessionContext) {
       "no funciona",
       "no aparece",
       "no abre",
-      "tampoco",
       "tambien",
       "también",
       "solo",
@@ -349,16 +221,8 @@ function isFollowUp(message: string, context: SessionContext) {
       "lo hice",
       "no resulto",
       "no resultó",
-      "vez",
-      "misma respuesta",
-      "mismo error",
     ])
   );
-}
-
-/** "no", "no.", "no!", "tampoco", "igual" sin contexto adicional. */
-function isShortNegation(text: string): boolean {
-  return /^(no|nop|nope|tampoco|igual|sigue igual)[.!,\s]*$/.test(text.trim());
 }
 
 function toUserInstruction(step: string) {
@@ -382,5 +246,5 @@ function hasAny(value: string, terms: string[]) {
 }
 
 function normalizeText(message: string) {
-  return message.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }

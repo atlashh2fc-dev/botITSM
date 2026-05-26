@@ -131,7 +131,7 @@ function resolvePeripheralTurn(params: {
       stage: "prepare_escalation",
       response: [
         "Perfecto, con esa prueba el equipo sí detecta el periférico.",
-        `Si el ${assetLabel(asset)} original sigue fallando después del descarte, corresponde reemplazarlo o revisar garantía. Confírmame nombre, correo y área para dejar el caso preparado.`,
+        `Si el ${assetLabel(asset)} original sigue fallando después del descarte, corresponde reemplazarlo o revisar garantía. Para dejar el caso preparado con todos los descartes, ¿podrías darme tu nombre completo, correo y área?`,
       ].join("\n\n"),
       suggestedActions: [`Playbook ${playbook.id}: preparar cierre o reemplazo`],
     };
@@ -147,7 +147,7 @@ function resolvePeripheralTurn(params: {
       stage: "prepare_escalation",
       response: [
         `Entonces el equipo y el puerto quedan operativos; el problema queda aislado al ${assetLabel(asset)} original.`,
-        "Corresponde preparar reemplazo. Confírmame tu nombre, correo y área para dejar el caso con el descarte completo.",
+        "Corresponde preparar reemplazo. ¿Me das tu nombre completo, correo y área para registrar el caso con el descarte completo?",
       ].join("\n\n"),
       suggestedActions: [`Playbook ${playbook.id}: preparar reemplazo con descarte completo`],
     };
@@ -322,7 +322,7 @@ function resolveExternalMonitorTurn(params: {
       stage: "prepare_escalation",
       response: [
         "Entendido. Con eso ya queda descartado lo básico: monitor sin luz, sin encender, y energía/cable revisados.",
-        "No sigamos repitiendo HDMI ni enchufe. Corresponde derivar para revisión o reemplazo del monitor. Confírmame nombre, correo y área para dejar el caso preparado con esos descartes.",
+        "Con esos descartes queda claro que el monitor necesita revisión técnica o reemplazo. ¿Me das tu nombre completo, correo y área para registrar el caso con todo el contexto?",
       ].join("\n\n"),
       suggestedActions: [`Playbook ${playbook.id}: derivar monitor sin energía tras descarte básico`],
     };

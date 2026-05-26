@@ -134,6 +134,35 @@ export function extractFields(message: string, context: SessionContext): Session
     collected.area = cleanValue(areaMatch[1]);
   }
 
+  // Formato libre: "Nombre Apellido, email@dominio.com, Área"
+  // Se activa cuando hay email pero faltan nombre o área.
+  // Cubre respuestas directas del usuario al pedido de datos del agente.
+  if (email && (!collected.nombre || !collected.area)) {
+    const segments = text
+      .split(/[,\n;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const emailIdx = segments.findIndex((s) => /\S+@\S+\.\S+/.test(s));
+    if (emailIdx !== -1 && segments.length >= 2) {
+      const others = segments.filter((_, i) => i !== emailIdx);
+      // El segmento que parece nombre: ≥2 palabras con mayúsculas, sin dígitos
+      const looksLikeName = (s: string) => /^[A-Za-zÁÉÍÓÚÑáéíóúñ ]{4,}$/.test(s);
+      const nameCandidate = others.find(looksLikeName);
+      const areaCandidate = others.find((s) => s !== nameCandidate && looksLikeName(s));
+      if (!collected.nombre && nameCandidate) {
+        collected.nombre = cleanValue(nameCandidate);
+      }
+      if (!collected.area && areaCandidate) {
+        collected.area = cleanValue(areaCandidate);
+      }
+      // Si solo hay un segmento adicional y ya tenemos nombre, es el área y viceversa
+      if (others.length === 1) {
+        if (!collected.nombre && looksLikeName(others[0])) collected.nombre = cleanValue(others[0]);
+        else if (!collected.area && looksLikeName(others[0])) collected.area = cleanValue(others[0]);
+      }
+    }
+  }
+
   const assetMatch = text.match(/(?:equipo|notebook|activo)\s*(?:es|:)\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9._ -]{3,})/i);
   if (assetMatch?.[1]) {
     collected.activo = cleanValue(assetMatch[1]);

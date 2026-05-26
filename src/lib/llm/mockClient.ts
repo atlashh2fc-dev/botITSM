@@ -50,7 +50,7 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
     ((shouldEscalate || serviceDeskReadyForEscalation || softwareReadyForTicket) && hasMinimumRequesterData) && !isResolvedMessage(input.userMessage);
   if (isGreetingOnly(input.userMessage)) {
     return {
-      assistantMessage: "Hola. Escríbeme qué falla y te guío con el siguiente paso.",
+      assistantMessage: "¡Hola! Soy Atlas, tu asistente de soporte TI de SONDA. Cuéntame qué está pasando y lo resolvemos juntos.",
       classification: detectedIntent,
       priority,
       requiredFields: [],
@@ -66,7 +66,7 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
   if (isResolvedMessage(input.userMessage)) {
     return {
       assistantMessage:
-        "Perfecto, lo dejo cerrado. Si vuelve a ocurrir, escríbeme el sistema afectado y el mensaje de error.",
+        "Qué bueno que se resolvió. Caso cerrado. Si vuelve a pasar, escríbeme directamente y lo retomamos.",
       classification: detectedIntent,
       priority,
       requiredFields: [],
@@ -131,8 +131,8 @@ function buildOperationalMessage({
 
     if (serviceDeskTurn?.stage === "prepare_escalation") {
       return [
-        "Perfecto. Con los descartes realizados y tus datos, voy a registrar el caso para revisión o reemplazo.",
-        "Dejo incluido el síntoma, las pruebas ya realizadas y el activo afectado para que soporte no te pida repetir lo mismo.",
+        "¡Listo! Caso registrado con todos los descartes realizados.",
+        "El equipo de soporte recibirá el síntoma, las pruebas ya ejecutadas y el activo afectado — no tendrás que repetir nada. Te contactarán a la brevedad.",
       ].join("\n\n");
     }
 
