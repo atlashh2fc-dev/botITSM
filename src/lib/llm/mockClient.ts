@@ -33,6 +33,20 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
     priority === "P1" || detectedIntent === "SECURITY_INCIDENT" || shouldCreateTicketFromMessage(input.userMessage, priority, detectedIntent);
   const shouldCreateTicket = shouldEscalate && !isResolvedMessage(input.userMessage);
 
+  if (isGreetingOnly(input.userMessage)) {
+    return {
+      assistantMessage: "Hola. ¿Qué necesitas resolver?",
+      classification: detectedIntent,
+      priority,
+      requiredFields: [],
+      suggestedActions: ["Esperar descripción del caso"],
+      operationalStatuses: ["Detectando intención"],
+      shouldCreateTicket: false,
+      shouldEscalate: false,
+      ticketDraft,
+    };
+  }
+
   if (isResolvedMessage(input.userMessage)) {
     return {
       assistantMessage:
@@ -51,6 +65,7 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
   return {
     assistantMessage: buildConciergeMessage({
       intent: detectedIntent,
+      message: input.userMessage,
       requiredFields,
       shouldCreateTicket,
     }),
@@ -69,10 +84,12 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
 
 function buildConciergeMessage({
   intent,
+  message,
   requiredFields,
   shouldCreateTicket,
 }: {
   intent: ITSMIntent;
+  message: string;
   requiredFields: string[];
   shouldCreateTicket: boolean;
 }) {
@@ -96,7 +113,7 @@ function buildConciergeMessage({
 
   const questionsByIntent: Record<ITSMIntent, string> = {
     INCIDENT: "¿Qué sistema falla y afecta solo a tu usuario o a más personas?",
-    SERVICE_REQUEST: "¿Para qué área lo necesitas y hay fecha límite?",
+    SERVICE_REQUEST: "Cuéntame qué necesitas resolver.",
     ACCESS_REQUEST: "¿A qué sistema o carpeta necesitas entrar y ya está aprobado?",
     SOFTWARE_REQUEST: "¿Qué software necesitas y en qué equipo?",
     HARDWARE_ISSUE: "¿Desde cuándo pasa y afecta todo el equipo o una app?",
@@ -107,8 +124,35 @@ function buildConciergeMessage({
 
   return [
     introByIntent[intent],
-    questionsByIntent[intent],
+    hardwareQuestion(message) ?? questionsByIntent[intent],
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function hardwareQuestion(message: string) {
+  const text = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  if (text.includes("mouse") || text.includes("raton")) {
+    return "¿Es USB o inalámbrico, y el equipo lo detecta al conectarlo?";
+  }
+
+  if (text.includes("teclado")) {
+    return "¿Es USB o inalámbrico, y falla completo o solo algunas teclas?";
+  }
+
+  if (text.includes("monitor") || text.includes("pantalla")) {
+    return "¿El monitor enciende y el cable queda bien conectado al equipo?";
+  }
+
+  if (text.includes("impresora")) {
+    return "¿La impresora aparece conectada y te muestra algún error?";
+  }
+
+  return undefined;
+}
+
+function isGreetingOnly(message: string) {
+  const text = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return /^(hola|buenas|buenos dias|buenas tardes|buenas noches|hello|hi)[.!¡! ]*$/.test(text);
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findKnowledgeMatches } from "@/data/mock/knowledgeBase";
-import { createSessionContext, detectIntent, extractFields } from "@/lib/itsm/engine";
+import { createSessionContext, detectTurnIntent, extractFields } from "@/lib/itsm/engine";
 import type { ChatMessage, SessionContext } from "@/lib/itsm/types";
 import { generateITSMResponse } from "@/lib/llm";
 import { persistChatTurn } from "@/services/chat.repository";
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   }
 
   const sessionContext = body.sessionContext ?? createSessionContext();
-  const detectedIntent = sessionContext.detectedIntent ?? detectIntent(userMessage);
+  const detectedIntent = detectTurnIntent(userMessage, sessionContext);
   const knowledgeMatches = findKnowledgeMatches(userMessage, detectedIntent);
   const llmResponse = await generateITSMResponse({
     userMessage,

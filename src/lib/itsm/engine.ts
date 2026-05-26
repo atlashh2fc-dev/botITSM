@@ -30,6 +30,10 @@ export function createSessionContext(): SessionContext {
 export function detectIntent(message: string): ITSMIntent {
   const text = normalize(message);
 
+  if (isGreetingOnly(text)) {
+    return "SERVICE_REQUEST";
+  }
+
   if (hasAny(text, ["seguridad", "phishing", "malware", "ransomware", "cuenta comprometida"])) {
     return "SECURITY_INCIDENT";
   }
@@ -50,7 +54,7 @@ export function detectIntent(message: string): ITSMIntent {
     return "SOFTWARE_REQUEST";
   }
 
-  if (hasAny(text, ["notebook", "equipo", "lento", "pantalla", "batería", "bateria", "hardware"])) {
+  if (hasAny(text, ["notebook", "equipo", "lento", "pantalla", "batería", "bateria", "hardware", "mouse", "raton", "ratón", "teclado", "monitor", "impresora", "periferico", "periférico"])) {
     return "HARDWARE_ISSUE";
   }
 
@@ -59,6 +63,19 @@ export function detectIntent(message: string): ITSMIntent {
   }
 
   return "INCIDENT";
+}
+
+export function detectTurnIntent(message: string, context?: SessionContext): ITSMIntent {
+  const detectedIntent = detectIntent(message);
+
+  if (detectedIntent !== "INCIDENT" || !context?.detectedIntent) {
+    return detectedIntent;
+  }
+
+  const text = normalize(message);
+  const explicitIncident = hasAny(text, ["se cayo", "caida", "indisponible", "produccion", "detenido", "sistema", "aplicacion", "servicio"]);
+
+  return explicitIncident ? detectedIntent : context.detectedIntent;
 }
 
 export function determinePriority(message: string, intent: ITSMIntent, context?: SessionContext): ITSMPriority {
@@ -217,6 +234,10 @@ function normalize(value: string) {
 
 function hasAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(normalize(term)));
+}
+
+function isGreetingOnly(value: string) {
+  return /^(hola|buenas|buenos dias|buenas tardes|buenas noches|hello|hi)[.!¡! ]*$/.test(value);
 }
 
 function cleanValue(value: string) {
