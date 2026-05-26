@@ -3,11 +3,12 @@ import { findKnowledgeMatches, knowledgeBase } from "@/data/mock/knowledgeBase";
 import { createSessionContext, detectTurnIntent, extractFields } from "@/lib/itsm/engine";
 import type { ChatMessage, SessionContext } from "@/lib/itsm/types";
 import { generateITSMResponse } from "@/lib/llm";
-import { persistChatTurn } from "@/services/chat.repository";
+import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 
 type ChatRequest = {
   userMessage: string;
   sessionContext?: SessionContext;
+  sessionId?: string;
 };
 
 export async function POST(request: Request) {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 });
   }
 
-  const sessionContext = body.sessionContext ?? createSessionContext();
+  const sessionContext = body.sessionContext ?? (body.sessionId ? await getPersistedSessionContext(body.sessionId) : undefined) ?? createSessionContext();
   const detectedIntent = detectTurnIntent(userMessage, sessionContext);
   const knowledgeMatches = findKnowledgeMatches(userMessage, detectedIntent);
   const llmResponse = await generateITSMResponse({

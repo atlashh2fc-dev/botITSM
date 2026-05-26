@@ -10,7 +10,12 @@ create table if not exists chat_sessions (
   id text primary key,
   channel text not null default 'web-demo',
   status text not null default 'open',
+  context jsonb not null default '{}',
+  active_article_id text,
+  detected_intent text,
+  priority text,
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   closed_at timestamptz
 );
 

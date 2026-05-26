@@ -26,14 +26,24 @@ export type Database = {
           id: string;
           channel: string;
           status: string;
+          context: Json;
+          active_article_id: string | null;
+          detected_intent: string | null;
+          priority: string | null;
           created_at: string;
+          updated_at: string;
           closed_at: string | null;
         };
         Insert: {
           id?: string;
           channel?: string;
           status?: string;
+          context?: Json;
+          active_article_id?: string | null;
+          detected_intent?: string | null;
+          priority?: string | null;
           created_at?: string;
+          updated_at?: string;
           closed_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["chat_sessions"]["Insert"]>;
