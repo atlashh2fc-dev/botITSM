@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   Minus,
   PackageCheck,
+  RotateCcw,
   Send,
   ShieldCheck,
   UserRound,
@@ -183,8 +184,23 @@ export function AtlasAssistant() {
     void sendMessage(input);
   }
 
+  function startNewChat() {
+    if (isLoading) return;
+
+    clearStoredSessionContext();
+    setContext(undefined);
+    setMessages([initialMessage]);
+    setInput("");
+    setTicket(null);
+    setStatus("listo");
+    setExpanded(true);
+  }
+
   function handleSuggestion(topic: string) {
     if (isLoading) return;
+
+    clearStoredSessionContext();
+    setContext(undefined);
 
     const assistantResponse = responseForSuggestion(topic);
     if (!assistantResponse) {
@@ -242,6 +258,17 @@ export function AtlasAssistant() {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={startNewChat}
+            disabled={isLoading}
+            title="Iniciar nuevo chat"
+            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 text-[11px] font-semibold text-slate-300 transition duration-200 hover:border-cyan-300/40 hover:bg-cyan-300/10 hover:text-cyan-50 focus:outline-none focus:ring-2 focus:ring-cyan-300/30 disabled:cursor-not-allowed disabled:opacity-45"
+            aria-label="Iniciar nuevo chat"
+          >
+            <RotateCcw size={12} aria-hidden />
+            Nuevo
+          </button>
           <button
             type="button"
             onClick={() => setExpanded((current) => !current)}
@@ -515,4 +542,9 @@ function readStoredSessionContext() {
 function storeSessionContext(sessionContext: SessionContext) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(sessionContextStorageKey, JSON.stringify(sessionContext));
+}
+
+function clearStoredSessionContext() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(sessionContextStorageKey);
 }
