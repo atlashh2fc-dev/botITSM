@@ -405,7 +405,7 @@ function AdminWorkspace() {
 
   return (
     <main className="min-h-screen bg-[#07111f] text-[12px] text-slate-100">
-      <div className="grid min-h-screen lg:grid-cols-[196px_1fr]">
+      <div className="grid min-h-screen lg:grid-cols-[230px_1fr]">
         <aside className="border-b border-white/10 bg-[#0a1525] p-3 lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
             <BrandMark compact variant="dark" />
@@ -429,12 +429,12 @@ function AdminWorkspace() {
                 key={item.label}
                 type="button"
                 onClick={() => goToSection(item.id)}
-                className={`flex h-8 items-center gap-2 rounded-lg px-2 text-[12px] font-medium transition ${
+                className={`flex w-full items-center text-left gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition ${
                   activeSection === item.id ? "bg-cyan-300/10 text-cyan-100 ring-1 ring-cyan-300/15" : "text-slate-400 hover:bg-white/[0.045] hover:text-white"
                 }`}
               >
-                <item.icon size={14} aria-hidden />
-                {item.label}
+                <item.icon size={14} className="shrink-0" aria-hidden />
+                <span className="truncate">{item.label}</span>
               </button>
             ))}
           </nav>
