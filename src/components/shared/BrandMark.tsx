@@ -1,105 +1,125 @@
 /**
- * BrandMark — Identidad visual Atlas / SONDA
- * Logo: hexágono con monograma "At" + wordmark tipográfico
+ * BrandMark — Logo oficial SONDA
+ * Wordmark SONDA® — tipografía bold, fondo negro
  */
 
-export function BrandMark({
-  compact = false,
-  variant = "light",
-  size = "md",
+/* ─── Logo SONDA® — Wordmark SVG ─────────────────────────────────── */
+export function SondaLogo({
+  width = 120,
+  inverted = false,
 }: {
-  compact?: boolean;
-  variant?: "light" | "dark";
-  size?: "sm" | "md" | "lg";
+  width?: number;
+  /** inverted=true → letras negras sobre fondo transparente (para fondos claros) */
+  inverted?: boolean;
 }) {
-  const titleClass = variant === "dark" ? "text-[#EEF2FF]" : "text-slate-900";
-  const subtitleClass = variant === "dark" ? "text-[#8DA0C4]" : "text-slate-500";
-
-  const logoSize = size === "sm" ? 28 : size === "lg" ? 44 : 36;
-  const fontSize = size === "sm" ? "text-[13px]" : size === "lg" ? "text-[17px]" : "text-[14px]";
-  const subSize = size === "sm" ? "text-[10px]" : "text-[11px]";
+  const h = Math.round(width * 0.38);
+  const textColor = inverted ? "#000000" : "#FFFFFF";
+  const bgColor   = inverted ? "transparent" : "#000000";
 
   return (
-    <div className="flex items-center gap-3">
-      {/* Hexágono SVG Atlas */}
-      <AtlasHexLogo size={logoSize} />
+    <svg
+      width={width}
+      height={h}
+      viewBox="0 0 320 100"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="SONDA"
+      role="img"
+    >
+      {bgColor !== "transparent" && (
+        <rect width="320" height="100" fill={bgColor} rx="4" />
+      )}
 
-      {!compact ? (
-        <div>
-          <p className={`${fontSize} font-bold tracking-[-0.02em] leading-tight ${titleClass}`}>
-            Atlas
-            <span className="ml-1.5 font-semibold" style={{ color: "#F59E0B" }}>·</span>
-            <span className={`ml-1 font-semibold ${titleClass} opacity-75`}>SONDA</span>
-          </p>
-          <p className={`${subSize} font-medium tracking-[0.04em] uppercase mt-0.5 ${subtitleClass}`}>
-            Soporte Inteligente ITSM
-          </p>
-        </div>
-      ) : null}
-    </div>
+      {/* Wordmark SONDA — sans-serif bold condensado */}
+      <text
+        x="14"
+        y="76"
+        fontFamily="'Arial Black', 'Arial', 'Helvetica Neue', 'Impact', sans-serif"
+        fontWeight="900"
+        fontSize="72"
+        letterSpacing="-1"
+        fill={textColor}
+        dominantBaseline="auto"
+      >
+        SONDA
+      </text>
+
+      {/* Punto registrado ® pequeño */}
+      <text
+        x="302"
+        y="36"
+        fontFamily="'Arial', 'Helvetica Neue', sans-serif"
+        fontWeight="400"
+        fontSize="22"
+        fill={textColor}
+        opacity="0.85"
+      >
+        ®
+      </text>
+    </svg>
   );
 }
 
-/**
- * Logo SVG hexagonal — Atlas
- * Hexágono con gradiente navy→blue + monograma "At"
- */
-export function AtlasHexLogo({ size = 36 }: { size?: number }) {
-  const id = "atlas-hex-grad";
+/* ─── Isotipo cuadrado pequeño para favicons / avatares ─────────────
+   Cuadrado negro con "S" blanca — versión compacta del logo          */
+export function SondaIcon({ size = 32 }: { size?: number }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 40 40"
-      fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="Atlas"
+      aria-label="SONDA"
       role="img"
     >
-      <defs>
-        <linearGradient id={`${id}-bg`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#1B3D8C" />
-          <stop offset="100%" stopColor="#0C1629" />
-        </linearGradient>
-        <linearGradient id={`${id}-amber`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#FCD34D" />
-          <stop offset="100%" stopColor="#F59E0B" />
-        </linearGradient>
-      </defs>
-
-      {/* Hexágono de fondo */}
-      <path
-        d="M20 2 L35.6 11 L35.6 29 L20 38 L4.4 29 L4.4 11 Z"
-        fill={`url(#${id}-bg)`}
-        stroke="rgba(245,158,11,0.35)"
-        strokeWidth="0.8"
-      />
-
-      {/* Línea ámbar decorativa superior */}
-      <path
-        d="M11 13.5 L29 13.5"
-        stroke={`url(#${id}-amber)`}
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        opacity="0.5"
-      />
-
-      {/* Monograma "At" */}
+      <rect width="40" height="40" rx="4" fill="#000000" />
       <text
         x="20"
-        y="27"
+        y="30"
         textAnchor="middle"
-        fontFamily="'Kumbh Sans', 'DM Sans', sans-serif"
-        fontWeight="800"
-        fontSize="14"
-        fill="#EEF2FF"
+        fontFamily="'Arial Black', 'Arial', 'Helvetica Neue', sans-serif"
+        fontWeight="900"
+        fontSize="26"
+        fill="#FFFFFF"
         letterSpacing="-0.5"
       >
-        At
+        S
       </text>
-
-      {/* Punto ámbar acento */}
-      <circle cx="26.5" cy="15.5" r="2" fill="#F59E0B" opacity="0.9" />
     </svg>
   );
+}
+
+/* ─── BrandMark compuesto: logo + tagline ────────────────────────── */
+export function BrandMark({
+  variant = "dark",
+  showTagline = true,
+}: {
+  variant?: "light" | "dark";
+  showTagline?: boolean;
+}) {
+  const isDark = variant === "dark";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <SondaLogo width={110} inverted={!isDark} />
+      {showTagline && (
+        <p style={{
+          margin: 0,
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: isDark ? "#8DA0C4" : "#605E5C",
+          fontFamily: "'Kumbh Sans', 'Segoe UI', sans-serif",
+        }}>
+          Mesa de Ayuda ITSM
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ─── Alias para compatibilidad hacia atrás ─────────────────────── */
+/** @deprecated Usa SondaLogo o SondaIcon en su lugar */
+export function AtlasHexLogo({ size = 36 }: { size?: number }) {
+  return <SondaIcon size={size} />;
 }

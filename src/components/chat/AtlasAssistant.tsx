@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Ticket } from "@/lib/itsm/types";
-import { AtlasHexLogo } from "@/components/shared/BrandMark";
+import { SondaIcon } from "@/components/shared/BrandMark";
 
 type ChatApiResponse = {
   response: ITSMResponse;
@@ -27,7 +27,7 @@ type ChatApiResponse = {
   ticket?: Ticket;
 };
 
-const sessionContextStorageKey = "atlas-active-session-context";
+const sessionContextStorageKey = "sonda-active-session-context";
 
 const smartActions = [
   {
@@ -132,7 +132,7 @@ const demoScreenshots = [
 ];
 
 const initialMessage: ChatMessage = {
-  id: "atlas-welcome",
+  id: "sonda-welcome",
   role: "assistant",
   createdAt: new Date().toISOString(),
   content: "Hola. Escríbeme qué falla y te guío con el siguiente paso.",
@@ -149,7 +149,7 @@ const statusLabels: Partial<Record<OperationalStatus, string>> = {
 
 /* ─────────────────────────────────── COMPONENTE PRINCIPAL ─────────────────────────────────── */
 
-export function AtlasAssistant() {
+export function SondaAssistant() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const storedContext = readStoredSessionContext();
     return storedContext?.messages.length ? [initialMessage, ...storedContext.messages] : [initialMessage];
@@ -311,7 +311,7 @@ export function AtlasAssistant() {
       id: "atlas-welcome-personal",
       role: "assistant",
       createdAt: new Date().toISOString(),
-      content: `Hola ${userData.nombre}. Soy Atlas, tu asistente de soporte TI de SONDA.\n\nVeo en la CMDB que perteneces al área de ${userData.area}. Escríbeme qué falla con tus equipos y lo resolvemos juntos.`,
+      content: `Hola ${userData.nombre}. Soy el asistente de soporte TI de SONDA.\n\nVeo en la CMDB que perteneces al área de ${userData.area}. Escríbeme qué falla con tus equipos y lo resolvemos juntos.`,
     };
 
     setContext(newContext);
@@ -361,8 +361,8 @@ export function AtlasAssistant() {
           boxShadow: "0 8px 32px rgba(4,8,20,0.55), 0 0 0 1px rgba(245,158,11,0.1)",
         }}
       >
-        <AtlasHexLogo size={22} />
-        Atlas
+        <SondaIcon size={22} />
+        SONDA
       </button>
     );
   }
@@ -404,15 +404,15 @@ export function AtlasAssistant() {
         }}
       >
         <div className="flex items-center gap-2.5">
-          <AtlasHexLogo size={26} />
+          <SondaIcon size={26} />
           <div>
             <h1
               className="text-[13px] font-bold leading-tight tracking-[-0.02em]"
               style={{ color: "#EEF2FF" }}
             >
-              Atlas
+              Soporte SONDA
               <span className="mx-1.5 font-normal opacity-30">·</span>
-              <span className="font-semibold opacity-60 text-[12px]">SONDA</span>
+              <span className="font-semibold opacity-60 text-[12px]">Mesa de Ayuda</span>
             </h1>
             <p className="text-[10px] font-medium" style={{ color: "#4A6091" }}>
               Soporte ITSM inteligente
@@ -763,7 +763,9 @@ function SmartActionCard({
 function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
 
-  if (message.id === "atlas-welcome" || message.id === "atlas-welcome-personal") {
+  const id = "sonda-welcome";
+  const idPersonal = "sonda-welcome-personal";
+  if (message.id === id || message.id === idPersonal || message.id === "atlas-welcome" || message.id === "atlas-welcome-personal") {
     return (
       <div
         className="max-w-[86%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-5"
@@ -788,7 +790,7 @@ function Bubble({ message }: { message: ChatMessage }) {
             background: "rgba(245,158,11,0.08)",
           }}
         >
-          <AtlasHexLogo size={14} />
+          <SondaIcon size={14} />
         </span>
       ) : null}
 
@@ -895,7 +897,7 @@ function RegisteredCase({ ticket }: { ticket: Ticket }) {
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate" style={{ color: "#EEF2FF" }}>{ticket.attachmentName}</p>
               <p className="text-[10.5px] italic mt-0.5 leading-4" style={{ color: "#8DA0C4" }}>
-                {ticket.attachmentAnalysis || "Análisis técnico completado por Atlas L2"}
+                {ticket.attachmentAnalysis || "Análisis técnico completado por soporte SONDA"}
               </p>
             </div>
           </div>
