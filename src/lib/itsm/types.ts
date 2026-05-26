@@ -112,6 +112,7 @@ export type SessionContext = {
   ticketDraft?: TicketDraft;
   stepsExecuted: string[];
   awaitingResolutionConfirmation?: boolean;
+  awaitingCloseConfirmation?: boolean;
 };
 
 export type ITSMResponseInput = {

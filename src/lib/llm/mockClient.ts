@@ -72,11 +72,11 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
   if (isResolvedMessage(input.userMessage)) {
     return {
       assistantMessage:
-        "Qué bueno que se resolvió. Caso cerrado. Si vuelve a pasar, escríbeme directamente y lo retomamos.",
+        "¡Excelente! Qué bueno saber que se solucionó el inconveniente con el descarte realizado. ¿Necesitas ayuda con algún otro requerimiento o podemos dar por cerrado este caso aquí?",
       classification: detectedIntent,
       priority,
       requiredFields: [],
-      suggestedActions: ["Registrar cierre autónomo", "Actualizar base de conocimiento si aplica"],
+      suggestedActions: ["Confirmar resolución del caso", "Registrar cierre autónomo"],
       operationalStatuses: ["Detectando intención", "Consultando base de conocimiento", "Cerrando caso"],
       shouldCreateTicket: false,
       shouldEscalate: false,

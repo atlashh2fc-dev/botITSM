@@ -340,9 +340,17 @@ function AdminWorkspace() {
   const [activeSection, setActiveSection] = useState("overview");
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "supabase" | "demo">("cargando");
+  const [showOnlyReal, setShowOnlyReal] = useState(false);
+
   const mockCases = useMemo(() => listOperationalCases(100), []);
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
-  const cases = useMemo(() => mergeOperationalCases(realCases, mockCases), [realCases, mockCases]);
+  const cases = useMemo(() => {
+    if (showOnlyReal) {
+      return realCases;
+    }
+    return mergeOperationalCases(realCases, mockCases);
+  }, [realCases, mockCases, showOnlyReal]);
+
   const kpis = useMemo(() => buildAdminKpis(cases), [cases]);
   const byDay = useMemo(() => getVolumeByDay(cases), [cases]);
   const byType = useMemo(() => groupByField(cases, "category", 7), [cases]);
@@ -356,6 +364,14 @@ function AdminWorkspace() {
   const agingBuckets = useMemo(() => getAgingBuckets(cases), [cases]);
   const sentimentBreakdown = useMemo(() => groupByField(cases, "sentiment", 5), [cases]);
   const operationalModel = useMemo(() => buildOperationalModel(cases, kpis, knowledge), [cases, kpis, knowledge]);
+
+  const incidentCases = useMemo(() => cases.filter((item) =>
+    ["INCIDENT", "NETWORK_ISSUE", "HARDWARE_ISSUE", "SECURITY_INCIDENT"].includes(item.issue_type)
+  ), [cases]);
+
+  const requestCases = useMemo(() => cases.filter((item) => ["SERVICE_REQUEST", "SOFTWARE_REQUEST"].includes(item.issue_type)), [cases]);
+
+  const accessCases = useMemo(() => cases.filter((item) => item.issue_type === "ACCESS_REQUEST"), [cases]);
 
   useEffect(() => {
     let active = true;
@@ -385,7 +401,6 @@ function AdminWorkspace() {
 
   function goToSection(id: string) {
     setActiveSection(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -400,7 +415,16 @@ function AdminWorkspace() {
             </div>
           </div>
           <nav className="mt-6 grid gap-1">
-            {navItems.map((item) => (
+            {[
+              { id: "overview", label: "Overview", icon: Activity },
+              { id: "incidents", label: "Incident Management", icon: ShieldAlert },
+              { id: "requests", label: "Request Management", icon: BarChart3 },
+              { id: "access", label: "Access Management", icon: UsersRound },
+              { id: "knowledge", label: "Knowledge Base", icon: BookOpen },
+              { id: "analytics", label: "Advanced Analytics", icon: Gauge },
+              { id: "cases", label: "Case Log", icon: Ticket },
+              { id: "configuration", label: "Governance", icon: Gauge },
+            ].map((item) => (
               <button
                 key={item.label}
                 type="button"
@@ -414,10 +438,6 @@ function AdminWorkspace() {
               </button>
             ))}
           </nav>
-          <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.035] p-2.5">
-            <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-cyan-200/80">Operating model</p>
-            <p className="mt-1.5 text-[11px] leading-4 text-slate-400">Incidents, requests, access, SLA and knowledge outcomes.</p>
-          </div>
         </aside>
 
         <section className="min-w-0">
@@ -430,98 +450,261 @@ function AdminWorkspace() {
                   Vista ejecutiva de incidentes, solicitudes, accesos, SLA, escalamiento y efectividad de conocimiento.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                <StatusBadge tone="cyan">Mercury-ready</StatusBadge>
-                <StatusBadge tone="cyan">Supabase-ready</StatusBadge>
-                <StatusBadge tone={ticketSource === "supabase" ? "green" : "amber"}>
-                  {ticketSource === "supabase" ? `${realTickets.length} tickets reales` : "tickets demo"}
-                </StatusBadge>
-                <StatusBadge tone="slate">ITIL aligned</StatusBadge>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none rounded-lg border border-cyan-300/20 bg-cyan-300/[0.07] px-2.5 py-1 text-cyan-200 transition hover:bg-cyan-300/12">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyReal}
+                    onChange={(e) => setShowOnlyReal(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-7 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-400"></div>
+                  <span className="text-[11px] font-medium tracking-tight">Solo reales (Supabase)</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <StatusBadge tone="cyan">Mercury-ready</StatusBadge>
+                  <StatusBadge tone="cyan">Supabase-ready</StatusBadge>
+                  <StatusBadge tone={ticketSource === "supabase" ? "green" : "amber"}>
+                    {ticketSource === "supabase" ? `${realTickets.length} tickets reales` : "tickets demo"}
+                  </StatusBadge>
+                  <StatusBadge tone="slate">ITIL aligned</StatusBadge>
+                </div>
               </div>
             </div>
           </header>
 
           <div className="space-y-2.5 p-3">
-            <section id="overview" className="scroll-mt-4">
-              <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                {operationalModel.executive.map((kpi) => (
-                  <ExecutiveKpiCard key={kpi.label} kpi={kpi} />
-                ))}
-              </div>
-            </section>
-
-            <section className="grid gap-2 xl:grid-cols-4">
-              <DomainCard id="incidents" title="Incident Management" metrics={operationalModel.incident} />
-              <DomainCard id="requests" title="Request Management" metrics={operationalModel.request} />
-              <DomainCard id="access" title="Access Management" metrics={operationalModel.access} />
-              <DomainCard id="knowledge" title="Knowledge Effectiveness" metrics={operationalModel.knowledge} />
-            </section>
-
-            <div id="analytics" className="scroll-mt-4 grid gap-2.5 xl:grid-cols-[1.15fr_0.85fr_0.85fr]">
-              <Panel title="Volumen por día" icon={Activity}>
-                <LineBars items={byDay} />
-              </Panel>
-              <Panel title="Prioridades" icon={ShieldAlert}>
-                <PriorityStack items={byPriority} />
-              </Panel>
-              <Panel title="Hourly demand heatmap" icon={Clock3}>
-                <Heatmap items={heatmap} />
-              </Panel>
-            </div>
-
-            <div className="grid gap-2.5 xl:grid-cols-4">
-              <Panel title="Distribution by category" icon={Gauge}>
-                <HorizontalBars items={byType} />
-              </Panel>
-              <Panel title="Incident trend" icon={BarChart3}>
-                <HorizontalBars items={topIntents} compact />
-              </Panel>
-              <Panel title="Escalation funnel" icon={UsersRound}>
-                <FunnelBars items={escalationFunnel} />
-              </Panel>
-              <Panel title="Knowledge articles used" icon={BookOpen}>
-                <KnowledgeList items={knowledge} />
-              </Panel>
-            </div>
-
-            <div className="grid gap-2.5 xl:grid-cols-3">
-              <Panel title="SLA breaches by day" icon={Clock3}>
-                <LineBars items={slaBreachesByDay} />
-              </Panel>
-              <Panel title="Aging open workload" icon={Gauge}>
-                <HorizontalBars items={agingBuckets} />
-              </Panel>
-              <Panel title="User sentiment mix" icon={UsersRound}>
-                <HorizontalBars items={sentimentBreakdown} />
-              </Panel>
-            </div>
-
-            <div id="cases" className="scroll-mt-4 grid gap-2.5 xl:grid-cols-[0.68fr_1.32fr]">
-              <Panel title="Casos escalados" icon={Ticket}>
-                <EscalatedList cases={escalated} />
-              </Panel>
-              <OperationalTable cases={cases} />
-            </div>
-
-            <section id="configuration" className="scroll-mt-4 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-[13px] font-semibold text-white">Configuration & Governance</h2>
-                  <p className="mt-1 text-[11px] text-slate-500">Modelo actual: incidentes, solicitudes, accesos, conocimiento, SLA y escalamiento.</p>
+            {showOnlyReal && cases.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-12 text-center my-10">
+                <div className="grid size-14 place-items-center rounded-2xl bg-cyan-400/10 text-cyan-200">
+                  <Ticket size={28} />
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <StatusBadge tone="cyan">ITSM taxonomy</StatusBadge>
-                  <StatusBadge tone="slate">Audit-ready</StatusBadge>
-                  <StatusBadge tone={realTickets.length ? "green" : "slate"}>
-                    {realTickets.length ? "Supabase live" : "Mock + live ready"}
-                  </StatusBadge>
-                </div>
+                <h3 className="mt-4 text-base font-semibold text-white">No hay tickets reales en Supabase</h3>
+                <p className="mt-2 max-w-sm text-slate-400">
+                  Aún no se han registrado casos reales en la base de datos de Supabase. Abre la interfaz del chatbot, inicia un caso y completa o resuelve el diagnóstico para poblar la base de datos en tiempo real.
+                </p>
               </div>
-            </section>
+            ) : (
+              <>
+                {activeSection === "overview" && (
+                  <div className="space-y-3">
+                    <section id="overview" className="scroll-mt-4">
+                      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                        {operationalModel.executive.map((kpi) => (
+                          <ExecutiveKpiCard key={kpi.label} kpi={kpi} />
+                        ))}
+                      </div>
+                    </section>
+                    <section className="grid gap-2 xl:grid-cols-4">
+                      <DomainCard id="incidents" title="Incident Management" metrics={operationalModel.incident} />
+                      <DomainCard id="requests" title="Request Management" metrics={operationalModel.request} />
+                      <DomainCard id="access" title="Access Management" metrics={operationalModel.access} />
+                      <DomainCard id="knowledge" title="Knowledge Effectiveness" metrics={operationalModel.knowledge} />
+                    </section>
+                    <div id="analytics" className="grid gap-2.5 xl:grid-cols-[1.15fr_0.85fr_0.85fr]">
+                      <Panel title="Volumen por día" icon={Activity}>
+                        <LineBars items={byDay} />
+                      </Panel>
+                      <Panel title="Prioridades" icon={ShieldAlert}>
+                        <PriorityStack items={byPriority} />
+                      </Panel>
+                      <Panel title="Hourly demand heatmap" icon={Clock3}>
+                        <Heatmap items={heatmap} />
+                      </Panel>
+                    </div>
+                  </div>
+                )}
+                {activeSection === "incidents" && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                      <h2 className="text-base font-semibold text-white">Incident Management (Gestión de Incidentes)</h2>
+                      <p className="text-slate-400 mt-1">Monitoreo técnico de fallas activas de hardware, sistemas operativos, VPN y conectividad.</p>
+                    </div>
+                    <div className="grid gap-2.5 xl:grid-cols-[1fr_3fr]">
+                      <DomainCard id="incidents-detail" title="Incident Metrics" metrics={operationalModel.incident} />
+                      <div className="grid gap-2.5">
+                        <Panel title="Tendencia de Incidentes" icon={BarChart3}>
+                          <HorizontalBars items={topIntents.filter(x => ["INCIDENT", "NETWORK_ISSUE", "HARDWARE_ISSUE"].includes(x.label))} />
+                        </Panel>
+                      </div>
+                    </div>
+                    <OperationalTable cases={incidentCases} />
+                  </div>
+                )}
+                {activeSection === "requests" && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                      <h2 className="text-base font-semibold text-white">Request Management (Gestión de Requerimientos)</h2>
+                      <p className="text-slate-400 mt-1">Seguimiento de solicitudes de instalación de software autorizado, compras de licencias y aprovisionamiento base.</p>
+                    </div>
+                    <div className="grid gap-2.5 xl:grid-cols-[1fr_3fr]">
+                      <DomainCard id="requests-detail" title="Request Metrics" metrics={operationalModel.request} />
+                      <div className="grid gap-2.5">
+                        <Panel title="Distribución de Requerimientos" icon={BarChart3}>
+                          <HorizontalBars items={topIntents.filter(x => ["SERVICE_REQUEST", "SOFTWARE_REQUEST"].includes(x.label))} />
+                        </Panel>
+                      </div>
+                    </div>
+                    <OperationalTable cases={requestCases} />
+                  </div>
+                )}
+                {activeSection === "access" && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                      <h2 className="text-base font-semibold text-white">Access Management (Gestión de Accesos e Identidades)</h2>
+                      <p className="text-slate-400 mt-1">Aprobación y provisión de accesos de red, reseteo de contraseñas, onboarding y carpetas compartidas.</p>
+                    </div>
+                    <div className="grid gap-2.5 xl:grid-cols-[1fr_3fr]">
+                      <DomainCard id="access-detail" title="Access Metrics" metrics={operationalModel.access} />
+                      <div className="grid gap-2.5">
+                        <Panel title="Distribución de Categorías" icon={Gauge}>
+                          <HorizontalBars items={byType.filter(x => ["Acceso a correo", "Permisos", "Password reset"].includes(x.label))} />
+                        </Panel>
+                      </div>
+                    </div>
+                    <OperationalTable cases={accessCases} />
+                  </div>
+                )}
+                {activeSection === "knowledge" && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                      <h2 className="text-base font-semibold text-white">Knowledge Base Effectiveness (Efectividad de Conocimiento)</h2>
+                      <p className="text-slate-400 mt-1">Efectividad en el uso de artículos L2 y desvío autónomo de casos por el bot.</p>
+                    </div>
+                    <div className="grid gap-2.5 xl:grid-cols-[1fr_3fr]">
+                      <DomainCard id="knowledge-detail" title="KB Summary" metrics={operationalModel.knowledge} />
+                      <Panel title="Artículos de Conocimiento Utilizados" icon={BookOpen}>
+                        <KnowledgeList items={knowledge} />
+                      </Panel>
+                    </div>
+                  </div>
+                )}
+                {activeSection === "analytics" && (
+                  <div className="space-y-3">
+                    <div className="grid gap-2.5 xl:grid-cols-2">
+                      <Panel title="Volumen por día" icon={Activity}>
+                        <LineBars items={byDay} />
+                      </Panel>
+                      <Panel title="Hourly demand heatmap" icon={Clock3}>
+                        <Heatmap items={heatmap} />
+                      </Panel>
+                    </div>
+                    <div className="grid gap-2.5 xl:grid-cols-3">
+                      <Panel title="Prioridades" icon={ShieldAlert}>
+                        <PriorityStack items={byPriority} />
+                      </Panel>
+                      <Panel title="SLA breaches by day" icon={Clock3}>
+                        <LineBars items={slaBreachesByDay} />
+                      </Panel>
+                      <Panel title="Aging open workload" icon={Gauge}>
+                        <HorizontalBars items={agingBuckets} />
+                      </Panel>
+                    </div>
+                    <div className="grid gap-2.5 xl:grid-cols-3">
+                      <Panel title="Distribution by category" icon={Gauge}>
+                        <HorizontalBars items={byType} />
+                      </Panel>
+                      <Panel title="Incident trend" icon={BarChart3}>
+                        <HorizontalBars items={topIntents} compact />
+                      </Panel>
+                      <Panel title="User sentiment mix" icon={UsersRound}>
+                        <HorizontalBars items={sentimentBreakdown} />
+                      </Panel>
+                    </div>
+                  </div>
+                )}
+                {activeSection === "cases" && (
+                  <div className="space-y-3">
+                    <div id="cases" className="grid gap-2.5 xl:grid-cols-[0.32fr_0.68fr]">
+                      <Panel title="Casos escalados" icon={Ticket}>
+                        <EscalatedList cases={escalated} />
+                      </Panel>
+                      <OperationalTable cases={cases} />
+                    </div>
+                  </div>
+                )}
+                {activeSection === "configuration" && (
+                  <section id="configuration" className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3.5 space-y-4">
+                    <div>
+                      <h2 className="text-base font-semibold text-white">Configuration & Governance (Gobernanza)</h2>
+                      <p className="mt-1 text-[11px] text-slate-500">Detalles de configuración de la mesa de soporte inteligente en base al modelo ITIL v4 de SONDA.</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg bg-slate-900/60 p-3 border border-white/5">
+                        <p className="text-cyan-200 font-semibold text-xs">Taxonomía</p>
+                        <p className="text-slate-400 mt-1 leading-4">Categorización inteligente automatizada con 8 intents estándar y más de 30 categorías de servicio.</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-900/60 p-3 border border-white/5">
+                        <p className="text-cyan-200 font-semibold text-xs">SLA y Prioridades</p>
+                        <p className="text-slate-400 mt-1 leading-4">Cálculo de severidad autónomo (P1 a P4) correlacionando impacto operacional y urgencia reportada por el usuario.</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-900/60 p-3 border border-white/5">
+                        <p className="text-cyan-200 font-semibold text-xs">Base de Datos</p>
+                        <p className="text-slate-400 mt-1 leading-4">Conectado en tiempo real a Supabase para auditorías operativas rápidas y analítica sin latencia.</p>
+                      </div>
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function OperationalTable({ cases }: { cases: OperationalCase[] }) {
+  return (
+    <article className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] shadow-sm shadow-black/10">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
+          <CheckCircle2 size={15} className="text-cyan-200/80" aria-hidden />
+          Lista de casos analizados
+        </h2>
+        <span className="text-[11px] text-slate-500">actualización operacional en vivo</span>
+      </div>
+      <div className="thin-scrollbar max-h-[480px] overflow-auto">
+        <table className="w-full min-w-[1040px] border-collapse text-left text-xs">
+          <thead className="sticky top-0 bg-[#0b1727] text-slate-500">
+            <tr>
+              {["Ticket ID", "Usuario", "Tipo", "Categoría", "Prioridad", "Estado", "Soporte (Asignado)", "Creado", "Duración", "Escalado", "SLA"].map(
+                (header) => (
+                  <th key={header} className="px-3 py-2.5 font-medium">
+                    {header}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/8">
+            {cases.map((item) => (
+              <tr key={item.id} className="transition hover:bg-white/[0.035]">
+                <td className="px-3 py-2.5 font-mono font-semibold text-cyan-100">{item.id}</td>
+                <td className="px-3 py-2.5 font-medium text-white">{item.user_name}</td>
+                <td className="px-3 py-2.5 text-slate-300">{item.issue_type.replaceAll("_", " ")}</td>
+                <td className="px-3 py-2.5 text-slate-300">{item.category}</td>
+                <td className="px-3 py-2.5">
+                  <StatusBadge tone={item.priority === "P1" ? "red" : item.priority === "P2" ? "amber" : "cyan"}>
+                    {item.priority}
+                  </StatusBadge>
+                </td>
+                <td className="px-3 py-2.5 text-slate-300">{item.status}</td>
+                <td className="px-3 py-2.5 text-slate-300">{item.assigned_technician}</td>
+                <td className="px-3 py-2.5 text-slate-400">{formatDate(item.created_at)}</td>
+                <td className="px-3 py-2.5 text-slate-300">{item.duration_minutes} min</td>
+                <td className="px-3 py-2.5 text-slate-300">{item.escalated ? "Sí" : "No"}</td>
+                <td className="px-3 py-2.5">
+                  <StatusBadge tone={item.duration_minutes > item.sla_minutes ? "red" : "green"}>
+                    {item.duration_minutes > item.sla_minutes ? "Breach" : "OK"}
+                  </StatusBadge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
   );
 }
 
@@ -761,59 +944,6 @@ function EscalatedList({ cases }: { cases: OperationalCase[] }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function OperationalTable({ cases }: { cases: OperationalCase[] }) {
-  return (
-    <article className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] shadow-sm shadow-black/10">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
-          <CheckCircle2 size={15} className="text-cyan-200/80" aria-hidden />
-          Últimos 100 casos
-        </h2>
-        <span className="text-[11px] text-slate-500">actualización operacional</span>
-      </div>
-      <div className="thin-scrollbar max-h-[480px] overflow-auto">
-        <table className="w-full min-w-[1040px] border-collapse text-left text-xs">
-          <thead className="sticky top-0 bg-[#0b1727] text-slate-500">
-            <tr>
-              {["Ticket ID", "Type", "Category", "Priority", "Status", "Owner", "Created", "Resolution Time", "Escalated", "SLA"].map(
-                (header) => (
-                  <th key={header} className="px-3 py-2.5 font-medium">
-                    {header}
-                  </th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/8">
-            {cases.map((item) => (
-              <tr key={item.id} className="transition hover:bg-white/[0.035]">
-                <td className="px-3 py-2.5 font-mono font-semibold text-cyan-100">{item.id}</td>
-                <td className="px-3 py-2.5 text-slate-300">{item.issue_type.replaceAll("_", " ")}</td>
-                <td className="px-3 py-2.5 text-slate-300">{item.category}</td>
-                <td className="px-3 py-2.5">
-                  <StatusBadge tone={item.priority === "P1" ? "red" : item.priority === "P2" ? "amber" : "cyan"}>
-                    {item.priority}
-                  </StatusBadge>
-                </td>
-                <td className="px-3 py-2.5 text-slate-300">{item.status}</td>
-                <td className="px-3 py-2.5 text-slate-300">{item.assigned_technician}</td>
-                <td className="px-3 py-2.5 text-slate-400">{formatDate(item.created_at)}</td>
-                <td className="px-3 py-2.5 text-slate-300">{item.duration_minutes} min</td>
-                <td className="px-3 py-2.5 text-slate-300">{item.escalated ? "Sí" : "No"}</td>
-                <td className="px-3 py-2.5">
-                  <StatusBadge tone={item.duration_minutes > item.sla_minutes ? "red" : "green"}>
-                    {item.duration_minutes > item.sla_minutes ? "Breach" : "OK"}
-                  </StatusBadge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </article>
   );
 }
 

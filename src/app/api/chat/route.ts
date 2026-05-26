@@ -40,6 +40,99 @@ export async function POST(request: Request) {
     messages: [...sessionContext.messages, userChatMessage]
   };
 
+  // ── Intercepción de Confirmación de Cierre (ITIL) ───────────────────────
+  if (sessionContext.awaitingCloseConfirmation) {
+    const textNorm = userMessage.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const isClosingConfirmation = 
+      /^(si|ciérralo|cierralo|cierra|si, ciérralo|sí, ciérralo|no, nada más|no, nada mas|no gracias|gracias|no, gracias, todo bien|podemos cerrarlo|listo|cerrar caso|cerralo)[.!,\s]*$/.test(textNorm.trim()) ||
+      /^(no|nop|nope|nada|ninguno|tampoco|igual)[.!,\s]*$/.test(textNorm.trim());
+
+    if (isClosingConfirmation) {
+      // Registrar el cierre oficial en Supabase
+      const draft = sessionContext.ticketDraft || {
+        id: `INC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
+        type: "INCIDENT" as const,
+        priority: "P3" as const,
+        category: "Cierre autónomo",
+        description: "Caso cerrado por confirmación del usuario tras aplicar descartes automáticos.",
+        status: "resolved" as const,
+        requesterName: sessionContext.collectedFields?.nombre || "Sin identificar",
+        requesterEmail: sessionContext.collectedFields?.correo || "sin-datos@sonda.cl",
+        executedSteps: ["Reinicio", "Confirmación de usuario"],
+        nextAction: "Cerrar caso",
+        assignedTeam: "Atlas IA",
+        estimatedSla: "8 horas hábiles",
+      };
+
+      const resolvedDraft = {
+        ...draft,
+        status: "resolved" as const,
+        executedSteps: draft.executedSteps || ["Reinicio", "Confirmación de usuario"],
+        nextAction: draft.nextAction || "Cerrar caso",
+        assignedTeam: draft.assignedTeam || "Atlas IA",
+        estimatedSla: draft.estimatedSla || "8 horas hábiles",
+        requesterName: draft.requesterName || sessionContext.collectedFields?.nombre || "Sin identificar",
+        requesterEmail: draft.requesterEmail || sessionContext.collectedFields?.correo || "sin-datos@sonda.cl",
+      };
+
+      const assistantChatMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "Perfecto. Procedo a registrar la solución y dar por cerrado este caso de manera autónoma en el sistema de soporte de SONDA. ¡Muchas gracias por tu confirmación y que tengas un excelente día!",
+        createdAt: new Date().toISOString(),
+        metadata: {
+          intent: resolvedDraft.type,
+          priority: resolvedDraft.priority,
+          ticketId: resolvedDraft.id,
+        },
+      };
+
+      const fullTranscript = [...sessionContextForEngine.messages, assistantChatMessage];
+
+      const itsmResult = await createTicketThroughITSM({
+        draft: resolvedDraft,
+        sessionId: sessionContextForEngine.sessionId,
+        transcript: fullTranscript,
+        diagnostic: sessionContextForEngine.diagnostic,
+        source: "web-demo",
+      });
+
+      const nextContext: SessionContext = {
+        ...sessionContextForEngine,
+        messages: fullTranscript,
+        awaitingCloseConfirmation: false,
+        ticketDraft: itsmResult?.ticket ?? resolvedDraft,
+      };
+
+      await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], "resolved");
+
+      return NextResponse.json({
+        response: {
+          assistantMessage: assistantChatMessage.content,
+          classification: resolvedDraft.type,
+          priority: resolvedDraft.priority,
+          requiredFields: [],
+          suggestedActions: ["Iniciar nueva consulta"],
+          operationalStatuses: ["Cerrando caso"],
+          shouldCreateTicket: true,
+          shouldEscalate: false,
+          ticketDraft: resolvedDraft,
+        },
+        ticket: itsmResult?.ticket ?? resolvedDraft,
+        itsm: itsmResult,
+        sessionContext: nextContext,
+      });
+    } else {
+      // El usuario reportó otro síntoma o no quiere cerrar el caso.
+      // Limpiamos el flag de confirmación de cierre y el artículo activo anterior para evitar bucles.
+      sessionContextForEngine.awaitingCloseConfirmation = false;
+      sessionContextForEngine.activeArticleId = undefined;
+      if (sessionContextForEngine.diagnostic) {
+        sessionContextForEngine.diagnostic.stage = "identify_asset";
+      }
+    }
+  }
+
   const detectedIntent = detectTurnIntent(userMessage, sessionContextForEngine);
   const knowledgeMatches = findKnowledgeMatches(userMessage, detectedIntent);
   const llmResponse = await generateITSMResponse({
@@ -122,8 +215,7 @@ export async function POST(request: Request) {
 
   // Estado de la sesión según el desenlace del turno
   const sessionOutcome: "resolved" | "escalated" | "active" =
-    isResolved ? "resolved"
-    : itsmResult ? "escalated"
+    itsmResult ? "escalated"
     : "active";
 
   const nextContext: SessionContext = {
@@ -137,6 +229,7 @@ export async function POST(request: Request) {
     ticketDraft: itsmResult?.ticket ?? llmResponse.ticketDraft,
     stepsExecuted: Array.from(new Set([...sessionContextForEngine.stepsExecuted, ...llmResponse.suggestedActions])),
     awaitingResolutionConfirmation: !llmResponse.shouldCreateTicket && !isResolved,
+    awaitingCloseConfirmation: isResolved ? true : undefined,
   };
 
   await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], sessionOutcome);
