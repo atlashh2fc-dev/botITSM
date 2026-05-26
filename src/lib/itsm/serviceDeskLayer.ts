@@ -90,7 +90,7 @@ export function resolveServiceDeskTurn(message: string, context: SessionContext 
   } else if (asset === "external_monitor") {
     turn = resolveExternalMonitorTurn({ current, allUserText, previousDiagnostic, assistantHistory, playbook, symptoms });
   } else if (asset === "mouse" || asset === "keyboard") {
-    turn = resolvePeripheralTurn({ asset, qualifier, current, assistantHistory, playbook, symptoms });
+    turn = resolvePeripheralTurn({ asset, qualifier, current, previousDiagnostic, assistantHistory, playbook, symptoms });
   } else {
     turn = {
       asset,
@@ -111,121 +111,254 @@ function resolvePeripheralTurn(params: {
   asset: ServiceDeskAsset;
   qualifier?: ServiceDeskQualifier;
   current: string;
+  previousDiagnostic?: DiagnosticContext;
   assistantHistory: string[];
   playbook: ServiceDeskPlaybook;
   symptoms: ServiceDeskSymptom[];
 }): ServiceDeskTurnCore {
-  const { asset, qualifier, current, assistantHistory, playbook, symptoms } = params;
-  const askedConnection = assistantHistory.some((content) => content.includes("usb") && content.includes("inalambrico"));
-  const askedPortTest = assistantHistory.some((content) => content.includes("otro puerto usb"));
-  const askedReplacementTest = assistantHistory.some((content) => content.includes(`otro ${assetLabel(asset)}`));
-  const askedWirelessEnergy = assistantHistory.some((content) => content.includes("bateria") && content.includes("emparejar"));
+  const { asset, qualifier, current, previousDiagnostic, playbook, symptoms } = params;
 
-  if (mentionsDetected(current) && (askedPortTest || askedReplacementTest)) {
+  const currentStage = previousDiagnostic?.stage ?? "identify_asset";
+
+  // Determinar el qualifier actual o heredado del diagnóstico previo
+  const activeQualifier = qualifier ?? (previousDiagnostic?.facts.qualifier as ServiceDeskQualifier) ?? undefined;
+
+  // 1. Si estamos en la etapa inicial o no hay calificador de conexión
+  if (currentStage === "identify_asset" && !activeQualifier) {
     return {
       asset,
-      qualifier,
+      qualifier: activeQualifier,
       symptoms,
       playbookId: playbook.id,
       knowledgeArticleId: playbook.knowledgeArticleId,
-      stage: "prepare_escalation",
-      response: [
-        "Perfecto, con esa prueba el equipo sí detecta el periférico.",
-        `Si el ${assetLabel(asset)} original sigue fallando después del descarte, corresponde reemplazarlo o revisar garantía. Para dejar el caso preparado con todos los descartes, ¿podrías darme tu nombre completo, correo y área?`,
-      ].join("\n\n"),
-      suggestedActions: [`Playbook ${playbook.id}: preparar cierre o reemplazo`],
+      stage: "qualify_connection",
+      response: playbook.firstQuestion(asset),
+      suggestedActions: [`Playbook ${playbook.id}: calificar tipo de conexión`],
     };
   }
 
-  if (mentionsReplacementWorks(current) && askedReplacementTest) {
-    return {
-      asset,
-      qualifier,
-      symptoms,
-      playbookId: playbook.id,
-      knowledgeArticleId: playbook.knowledgeArticleId,
-      stage: "prepare_escalation",
-      response: [
-        `Entonces el equipo y el puerto quedan operativos; el problema queda aislado al ${assetLabel(asset)} original.`,
-        "Corresponde preparar reemplazo. ¿Me das tu nombre completo, correo y área para registrar el caso con el descarte completo?",
-      ].join("\n\n"),
-      suggestedActions: [`Playbook ${playbook.id}: preparar reemplazo con descarte completo`],
-    };
-  }
-
-  if (mentionsNoDetection(current) && askedPortTest) {
-    return {
-      asset,
-      qualifier,
-      symptoms,
-      playbookId: playbook.id,
-      knowledgeArticleId: playbook.knowledgeArticleId,
-      stage: "isolate_component",
-      response: [
-        "Con ese resultado, el descarte apunta al periférico o al puerto USB.",
-        `Prueba otro ${assetLabel(asset)} en el mismo equipo. ¿Ese otro ${assetLabel(asset)} funciona?`,
-      ].join("\n\n"),
-      suggestedActions: [`Playbook ${playbook.id}: aislar periférico versus puerto`],
-    };
-  }
-
-  if (qualifier === "wired" && askedConnection) {
-    return {
-      asset,
-      qualifier,
-      symptoms,
-      playbookId: playbook.id,
-      knowledgeArticleId: playbook.knowledgeArticleId,
-      stage: "run_first_check",
-      response: [
-        `Perfecto, queda como ${assetLabel(asset)} cableado.`,
-        "Siguiente descarte: conéctalo directo a otro puerto USB, sin hub ni adaptador. ¿Enciende o el equipo muestra algún aviso al conectarlo?",
-      ].join("\n\n"),
-      suggestedActions: [`Playbook ${playbook.id}: probar puerto USB directo`],
-    };
-  }
-
-  if (qualifier === "wireless" && askedConnection) {
-    if (askedWirelessEnergy && mentionsNoDetection(current)) {
+  // 2. Transición desde qualify_connection (el usuario especificó el tipo de conexión)
+  if (currentStage === "qualify_connection" || !previousDiagnostic) {
+    if (activeQualifier === "wired") {
       return {
         asset,
-        qualifier,
+        qualifier: activeQualifier,
         symptoms,
         playbookId: playbook.id,
         knowledgeArticleId: playbook.knowledgeArticleId,
-        stage: "isolate_component",
+        stage: "run_first_check",
         response: [
-          "Si con batería/carga sigue igual, aislamos receptor o Bluetooth.",
-          `Conecta el receptor USB directo al notebook, sin hub, o elimina y vuelve a emparejar el ${assetLabel(asset)} por Bluetooth. Si sigue igual, prueba otro ${assetLabel(asset)} en el mismo equipo. ¿Alguna de esas pruebas lo detecta?`,
+          `Perfecto, queda como ${assetLabel(asset)} cableado.`,
+          "Siguiente descarte: conéctalo directo a otro puerto USB, sin hub ni adaptador. ¿Enciende o el equipo muestra algún aviso al conectarlo?",
         ].join("\n\n"),
-        suggestedActions: [`Playbook ${playbook.id}: aislar receptor o Bluetooth`],
+        suggestedActions: [`Playbook ${playbook.id}: probar puerto USB directo`],
+      };
+    } else if (activeQualifier === "wireless") {
+      return {
+        asset,
+        qualifier: activeQualifier,
+        symptoms,
+        playbookId: playbook.id,
+        knowledgeArticleId: playbook.knowledgeArticleId,
+        stage: "run_first_check",
+        response: [
+          `Perfecto, queda como ${assetLabel(asset)} inalámbrico.`,
+          "Primer descarte: cambia la batería o ponlo a cargar. Luego reconecta el receptor USB o vuelve a emparejar Bluetooth. ¿El equipo lo detecta después de eso?",
+        ].join("\n\n"),
+        suggestedActions: [`Playbook ${playbook.id}: validar energía y receptor inalámbrico`],
+      };
+    } else {
+      // Repetir pregunta inicial si no fue claro el tipo de conexión
+      return {
+        asset,
+        qualifier: activeQualifier,
+        symptoms,
+        playbookId: playbook.id,
+        knowledgeArticleId: playbook.knowledgeArticleId,
+        stage: "qualify_connection",
+        response: playbook.firstQuestion(asset),
+        suggestedActions: [`Playbook ${playbook.id}: calificar tipo de conexión`],
       };
     }
-
-    return {
-      asset,
-      qualifier,
-      symptoms,
-      playbookId: playbook.id,
-      knowledgeArticleId: playbook.knowledgeArticleId,
-      stage: "run_first_check",
-      response: [
-        `Perfecto, queda como ${assetLabel(asset)} inalámbrico.`,
-        "Primer descarte: cambia la batería o ponlo a cargar. Luego reconecta el receptor USB o vuelve a emparejar Bluetooth. ¿El equipo lo detecta después de eso?",
-      ].join("\n\n"),
-      suggestedActions: [`Playbook ${playbook.id}: validar energía y receptor inalámbrico`],
-    };
   }
 
+  // 3. Si estamos en run_first_check (el usuario responde al descarte del puerto/batería)
+  if (currentStage === "run_first_check") {
+    const isNegative = isNegativeResponse(current);
+    const isPositive = isPositiveResponse(current);
+
+    if (activeQualifier === "wired") {
+      if (isNegative) {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "isolate_component",
+          response: [
+            "Con ese resultado, el descarte apunta al periférico o al puerto USB.",
+            `Prueba otro ${assetLabel(asset)} en el mismo equipo. ¿Ese otro ${assetLabel(asset)} funciona?`,
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: aislar periférico versus puerto`],
+        };
+      } else if (isPositive) {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "prepare_escalation",
+          response: [
+            "Perfecto, con esa prueba el equipo sí detecta el periférico.",
+            `Si el ${assetLabel(asset)} original sigue fallando después del descarte, corresponde reemplazarlo o revisar garantía. Para dejar el caso preparado con todos los descartes, ¿podrías darme tu nombre completo, correo y área?`,
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: preparar cierre o reemplazo`],
+        };
+      } else {
+        // Fallback robusto ante respuesta no concluyente: asumimos fallo
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "isolate_component",
+          response: [
+            "Entendido. Con ese resultado, continuemos aislando el problema.",
+            `Prueba conectar otro ${assetLabel(asset)} en el mismo equipo. ¿Ese otro funciona o tampoco?`,
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: aislar periférico versus puerto`],
+        };
+      }
+    } else { // wireless
+      if (isNegative) {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "isolate_component",
+          response: [
+            "Si con batería/carga sigue igual, aislamos receptor o Bluetooth.",
+            `Conecta el receptor USB directo al notebook, sin hub, o elimina y vuelve a emparejar el ${assetLabel(asset)} por Bluetooth. Si sigue igual, prueba otro ${assetLabel(asset)} en el mismo equipo. ¿Alguna de esas pruebas lo detecta?`,
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: aislar receptor o Bluetooth`],
+        };
+      } else if (isPositive) {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "prepare_escalation",
+          response: [
+            "¡Excelente! Con el cambio de energía/batería o reconexión se ha solucionado el problema.",
+            "Para dejar constancia en la bitácora y cerrar este caso, confírmame tu nombre completo, correo y área.",
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: preparar cierre por solución inalámbrica`],
+        };
+      } else {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "isolate_component",
+          response: [
+            "Si el cambio de batería o carga no dio resultados claros, aislamos receptor o Bluetooth.",
+            `Conecta el receptor USB directo al notebook, sin hub, o elimina y vuelve a emparejar el ${assetLabel(asset)} por Bluetooth. Si sigue igual, prueba otro ${assetLabel(asset)} en el mismo equipo. ¿Alguna de esas pruebas lo detecta?`,
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: aislar receptor o Bluetooth`],
+        };
+      }
+    }
+  }
+
+  // 4. Si estamos en isolate_component (el usuario responde si el otro mouse/teclado funciona)
+  if (currentStage === "isolate_component") {
+    const isPositive = isPositiveResponse(current);
+
+    if (activeQualifier === "wired") {
+      if (isPositive || mentionsReplacementWorks(current)) {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "prepare_escalation",
+          response: [
+            `Entonces el equipo y el puerto quedan operativos; el problema queda aislado al ${assetLabel(asset)} original.`,
+            "Corresponde preparar reemplazo. ¿Me das tu nombre completo, correo y área para registrar el caso con el descarte completo?",
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: preparar reemplazo con descarte completo`],
+        };
+      } else {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "prepare_escalation",
+          response: [
+            `Si ningún ${assetLabel(asset)} funciona en ese puerto, el descarte apunta a un fallo en el puerto USB o en la placa base del equipo.`,
+            "Debemos escalar el caso a soporte en terreno. ¿Me das tu nombre completo, correo y área para registrar la solicitud con todo el detalle de las pruebas realizadas?",
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: derivar por puerto o driver fallido`],
+        };
+      }
+    } else { // wireless
+      if (isPositive || mentionsDetected(current)) {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "prepare_escalation",
+          response: [
+            "Perfecto, con esa prueba confirmamos que la conectividad o el receptor sí funcionan.",
+            `Si el ${assetLabel(asset)} original sigue fallando, corresponde gestionar su reemplazo. Para dejar el caso preparado, ¿podrías darme tu nombre completo, correo y área?`,
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: preparar cierre o reemplazo`],
+        };
+      } else {
+        return {
+          asset,
+          qualifier: activeQualifier,
+          symptoms,
+          playbookId: playbook.id,
+          knowledgeArticleId: playbook.knowledgeArticleId,
+          stage: "prepare_escalation",
+          response: [
+            `Si tampoco funciona tras los descartes, el problema está en la conectividad del equipo o el receptor Bluetooth integrado.`,
+            "Corresponde escalarlo a soporte técnico en terreno. ¿Me compartes tu nombre completo, correo y área para derivarlo de inmediato con todo el contexto?",
+          ].join("\n\n"),
+          suggestedActions: [`Playbook ${playbook.id}: derivar por falla de receptor o Bluetooth`],
+        };
+      }
+    }
+  }
+
+  // 5. Si ya estamos en prepare_escalation o posterior, se solicitan datos
   return {
     asset,
-    qualifier,
+    qualifier: activeQualifier,
     symptoms,
     playbookId: playbook.id,
     knowledgeArticleId: playbook.knowledgeArticleId,
-    stage: "qualify_connection",
-    response: playbook.firstQuestion(asset),
-    suggestedActions: [`Playbook ${playbook.id}: calificar tipo de conexión`],
+    stage: "prepare_escalation",
+    response: [
+      "¡Listo! Caso registrado con todos los descartes realizados.",
+      "El equipo de soporte recibirá el síntoma, las pruebas ya ejecutadas y el activo afectado — no tendrás que repetir nada. Te contactarán a la brevedad.",
+    ].join("\n\n"),
+    suggestedActions: [`Playbook ${playbook.id}: caso listo para derivar`],
   };
 }
 
@@ -578,4 +711,48 @@ function hasFact(diagnostic: DiagnosticContext | undefined, key: string) {
 
 function normalizeText(message: string) {
   return message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function isNegativeResponse(text: string): boolean {
+  return (
+    mentionsNoDetection(text) ||
+    hasAnyText(text, [
+      "tampoco",
+      "no enciende",
+      "no funciona",
+      "no detecta",
+      "se mantiene",
+      "problema se mantiene",
+      "sigue igual",
+      "persiste",
+      "mismo error",
+      "mismo problema",
+      "mismo resultado",
+      "no pasa nada",
+      "no hace nada",
+      "nada",
+      "no sirve",
+      "tampoco abre",
+      "tampoco funciona"
+    ])
+  );
+}
+
+function isPositiveResponse(text: string): boolean {
+  return (
+    mentionsDetected(text) ||
+    hasAnyText(text, [
+      "si",
+      "sí",
+      "funciona",
+      "ya funciona",
+      "ya sirve",
+      "sirve",
+      "solucionado",
+      "resuelto",
+      "ya puedo",
+      "sí funciona",
+      "si funciona"
+    ])
+  );
 }

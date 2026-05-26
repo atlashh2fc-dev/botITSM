@@ -91,6 +91,10 @@ export function AtlasAssistant() {
   });
   const [input, setInput] = useState("");
   const [context, setContext] = useState<SessionContext | undefined>(() => readStoredSessionContext());
+  const [selectedUserEmail, setSelectedUserEmail] = useState(() => {
+    const storedContext = readStoredSessionContext();
+    return storedContext?.collectedFields?.correo || "";
+  });
   const [status, setStatus] = useState("listo");
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -188,6 +192,46 @@ export function AtlasAssistant() {
     setExpanded(true);
   }
 
+  function handleUserChange(email: string) {
+    if (isLoading) return;
+    setSelectedUserEmail(email);
+
+    if (!email) {
+      clearStoredSessionContext();
+      setContext(undefined);
+      setMessages([initialMessage]);
+      setInput("");
+      setTicket(null);
+      setStatus("listo");
+      return;
+    }
+
+    const userData = email === "lilian.leon@sonda.cl"
+      ? { nombre: "Lilian Leon", correo: "lilian.leon@sonda.cl", area: "Operaciones" }
+      : { nombre: "Francisco Martinez", correo: "francisco.martinez@sonda.cl", area: "Soporte TI" };
+
+    const newContext: SessionContext = {
+      sessionId: `session-${crypto.randomUUID()}`,
+      collectedFields: userData,
+      messages: [],
+      stepsExecuted: [],
+    };
+
+    const greetingMsg: ChatMessage = {
+      id: "atlas-welcome-personal",
+      role: "assistant",
+      createdAt: new Date().toISOString(),
+      content: `Hola ${userData.nombre}. Soy Atlas, tu asistente de soporte TI de SONDA.\n\nVeo en la CMDB que perteneces al área de ${userData.area}. Escríbeme qué falla con tus equipos y lo resolvemos juntos.`,
+    };
+
+    setContext(newContext);
+    setMessages([greetingMsg]);
+    setInput("");
+    setTicket(null);
+    setStatus("listo");
+    storeSessionContext(newContext);
+  }
+
   function handleSuggestion(topic: string) {
     if (isLoading) return;
 
@@ -279,6 +323,24 @@ export function AtlasAssistant() {
           </button>
         </div>
       </header>
+
+      {/* Selector de Usuario POC */}
+      <div className="relative shrink-0 border-b border-white/5 bg-slate-950/20 px-3 py-1.5 flex items-center justify-between gap-2 text-[11px] z-10">
+        <div className="flex items-center gap-1.5 text-slate-400">
+          <UserRound size={12} className="text-cyan-400" aria-hidden />
+          <span>POC Sesión:</span>
+        </div>
+        <select
+          value={selectedUserEmail}
+          onChange={(e) => handleUserChange(e.target.value)}
+          disabled={isLoading}
+          className="bg-slate-950 border border-white/10 rounded-md px-1.5 py-0.5 text-slate-200 font-semibold focus:outline-none focus:border-cyan-300/50 cursor-pointer"
+        >
+          <option value="">Anónimo / Sin Identificar</option>
+          <option value="lilian.leon@sonda.cl">Lilian Leon (Operaciones)</option>
+          <option value="francisco.martinez@sonda.cl">Francisco Martinez (Soporte TI)</option>
+        </select>
+      </div>
 
       {expanded ? (
         <>

@@ -171,8 +171,27 @@ export function extractFields(message: string, context: SessionContext): Session
   const normalizedText = normalize(text);
   if (mentionsInternalDisplay(normalizedText)) {
     collected.activo = "Pantalla integrada del notebook";
-  } else if (!collected.activo && hasAny(normalizedText, ["mouse", "raton", "teclado", "monitor", "pantalla", "impresora"])) {
-    collected.activo = inferAssetFromText(normalizedText);
+  } else if (!collected.activo && hasAny(normalizedText, ["mouse", "raton", "teclado", "monitor", "pantalla", "impresora", "equipo", "notebook", "laptop"])) {
+    const userEmail = collected.correo || "";
+    if (userEmail.toLowerCase() === "lilian.leon@sonda.cl") {
+      if (hasAny(normalizedText, ["mouse", "raton"])) {
+        collected.activo = "Mouse HP Cableado de Escritorio";
+      } else if (hasAny(normalizedText, ["notebook", "laptop", "equipo"])) {
+        collected.activo = "HP EliteBook 840 G8";
+      } else {
+        collected.activo = inferAssetFromText(normalizedText);
+      }
+    } else if (userEmail.toLowerCase() === "francisco.martinez@sonda.cl") {
+      if (hasAny(normalizedText, ["mouse", "raton"])) {
+        collected.activo = "Mouse Inalámbrico Logitech MX Master";
+      } else if (hasAny(normalizedText, ["notebook", "laptop", "equipo"])) {
+        collected.activo = "Lenovo ThinkPad T14";
+      } else {
+        collected.activo = inferAssetFromText(normalizedText);
+      }
+    } else {
+      collected.activo = inferAssetFromText(normalizedText);
+    }
   }
 
   const systemMatch = text.match(/(?:sistema|aplicación|aplicacion|servicio)\s*(?:es|:)\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9._ -]{3,})/i);

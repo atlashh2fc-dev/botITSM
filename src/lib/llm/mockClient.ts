@@ -49,8 +49,14 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
   const shouldCreateTicket =
     ((shouldEscalate || serviceDeskReadyForEscalation || softwareReadyForTicket) && hasMinimumRequesterData) && !isResolvedMessage(input.userMessage);
   if (isGreetingOnly(input.userMessage)) {
+    const userName = mergedContext.collectedFields.nombre;
+    const userArea = mergedContext.collectedFields.area;
+    const greeting = userName
+      ? `¡Hola ${userName}! Soy Atlas, tu asistente de soporte TI de SONDA. Veo que estás registrado en el área de ${userArea || "Operaciones"}. ¿Qué inconveniente estás teniendo hoy?`
+      : "¡Hola! Soy Atlas, tu asistente de soporte TI de SONDA. Cuéntame qué está pasando y lo resolvemos juntos.";
+
     return {
-      assistantMessage: "¡Hola! Soy Atlas, tu asistente de soporte TI de SONDA. Cuéntame qué está pasando y lo resolvemos juntos.",
+      assistantMessage: greeting,
       classification: detectedIntent,
       priority,
       requiredFields: [],
