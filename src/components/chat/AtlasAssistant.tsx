@@ -407,30 +407,30 @@ export function SondaAssistant() {
           setClosed(false);
           setExpanded(true);
         }}
-        className="sonda-bot-launcher group relative grid h-[82px] w-[106px] place-items-center overflow-hidden rounded-[20px] p-0 transition-all duration-200"
+        className="sonda-bot-launcher group relative grid h-[58px] w-[76px] place-items-center overflow-hidden rounded-[15px] p-0 transition-all duration-200"
         style={{
           background: "rgba(20, 33, 63, 0.92)",
-          border: "1px solid rgba(120, 247, 255, 0.46)",
-          boxShadow: "0 18px 42px rgba(4, 10, 24, 0.48), 0 0 0 1px rgba(255,255,255,0.14) inset, 0 0 34px rgba(85, 244, 255, 0.34)",
-          backdropFilter: "blur(20px) saturate(1.22)",
+          border: "1px solid rgba(120, 247, 255, 0.38)",
+          boxShadow: "0 14px 30px rgba(4, 10, 24, 0.42), 0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 24px rgba(85, 244, 255, 0.24)",
+          backdropFilter: "blur(18px) saturate(1.18)",
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLElement).style.borderColor = "#55F4FF";
-          (e.currentTarget as HTMLElement).style.transform = "translateY(-5px) scale(1.035)";
-          (e.currentTarget as HTMLElement).style.boxShadow = "0 24px 54px rgba(4, 10, 24, 0.56), 0 0 0 1px rgba(255,255,255,0.18) inset, 0 0 48px rgba(85, 244, 255, 0.48)";
+          (e.currentTarget as HTMLElement).style.transform = "translateY(-4px) scale(1.04)";
+          (e.currentTarget as HTMLElement).style.boxShadow = "0 18px 38px rgba(4, 10, 24, 0.5), 0 0 0 1px rgba(255,255,255,0.16) inset, 0 0 34px rgba(85, 244, 255, 0.36)";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLElement).style.borderColor = "rgba(120, 247, 255, 0.46)";
           (e.currentTarget as HTMLElement).style.transform = "translateY(0) scale(1)";
-          (e.currentTarget as HTMLElement).style.boxShadow = "0 18px 42px rgba(4, 10, 24, 0.48), 0 0 0 1px rgba(255,255,255,0.14) inset, 0 0 34px rgba(85, 244, 255, 0.34)";
+          (e.currentTarget as HTMLElement).style.boxShadow = "0 14px 30px rgba(4, 10, 24, 0.42), 0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 24px rgba(85, 244, 255, 0.24)";
         }}
         aria-label="Abrir soporte SONDA"
         title="Abrir soporte SONDA"
       >
-        <SondaBotIcon width={106} height={82} />
+        <SondaBotIcon width={76} height={58} />
         <span
           aria-hidden
-          className="absolute -right-0.5 -top-0.5 size-3.5 rounded-full"
+          className="absolute -right-px -top-px size-3 rounded-full"
           style={{
             background: "#2FE56F",
             border: "2px solid #12213F",

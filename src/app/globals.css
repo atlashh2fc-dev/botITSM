@@ -790,7 +790,7 @@ button, input, textarea, select {
 
 @keyframes sonda-bot-float {
   0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-7px) scale(1.012); }
+  50% { transform: translateY(-4px) scale(1.008); }
 }
 
 .sonda-bot-launcher {
@@ -799,20 +799,20 @@ button, input, textarea, select {
 
 .sonda-bot-launcher::before {
   position: absolute;
-  inset: -18px;
+  inset: -12px;
   z-index: -1;
-  border-radius: 32px;
+  border-radius: 24px;
   background:
-    radial-gradient(circle at 50% 48%, rgba(85, 244, 255, 0.48), rgba(37, 99, 235, 0.22) 42%, transparent 72%);
-  opacity: 0.96;
+    radial-gradient(circle at 50% 48%, rgba(85, 244, 255, 0.38), rgba(37, 99, 235, 0.16) 42%, transparent 72%);
+  opacity: 0.9;
   content: "";
 }
 
 .sonda-bot-launcher::after {
   position: absolute;
   inset: 1px;
-  border-radius: 17px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.14), transparent 38%);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), transparent 38%);
   pointer-events: none;
   content: "";
 }
