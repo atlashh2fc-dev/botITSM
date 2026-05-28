@@ -33,10 +33,12 @@ const finderRows = [
 const dockApps = [
   { label: "Finder", className: "dock-finder" },
   { label: "Safari", className: "dock-safari" },
+  { label: "Messages", className: "dock-messages" },
   { label: "Mail", className: "dock-mail" },
   { label: "Calendar", className: "dock-calendar" },
   { label: "Terminal", className: "dock-terminal" },
   { label: "System Settings", className: "dock-settings" },
+  { label: "Trash", className: "dock-trash" },
 ];
 
 export function SupportPortal() {
@@ -139,6 +141,7 @@ export function SupportPortal() {
           <button key={app.label} className={`real-dock-icon ${app.className}`} type="button" title={app.label}>
             {app.label === "Terminal" ? <TerminalSquare size={28} aria-hidden /> : null}
             {app.label === "System Settings" ? <Settings size={28} aria-hidden /> : null}
+            {app.label === "Trash" ? <span className="trash-lines" aria-hidden /> : null}
           </button>
         ))}
       </nav>
