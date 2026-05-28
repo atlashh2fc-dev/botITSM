@@ -31,16 +31,10 @@ const finderRows = [
 
 const dockApps = [
   { label: "Finder", icon: "/dock-icons/finder.png", open: true },
-  { label: "Launchpad", icon: "/dock-icons/app-store.png" },
-  { label: "Calendar", icon: "/dock-icons/calendar.png" },
   { label: "Chrome", icon: "/dock-icons/chrome.png", open: true },
-  { label: "iCloud", icon: "/dock-icons/notes.png", open: true },
   { label: "ChatGPT", icon: "/dock-icons/chatgpt.png", open: true },
   { label: "VS Code", icon: "/dock-icons/vscode.png", open: true },
-  { label: "Disk Utility", icon: "/dock-icons/disk-utility.png", open: true },
   { label: "Safari", icon: "/dock-icons/safari.png", open: true },
-  { label: "Music", icon: "/dock-icons/music.png", open: true },
-  { label: "Claude", icon: "/dock-icons/claude.png", open: true },
   { label: "Terminal", icon: "/dock-icons/terminal.png", open: true },
 ];
 
@@ -149,12 +143,6 @@ export function SupportPortal() {
         <span className="dock-separator" aria-hidden />
         <button className="real-dock-icon dock-stack-icon" type="button" title="Aplicaciones">
           <img src="/dock-icons/applications-folder.png" alt="" aria-hidden />
-        </button>
-        <button className="real-dock-icon dock-window-thumb dock-window-chat" type="button" title="ChatGPT">
-          <span aria-hidden />
-        </button>
-        <button className="real-dock-icon dock-window-thumb dock-window-code" type="button" title="VS Code">
-          <span aria-hidden />
         </button>
         <button className="real-dock-icon dock-trash-real" type="button" title="Papelera">
           <img src="/dock-icons/trash.png" alt="" aria-hidden />

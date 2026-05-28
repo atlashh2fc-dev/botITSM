@@ -465,8 +465,10 @@ button, input, textarea, select {
 .mac-real-desktop::after {
   position: absolute;
   inset: 0;
+  z-index: 18;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(34, 39, 46, 0.34);
+  backdrop-filter: grayscale(0.22) saturate(0.78) brightness(0.76);
   content: "";
 }
 
@@ -797,11 +799,12 @@ button, input, textarea, select {
 
 .sonda-bot-launcher::before {
   position: absolute;
-  inset: -12px;
+  inset: -18px;
   z-index: -1;
-  border-radius: 26px;
-  background: radial-gradient(circle at 50% 45%, rgba(85, 244, 255, 0.24), transparent 66%);
-  opacity: 0.84;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(85, 244, 255, 0.48), rgba(37, 99, 235, 0.22) 42%, transparent 72%);
+  opacity: 0.96;
   content: "";
 }
 
@@ -1016,10 +1019,10 @@ button, input, textarea, select {
 }
 
 .mac-real-dock {
-  gap: 11px;
-  min-height: 96px;
-  padding: 13px 18px 16px;
-  border-radius: 28px;
+  gap: 8px;
+  min-height: 66px;
+  padding: 8px 12px 11px;
+  border-radius: 21px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14)),
     rgba(28, 37, 42, 0.42);
@@ -1031,16 +1034,16 @@ button, input, textarea, select {
 }
 
 .mac-real-dock::before {
-  inset: 9px 16px auto;
-  height: 34px;
+  inset: 7px 12px auto;
+  height: 23px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent);
 }
 
 .mac-real-dock .real-dock-icon {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   overflow: visible;
-  border-radius: 17px;
+  border-radius: 13px;
   background: transparent;
   box-shadow: none;
   transform-origin: 50% 100%;
@@ -1054,23 +1057,23 @@ button, input, textarea, select {
 .dock-image-icon img,
 .dock-stack-icon img,
 .dock-trash-real img {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
-  filter: drop-shadow(0 10px 11px rgba(0, 0, 0, 0.34));
+  filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.32));
 }
 
 .mac-real-dock .real-dock-icon:hover {
   filter: none;
-  transform: translateY(-14px) scale(1.18);
+  transform: translateY(-10px) scale(1.16);
 }
 
 .dock-open-dot {
   position: absolute;
   left: 50%;
-  bottom: -9px;
-  width: 5px;
-  height: 5px;
+  bottom: -7px;
+  width: 4px;
+  height: 4px;
   border-radius: 999px;
   background: rgba(245, 247, 250, 0.92);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.32);
@@ -1079,8 +1082,8 @@ button, input, textarea, select {
 
 .dock-separator {
   width: 1px;
-  height: 62px;
-  margin: 0 8px;
+  height: 46px;
+  margin: 0 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.42);
   box-shadow: 1px 0 0 rgba(15, 23, 42, 0.22);
@@ -1116,13 +1119,13 @@ button, input, textarea, select {
 }
 
 .dock-trash-real img {
-  width: 58px;
-  height: 58px;
+  width: 44px;
+  height: 44px;
 }
 
 .chat-corner-anchor {
   position: fixed;
-  z-index: 20;
+  z-index: 30;
   right: 24px;
   bottom: 104px;
   display: flex;

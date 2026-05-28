@@ -411,18 +411,18 @@ export function SondaAssistant() {
         style={{
           background: "rgba(20, 33, 63, 0.92)",
           border: "1px solid rgba(120, 247, 255, 0.46)",
-          boxShadow: "0 14px 30px rgba(10, 18, 38, 0.34), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 0 24px rgba(85, 244, 255, 0.16)",
+          boxShadow: "0 18px 42px rgba(4, 10, 24, 0.48), 0 0 0 1px rgba(255,255,255,0.14) inset, 0 0 34px rgba(85, 244, 255, 0.34)",
           backdropFilter: "blur(20px) saturate(1.22)",
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLElement).style.borderColor = "#55F4FF";
           (e.currentTarget as HTMLElement).style.transform = "translateY(-5px) scale(1.035)";
-          (e.currentTarget as HTMLElement).style.boxShadow = "0 20px 42px rgba(10, 18, 38, 0.42), 0 0 0 1px rgba(255,255,255,0.14) inset, 0 0 34px rgba(85, 244, 255, 0.28)";
+          (e.currentTarget as HTMLElement).style.boxShadow = "0 24px 54px rgba(4, 10, 24, 0.56), 0 0 0 1px rgba(255,255,255,0.18) inset, 0 0 48px rgba(85, 244, 255, 0.48)";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLElement).style.borderColor = "rgba(120, 247, 255, 0.46)";
           (e.currentTarget as HTMLElement).style.transform = "translateY(0) scale(1)";
-          (e.currentTarget as HTMLElement).style.boxShadow = "0 14px 30px rgba(10, 18, 38, 0.34), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 0 24px rgba(85, 244, 255, 0.16)";
+          (e.currentTarget as HTMLElement).style.boxShadow = "0 18px 42px rgba(4, 10, 24, 0.48), 0 0 0 1px rgba(255,255,255,0.14) inset, 0 0 34px rgba(85, 244, 255, 0.34)";
         }}
         aria-label="Abrir soporte SONDA"
         title="Abrir soporte SONDA"
