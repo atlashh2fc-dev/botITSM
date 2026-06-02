@@ -61,6 +61,42 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, "<br/>");
 }
 
+// ─── Compresor de imagen (canvas) ─────────────────────────────────────────────
+// Escala a máx 1024px y comprime a JPEG 0.75 para no superar el body limit
+
+async function compressImage(dataUrl: string, maxPx = 1024, quality = 0.75): Promise<{ base64: string; mime: string; preview: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let { width, height } = img;
+
+      if (width > maxPx || height > maxPx) {
+        if (width >= height) {
+          height = Math.round((height * maxPx) / width);
+          width = maxPx;
+        } else {
+          width = Math.round((width * maxPx) / height);
+          height = maxPx;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("No canvas context"));
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+      const [header, base64] = compressedDataUrl.split(",");
+      const mime = header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
+      resolve({ base64, mime, preview: compressedDataUrl });
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 // ─── Colores y constantes ──────────────────────────────────────────────────────
 
 const C = {
@@ -137,15 +173,20 @@ export function TecnicoCopilot() {
     ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
   };
 
-  // Procesar imagen seleccionada
+  // Procesar imagen seleccionada — comprime antes de guardar
   const handleImageFile = (file: File) => {
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
-      // Extraer base64 puro (sin el prefijo data:...)
-      const [header, base64] = dataUrl.split(",");
-      const mime = header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
-      setImageData({ base64, mime, preview: dataUrl });
+      try {
+        const compressed = await compressImage(dataUrl, 1024, 0.75);
+        setImageData(compressed);
+      } catch {
+        // Fallback sin compresión
+        const [header, base64] = dataUrl.split(",");
+        const mime = header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
+        setImageData({ base64, mime, preview: dataUrl });
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -197,29 +238,33 @@ export function TecnicoCopilot() {
           message: text,
           imageBase64: imageData?.base64,
           imageMime: imageData?.mime,
-          history: history.slice(0, -1), // excluir el que acabamos de agregar
+          history: history.slice(0, -1),
           zone,
           techRole: "tecnico terreno",
         }),
       });
 
-      const data = await res.json();
+      let content: string;
+      if (res.ok) {
+        const data = await res.json();
+        content = data.assistantMessage ?? "Sin respuesta del servidor.";
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        content = `⚠️ Error ${res.status}: ${errData.error ?? res.statusText}`;
+      }
 
-      const aiMsg: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.assistantMessage ?? "Sin respuesta del servidor.",
-        createdAt: new Date().toISOString(),
-      };
-
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant", content, createdAt: new Date().toISOString() },
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "⚠️ Error de conexión. Verifica tu red e intenta nuevamente.",
+          content: `⚠️ No se pudo conectar con el servidor: ${msg}`,
           createdAt: new Date().toISOString(),
         },
       ]);

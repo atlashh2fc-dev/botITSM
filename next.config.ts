@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root,
   },
+  // Aumentar límite de body para imágenes enviadas por técnicos en terreno
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
 };
 
 export default nextConfig;
