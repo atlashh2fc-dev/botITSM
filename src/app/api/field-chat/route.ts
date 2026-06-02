@@ -1,11 +1,11 @@
 /**
  * /api/field-chat — Copiloto Técnico en Terreno
+ * Modo triage: respuestas cortas, pide evidencia, descarta rápido.
  */
 
 import { NextResponse } from "next/server";
 import { knowledgeBase } from "@/data/mock/knowledgeBase";
 
-// Aumentar body limit para imágenes (Next.js App Router)
 export const maxDuration = 30;
 
 type FieldChatRequest = {
@@ -17,45 +17,48 @@ type FieldChatRequest = {
   techRole?: string;
 };
 
-// ─── System prompt compacto (KB resumida, no completa) ────────────────────────
-// Mandamos solo un resumen de tags + título para no exceder el contexto de Mercury
+// ─── KB relevante al mensaje (top 3, compacto) ────────────────────────────────
 
-function buildFieldSystemPrompt(userMessage: string): string {
-  // Buscar artículos relevantes por keywords del mensaje
-  const words = userMessage.toLowerCase().split(/\s+/);
+function getRelevantKB(userMessage: string): string {
+  const words = userMessage.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+  if (!words.length) return "";
+
   const scored = knowledgeBase.map((a) => {
     const allText = [a.title, ...a.symptoms, ...(a.tags ?? [])].join(" ").toLowerCase();
-    const score = words.filter((w) => w.length > 3 && allText.includes(w)).length;
+    const score = words.filter((w) => allText.includes(w)).length;
     return { a, score };
-  });
+  }).filter(({ score }) => score > 0).sort((x, y) => y.score - x.score).slice(0, 3);
 
-  // Top 4 artículos más relevantes (o los 4 primeros si no hay match)
-  const topArticles = scored
-    .sort((x, y) => y.score - x.score)
-    .slice(0, 4)
-    .map(({ a }) =>
-      `### ${a.title}
-Síntomas: ${a.symptoms.slice(0, 3).join(" | ")}
-Pasos: ${a.resolutionSteps.map((s, i) => `${i + 1}. ${s}`).join(" | ")}
-Escalar si: ${a.escalationCriteria.slice(0, 2).join(" | ")}`
-    )
-    .join("\n\n");
+  if (!scored.length) return "";
 
-  return `Eres el Copiloto Técnico IA de SONDA. Ayudas a técnicos en terreno a diagnosticar y resolver fallas de TI.
-Sé conciso, práctico y directo. Responde en máximo 250 palabras.
-Usa **negrita** para puntos clave y listas numeradas para pasos.
-Termina siempre con "🔴 Escalar si:" y los criterios aplicables.
+  return "\n## Procedimientos SONDA aplicables:\n" + scored.map(({ a }) =>
+    `**${a.title}**: ${a.resolutionSteps.slice(0, 3).map((s, i) => `${i + 1}) ${s}`).join(" → ")}. Escalar si: ${a.escalationCriteria[0]}.`
+  ).join("\n");
+}
 
-## Procedimientos SONDA relevantes:
-${topArticles || "Aplica criterio técnico general."}`;
+// ─── System prompt — modo triage ─────────────────────────────────────────────
+
+function buildSystemPrompt(userMessage: string, hasImage: boolean): string {
+  const kb = getRelevantKB(userMessage);
+
+  return `Eres el Copiloto Técnico de SONDA. Ayudas a técnicos en terreno con fallas de TI.
+
+REGLAS ESTRICTAS:
+- Máximo 120 palabras por respuesta.
+- NUNCA respondas genérico. Si no tienes suficiente info, haz UNA pregunta específica.
+- Primero descarta lo obvio (reinicio, cable, energía) ANTES de dar diagnóstico completo.
+- Si el técnico no ha dado evidencia concreta (código de error, qué intentó, modelo del equipo), PÍDELA.
+- Formato: causa probable en 1 línea → 2-3 pasos de descarte → "🔴 Escalar si: [criterio]".
+- Si hay foto adjunta, basate en lo visual antes de preguntar.${hasImage ? "\n- El técnico adjuntó una foto. Analízala y comenta lo que ves antes de preguntar." : ""}
+${kb}`;
 }
 
 // ─── Claude con visión ────────────────────────────────────────────────────────
 
-async function callClaudeWithVision(
+async function callClaude(
   userMessage: string,
-  imageBase64: string,
-  imageMime: string,
+  imageBase64: string | undefined,
+  imageMime: string | undefined,
   history: Array<{ role: "user" | "assistant"; content: string }>,
   systemPrompt: string
 ): Promise<string> {
@@ -63,27 +66,24 @@ async function callClaudeWithVision(
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentContent: any[] = [
-    {
+  const currentContent: any[] = [];
+  if (imageBase64) {
+    currentContent.push({
       type: "image",
-      source: {
-        type: "base64",
-        media_type: imageMime as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-        data: imageBase64,
-      },
-    },
-    { type: "text", text: userMessage || "Analiza esta imagen de la falla y entrega diagnóstico." },
-  ];
+      source: { type: "base64", media_type: (imageMime ?? "image/jpeg") as "image/jpeg", data: imageBase64 },
+    });
+  }
+  currentContent.push({ type: "text", text: userMessage || "Analiza la falla de la imagen." });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const messages: any[] = [
-    ...history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+    ...history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
     { role: "user", content: currentContent },
   ];
 
   const response = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
-    max_tokens: 800,
+    max_tokens: 350,
     system: systemPrompt,
     messages,
   });
@@ -92,7 +92,7 @@ async function callClaudeWithVision(
   return text?.type === "text" ? text.text.trim() : "No se pudo generar diagnóstico.";
 }
 
-// ─── Mercury (sin visión) ─────────────────────────────────────────────────────
+// ─── Mercury ──────────────────────────────────────────────────────────────────
 
 async function callMercury(
   userMessage: string,
@@ -101,29 +101,20 @@ async function callMercury(
   systemPrompt: string
 ): Promise<string> {
   const baseUrl = (process.env.MERCURY_BASE_URL ?? "").replace(/\/$/, "");
-
   const userContent = hasImage
-    ? `[El técnico adjuntó una fotografía de la falla]\n\n${userMessage || "Diagnostica la falla de la imagen."}`
+    ? `[Foto adjunta de la falla]\n${userMessage || "Diagnostica."}`
     : userMessage;
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...history.slice(-6),
+    ...history.slice(-10),
     { role: "user", content: userContent },
   ];
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.MERCURY_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: process.env.MERCURY_MODEL ?? "mercury-2",
-      messages,
-      max_tokens: 600,
-      temperature: 0.3,
-    }),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.MERCURY_API_KEY}` },
+    body: JSON.stringify({ model: process.env.MERCURY_MODEL ?? "mercury-2", messages, max_tokens: 350, temperature: 0.2 }),
     signal: AbortSignal.timeout(20000),
   });
 
@@ -133,7 +124,7 @@ async function callMercury(
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content?.trim() ?? "Sin respuesta del modelo.";
+  return data.choices?.[0]?.message?.content?.trim() ?? "Sin respuesta.";
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -147,43 +138,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Mensaje o imagen requeridos" }, { status: 400 });
     }
 
-    const contextPrefix = [
-      zone ? `[Zona: ${zone}]` : null,
-      techRole ? `[Rol: ${techRole}]` : null,
-    ].filter(Boolean).join(" ");
-
+    const contextPrefix = [zone && `[Zona: ${zone}]`, techRole && `[Rol: ${techRole}]`].filter(Boolean).join(" ");
     const enrichedMessage = contextPrefix ? `${contextPrefix}\n${message}` : message;
-    const systemPrompt = buildFieldSystemPrompt(message);
+    const systemPrompt = buildSystemPrompt(message, Boolean(imageBase64));
 
     let assistantMessage: string;
 
     if (imageBase64 && process.env.ANTHROPIC_API_KEY) {
-      assistantMessage = await callClaudeWithVision(
-        enrichedMessage,
-        imageBase64,
-        imageMime ?? "image/jpeg",
-        history,
-        systemPrompt
-      );
+      assistantMessage = await callClaude(enrichedMessage, imageBase64, imageMime, history, systemPrompt);
     } else if (process.env.MERCURY_API_KEY && process.env.MERCURY_BASE_URL) {
-      assistantMessage = await callMercury(
-        enrichedMessage,
-        Boolean(imageBase64),
-        history,
-        systemPrompt
-      );
+      assistantMessage = await callMercury(enrichedMessage, Boolean(imageBase64), history, systemPrompt);
     } else {
-      assistantMessage =
-        "**Copiloto en modo demo** — configura `ANTHROPIC_API_KEY` o `MERCURY_API_KEY` para activar el diagnóstico IA.\n\n🔴 **Escalar si:** no hay motor IA disponible.";
+      assistantMessage = "**Modo demo** — configura `ANTHROPIC_API_KEY` o `MERCURY_API_KEY`.\n\n🔴 **Escalar si:** no hay motor IA.";
     }
 
     return NextResponse.json({ assistantMessage });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[field-chat] Error:", msg);
-    return NextResponse.json(
-      { error: `Error del servidor: ${msg.slice(0, 300)}` },
-      { status: 500 }
-    );
+    console.error("[field-chat]", msg);
+    return NextResponse.json({ error: `Error: ${msg.slice(0, 300)}` }, { status: 500 });
   }
 }
