@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Monitor, Wrench } from "lucide-react";
+import { Monitor, Wrench, LayoutDashboard } from "lucide-react";
 import { SondaLogo } from "@/components/shared/BrandMark";
 
 export default function LandingPage() {
@@ -159,6 +159,29 @@ export default function LandingPage() {
           </span>
         </button>
       </div>
+
+      {/* Dashboard link */}
+      <button
+        onClick={() => router.push("/dashboard")}
+        style={{
+          background: "none",
+          border: "1px solid #1E2E3D",
+          borderRadius: 8,
+          padding: "8px 18px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          color: "#4B6A9B",
+          fontSize: 13,
+          transition: "all 0.15s ease",
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#F59E0B"; (e.currentTarget as HTMLButtonElement).style.color = "#F59E0B"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1E2E3D"; (e.currentTarget as HTMLButtonElement).style.color = "#4B6A9B"; }}
+      >
+        <LayoutDashboard size={14} />
+        Dashboard Admin
+      </button>
 
       <p style={{ color: "#1E2E3D", fontSize: 12, margin: 0, textAlign: "center" }}>
         SONDA IA Platform · Demo Interna
