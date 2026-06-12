@@ -246,6 +246,16 @@ export function SondaAssistant() {
   const hasConversation = useMemo(() => messages.length > 1, [messages.length]);
   const canUseChat = !requireITSMLogin || identityStatus === "authenticated";
 
+  useEffect(() => {
+    if (closed || !expanded || !canUseChat || isLoading) return;
+
+    const frame = requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [closed, expanded, canUseChat, isLoading, messages.length]);
+
   function openAssistant() {
     setClosed(false);
     setExpanded(true);
