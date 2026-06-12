@@ -231,7 +231,26 @@ export function SondaAssistant() {
 
   useEffect(() => {
     if (messages.length <= 1 && !ticket && !isLoading) return;
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const frame = requestAnimationFrame(() => {
+      if (isLoading) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+        return;
+      }
+
+      const latestAssistant = [...container.querySelectorAll<HTMLElement>('[data-chat-role="assistant"]')].at(-1);
+      if (!latestAssistant) return;
+
+      container.scrollTo({
+        top: Math.max(0, latestAssistant.offsetTop - 8),
+        behavior: "smooth",
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, [messages, ticket, isLoading, expanded]);
 
   useEffect(() => {
@@ -662,7 +681,9 @@ export function SondaAssistant() {
           <div ref={scrollRef} className="thin-scrollbar relative min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5">
             <div className="space-y-3.5">
               {messages.map((message) => (
-                <Bubble key={message.id} message={message} onReply={(reply) => sendMessage(reply)} />
+                <div key={message.id} data-chat-role={message.role}>
+                  <Bubble message={message} onReply={(reply) => sendMessage(reply)} />
+                </div>
               ))}
 
               {!hasConversation ? (
