@@ -28,6 +28,7 @@ type ChatApiResponse = {
 };
 
 const sessionContextStorageKey = "sonda-active-session-context";
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const smartActions = [
   {
@@ -232,6 +233,7 @@ export function SondaAssistant() {
     setMessages((current) => [...clearSuggestedRepliesFromMessages(current), optimisticMessage]);
 
     const activeContext = removeSuggestedRepliesFromContext(overrideContext ?? context);
+    const knownEmail = normalizeEmail(selectedUserEmail || activeContext?.collectedFields?.correo || "");
 
     try {
       const response = await withMinimumDelay(fetch("/api/chat", {
@@ -242,6 +244,7 @@ export function SondaAssistant() {
           sessionContext: activeContext,
           attachmentName: activeFile?.name,
           attachmentUrl: activeFile?.url,
+          userEmail: knownEmail || undefined,
         }),
       }));
 
@@ -284,20 +287,16 @@ export function SondaAssistant() {
   function startNewChat() {
     if (isLoading) return;
     
-    if (!selectedUserEmail) {
+    const email = normalizeEmail(selectedUserEmail);
+
+    if (!email) {
       clearStoredSessionContext();
       setContext(undefined);
       setMessages([initialMessage]);
     } else {
-      const email = selectedUserEmail;
-      const userData =
-        email === "lilian.leon@sonda.cl"
-          ? { nombre: "Lilian Leon", correo: "lilian.leon@sonda.cl", area: "Operaciones" }
-          : { nombre: "Francisco Martinez", correo: "francisco.martinez@sonda.cl", area: "Soporte TI" };
-
       const newContext: SessionContext = {
         sessionId: `session-${crypto.randomUUID()}`,
-        collectedFields: userData,
+        collectedFields: { correo: email },
         messages: [],
         stepsExecuted: [],
       };
@@ -306,7 +305,7 @@ export function SondaAssistant() {
         id: "sonda-welcome-personal",
         role: "assistant",
         createdAt: new Date().toISOString(),
-        content: `Hola ${userData.nombre}. Soy el asistente de soporte TI de SONDA.\n\nVeo en la CMDB que perteneces al área de ${userData.area}. Escríbeme qué falla con tus equipos y lo resolvemos juntos.`,
+        content: `Perfecto, trabajaré con el correo ${email}.\n\nSi ya tienes usuario en ITSM, consultaré tus tickets a tu nombre. Si no existe todavía, lo crearé automáticamente al registrar el primer caso.`,
       };
 
       setContext(newContext);
@@ -324,9 +323,10 @@ export function SondaAssistant() {
 
   function handleUserChange(email: string) {
     if (isLoading) return;
-    setSelectedUserEmail(email);
+    const normalizedEmail = normalizeEmail(email);
+    setSelectedUserEmail(normalizedEmail);
 
-    if (!email) {
+    if (!normalizedEmail) {
       clearStoredSessionContext();
       setContext(undefined);
       setMessages([initialMessage]);
@@ -338,14 +338,9 @@ export function SondaAssistant() {
       return;
     }
 
-    const userData =
-      email === "lilian.leon@sonda.cl"
-        ? { nombre: "Lilian Leon", correo: "lilian.leon@sonda.cl", area: "Operaciones" }
-        : { nombre: "Francisco Martinez", correo: "francisco.martinez@sonda.cl", area: "Soporte TI" };
-
     const newContext: SessionContext = {
       sessionId: `session-${crypto.randomUUID()}`,
-      collectedFields: userData,
+      collectedFields: { correo: normalizedEmail },
       messages: [],
       stepsExecuted: [],
     };
@@ -354,7 +349,7 @@ export function SondaAssistant() {
       id: "sonda-welcome-personal",
       role: "assistant",
       createdAt: new Date().toISOString(),
-      content: `Hola ${userData.nombre}. Soy el asistente de soporte TI de SONDA.\n\nVeo en la CMDB que perteneces al área de ${userData.area}. Escríbeme qué falla con tus equipos y lo resolvemos juntos.`,
+      content: `Perfecto, trabajaré con el correo ${normalizedEmail}.\n\nPuedo revisar tus tickets actuales o registrar uno nuevo en ITSM Geimser.`,
     };
 
     setContext(newContext);
@@ -365,6 +360,13 @@ export function SondaAssistant() {
     setShowAttachmentMenu(false);
     setStatus("en línea");
     storeSessionContext(newContext);
+  }
+
+  function handleUserEmailBlur() {
+    const email = normalizeEmail(selectedUserEmail);
+    if (!email || !emailPattern.test(email)) return;
+    if (context?.collectedFields?.correo?.toLowerCase() === email) return;
+    handleUserChange(email);
   }
 
   function handleSuggestion(topic: string) {
@@ -543,30 +545,36 @@ export function SondaAssistant() {
         </div>
       </header>
 
-      {/* ── Selector POC demo ── */}
+      {/* ── Identidad omnicanal ── */}
       <div
         className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-3.5 py-2 text-[11px]"
         style={{ background: "rgba(2, 6, 23, 0.38)", borderBottom: "1px solid rgba(148, 163, 184, 0.1)" }}
       >
-        <div className="flex items-center gap-1.5" style={{ color: "rgba(203, 213, 225, 0.62)" }}>
+        <label htmlFor="itsm-user-email" className="flex shrink-0 items-center gap-1.5" style={{ color: "rgba(203, 213, 225, 0.62)" }}>
           <UserRound size={12} style={{ color: "#55F4FF" }} aria-hidden />
-          <span>Usuario</span>
-        </div>
-        <select
+          <span>Correo</span>
+        </label>
+        <input
+          id="itsm-user-email"
+          type="email"
           value={selectedUserEmail}
-          onChange={(e) => handleUserChange(e.target.value)}
+          onChange={(e) => setSelectedUserEmail(e.target.value)}
+          onBlur={handleUserEmailBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleUserEmailBlur();
+            }
+          }}
           disabled={isLoading}
-          className="min-w-0 rounded-md px-2 py-1 text-[11px] font-medium outline-none cursor-pointer transition-all"
+          placeholder="tu.correo@geimser.cl"
+          className="min-w-0 flex-1 rounded-md px-2 py-1 text-[11px] font-medium outline-none transition-all"
           style={{
             background: "rgba(15, 23, 42, 0.72)",
             border: "1px solid rgba(148, 163, 184, 0.18)",
             color: "#F8FAFC",
           }}
-        >
-          <option value="">Anónimo</option>
-          <option value="lilian.leon@sonda.cl">Lilian Leon (Operaciones)</option>
-          <option value="francisco.martinez@sonda.cl">Francisco Martinez (Soporte TI)</option>
-        </select>
+        />
       </div>
 
       {expanded ? (
@@ -1137,6 +1145,10 @@ function removeAssumedName(message: string) {
     .replace(/\bHugo,\s*/g, "")
     .replace(/^Hugo,\s*/g, "")
     .trim();
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
 }
 
 function readStoredSessionContext() {
