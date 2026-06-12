@@ -1252,6 +1252,19 @@ function TicketDetailModal({ ticketId, ticket, loading, error, onClose }: {
 
           {!loading && ticket && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {(() => {
+                const story = buildTicketStory(ticket);
+                return story.length ? (
+                  <PbiPanel title="Historia operacional" icon={MessageSquareText}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {story.map((event, index) => (
+                        <TicketStoryEventCard key={`${event.title}-${index}`} event={event} index={index} />
+                      ))}
+                    </div>
+                  </PbiPanel>
+                ) : null;
+              })()}
+
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
                 <DetailMetric label="Prioridad" value={ticket.priority} color={priorityColor} />
                 <DetailMetric label="Estado" value={ticket.stateLabel ?? ticket.status} color={statusColor.text} />
@@ -1312,20 +1325,20 @@ function TicketDetailModal({ ticketId, ticket, loading, error, onClose }: {
                 </PbiPanel>
               </div>
 
-              <PbiPanel title="Historial y comentarios del ITSM" icon={MessageSquareText}>
+              <PbiPanel title="Registro original del ITSM" icon={MessageSquareText}>
                 {ticket.timeline.length ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {ticket.timeline.map((entry) => (
-                      <article key={entry.id} style={{ border: `1px solid ${PBI.cardBorder}`, borderLeft: `3px solid ${entry.internal ? PBI.amber : PBI.blue}`, borderRadius: 4, padding: 12, background: entry.internal ? "#FFF9ED" : "#fff" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <details key={entry.id} style={{ border: `1px solid ${PBI.cardBorder}`, borderLeft: `3px solid ${entry.internal ? PBI.amber : PBI.blue}`, borderRadius: 4, padding: 12, background: entry.internal ? "#FFF9ED" : "#fff" }}>
+                        <summary style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", listStyle: "none" }}>
                           <span style={{ fontSize: 12, fontWeight: 800, color: PBI.text1 }}>{entry.subject}</span>
                           <span style={{ fontSize: 10, fontWeight: 700, color: entry.internal ? PBI.amber : PBI.blue, background: entry.internal ? "#FFF2CC" : "#EAF4FD", padding: "2px 6px", borderRadius: 2 }}>
                             {entry.internal ? "Interno" : "Visible"}
                           </span>
                           <span style={{ marginLeft: "auto", fontSize: 11, color: PBI.text3 }}>{formatLongDate(entry.createdAt)}</span>
-                        </div>
-                        <p style={{ margin: 0, whiteSpace: "pre-wrap", color: PBI.text2, fontSize: 12, lineHeight: 1.5 }}>{cleanArticleBody(entry.body)}</p>
-                      </article>
+                        </summary>
+                        <p style={{ margin: "10px 0 0", whiteSpace: "pre-wrap", color: PBI.text2, fontSize: 12, lineHeight: 1.5 }}>{cleanArticleBody(entry.body)}</p>
+                      </details>
                     ))}
                   </div>
                 ) : (
@@ -1358,6 +1371,49 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+type TicketStoryEvent = {
+  title: string;
+  time?: string | null;
+  tone: "bot" | "ticket" | "internal" | "user" | "resolution";
+  summary: string;
+  details: Array<{ label: string; value: string }>;
+};
+
+function TicketStoryEventCard({ event, index }: { event: TicketStoryEvent; index: number }) {
+  const tone = {
+    bot: { color: PBI.blue, bg: "#EAF4FD" },
+    ticket: { color: PBI.purple, bg: "#F4ECFB" },
+    internal: { color: PBI.amber, bg: "#FFF4DD" },
+    user: { color: PBI.green, bg: "#EAF6EA" },
+    resolution: { color: PBI.red, bg: "#FDE7E9" },
+  }[event.tone];
+
+  return (
+    <article style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: 10, alignItems: "flex-start" }}>
+      <div style={{ width: 28, height: 28, borderRadius: 14, background: tone.bg, color: tone.color, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 900, border: `1px solid ${tone.color}30` }}>
+        {index + 1}
+      </div>
+      <div style={{ border: `1px solid ${PBI.cardBorder}`, borderLeft: `3px solid ${tone.color}`, borderRadius: 4, padding: 12, background: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <p style={{ margin: 0, color: PBI.text1, fontSize: 13, fontWeight: 850 }}>{event.title}</p>
+          {event.time && <span style={{ marginLeft: "auto", color: PBI.text3, fontSize: 11 }}>{formatLongDate(event.time)}</span>}
+        </div>
+        <p style={{ margin: 0, color: PBI.text2, fontSize: 12, lineHeight: 1.5 }}>{event.summary}</p>
+        {event.details.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginTop: 10 }}>
+            {event.details.map((detail) => (
+              <div key={`${event.title}-${detail.label}`} style={{ background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: "7px 9px" }}>
+                <p style={{ margin: "0 0 3px", color: PBI.text3, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{detail.label}</p>
+                <p style={{ margin: 0, color: PBI.text1, fontSize: 12, fontWeight: 650, lineHeight: 1.35, overflowWrap: "anywhere" }}>{detail.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es-CL", {
     day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC",
@@ -1374,6 +1430,154 @@ function formatLongDate(value?: string | null) {
     minute: "2-digit",
     timeZone: "UTC",
   }).format(new Date(value));
+}
+
+function buildTicketStory(ticket: TicketDetail): TicketStoryEvent[] {
+  const entries = [...ticket.timeline].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const events: TicketStoryEvent[] = [];
+  const botEntry = entries.find((entry) => looksLikeBotContext(entry.body)) ?? entries.find((entry) => !entry.internal);
+  const botText = botEntry ? cleanArticleBody(botEntry.body) : "";
+  const allText = entries.map((entry) => cleanArticleBody(entry.body)).join("\n\n");
+
+  if (botEntry) {
+    const firstUser = extractTranscriptMessage(botText, "user", "first");
+    const firstBot = extractTranscriptMessage(botText, "bot", "first");
+    const channel = extractField(botText, ["Canal"]);
+    const session = extractField(botText, ["Sesión", "Sesion"]);
+    events.push({
+      title: "Primer contacto con la mesa",
+      time: botEntry.createdAt,
+      tone: "user",
+      summary: firstUser
+        ? `El usuario contactó al bot y reportó: ${firstUser}`
+        : `El usuario contactó al canal de soporte por ${ticket.category.toLowerCase()}.`,
+      details: compactDetails([
+        ["Canal", channel ?? "Bot ITSM / portal"],
+        ["Primera respuesta", firstBot],
+        ["Sesión", session],
+      ]),
+    });
+
+    const playbook = extractField(botText, ["Playbook"]);
+    const stage = extractField(botText, ["Etapa"]);
+    const asset = extractField(botText, ["Activo", "Activo afectado"]);
+    const criteria = extractField(botText, ["Criterio aplicado"]);
+    const completed = extractField(botText, ["Pasos completados"]);
+    const diagnosticSummary = criteria
+      ?? (completed ? `El bot completó ${completed}.` : "El bot clasificó el caso y dejó trazabilidad del diagnóstico aplicado.");
+    events.push({
+      title: "Diagnóstico ejecutado por el bot",
+      time: botEntry.createdAt,
+      tone: "bot",
+      summary: diagnosticSummary,
+      details: compactDetails([
+        ["Playbook", playbook],
+        ["Etapa", stage],
+        ["Activo", asset],
+        ["Pasos", completed],
+      ]),
+    });
+  }
+
+  const problem = extractField(allText, ["Problema reportado", "Descripción", "Descripcion"]) ?? ticket.description;
+  const asset = extractField(allText, ["Activo afectado"]) ?? ticket.affectedAsset;
+  const impact = extractField(allText, ["Impacto"]) ?? ticket.impact;
+  const action = extractField(allText, ["Acción requerida", "Accion requerida", "Siguiente acción", "Siguiente accion"]) ?? ticket.nextAction;
+  events.push({
+    title: "Ticket creado con contexto",
+    time: ticket.createdAt,
+    tone: "ticket",
+    summary: `Se registró el ticket ${ticket.id} como ${ticket.type.replaceAll("_", " ")} con prioridad ${ticket.priority}.`,
+    details: compactDetails([
+      ["Problema", problem],
+      ["Activo", asset],
+      ["Impacto", impact],
+      ["Acción requerida", action],
+    ]),
+  });
+
+  const nonBotEntries = entries.filter((entry) => entry !== botEntry);
+  for (const entry of nonBotEntries) {
+    const text = cleanArticleBody(entry.body);
+    const lower = normalizeText(text);
+    const isRebuiltContext = lower.includes("contexto completo reconstruido");
+    const asksPhone = lower.includes("telefono") || lower.includes("numero de telefono");
+    const scheduled = lower.includes("programa") || lower.includes("agend") || lower.includes("lunes") || lower.includes("hora");
+    const userAsked = lower.includes("usuario pregunta") || lower.includes("si el usuario pregunta") || lower.includes("cliente");
+    const tone: TicketStoryEvent["tone"] = entry.internal ? "internal" : userAsked ? "user" : scheduled ? "resolution" : "ticket";
+
+    events.push({
+      title: entry.internal ? "Gestión interna de la mesa" : isRebuiltContext ? "Contexto consolidado del bot" : "Seguimiento registrado",
+      time: entry.createdAt,
+      tone: isRebuiltContext ? "bot" : tone,
+      summary: isRebuiltContext
+        ? "El bot agregó un resumen consolidado para que la mesa no dependa de leer toda la conversación."
+        : summarizeOperationalNote(text),
+      details: compactDetails([
+        ["Tipo", entry.internal ? "Nota interna" : "Comentario visible"],
+        ["Problema", isRebuiltContext ? extractField(text, ["Problema reportado"]) : undefined],
+        ["Acción", isRebuiltContext ? extractField(text, ["Acción requerida", "Accion requerida"]) : undefined],
+        ["Dato requerido", asksPhone ? "Número telefónico actualizado" : undefined],
+        ["Agenda", scheduled ? extractScheduleHint(text) : undefined],
+      ]),
+    });
+  }
+
+  return mergeNearbyTicketEvents(events);
+}
+
+function looksLikeBotContext(value: string) {
+  const text = normalizeText(value);
+  return text.includes("bot itsm") || text.includes("chatbot") || text.includes("playbook") || text.includes("transcripcion");
+}
+
+function compactDetails(items: Array<[string, string | null | undefined]>): Array<{ label: string; value: string }> {
+  return items
+    .filter((item): item is [string, string] => Boolean(item[1]?.trim()))
+    .map(([label, value]) => ({ label, value: value.trim() }));
+}
+
+function extractField(text: string, labels: string[]) {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = text.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*:\\s*([^\\n]+)`, "i"));
+    if (match?.[1]) return match[1].trim();
+  }
+  return undefined;
+}
+
+function extractTranscriptMessage(text: string, role: "user" | "bot", position: "first" | "last") {
+  const rolePattern = role === "user" ? "(?:Usuario|Cliente)" : "(?:Atlas \\(bot\\)|Bot ITSM|Bot|Asistente)";
+  const matches = Array.from(text.matchAll(new RegExp(`(?:^|\\n)\\s*(?:\\d+\\.\\s*)?${rolePattern}\\s*:?\\s*([^\\n]+(?:\\n\\s{2,}[^\\n]+)*)`, "gi")));
+  const selected = position === "first" ? matches[0] : matches[matches.length - 1];
+  return selected?.[1]?.replace(/\s+/g, " ").trim();
+}
+
+function summarizeOperationalNote(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 220) return normalized;
+  const firstSentence = normalized.match(/^(.{80,220}?[.!?])\s/)?.[1];
+  return firstSentence ?? `${normalized.slice(0, 217).trim()}...`;
+}
+
+function extractScheduleHint(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const match = normalized.match(/(?:se programa|programa|agend[ao])[^.]{0,140}/i);
+  return match?.[0]?.trim() ?? undefined;
+}
+
+function mergeNearbyTicketEvents(events: TicketStoryEvent[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    const key = `${event.title}-${event.time}-${event.summary}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
 function cleanArticleBody(value: string) {
