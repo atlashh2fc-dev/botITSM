@@ -8,12 +8,14 @@ import {
   HardDrive,
   KeyRound,
   Laptop,
+  LogIn,
   MessageSquareText,
   Minus,
   PackageCheck,
   Paperclip,
   RotateCcw,
   Send,
+  ShieldCheck,
   UserRound,
   Wifi,
   X,
@@ -28,7 +30,19 @@ type ChatApiResponse = {
 };
 
 const sessionContextStorageKey = "sonda-active-session-context";
+const identityStorageKey = "sonda-itsm-identity";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const itsmLoginUrl = process.env.NEXT_PUBLIC_ITSM_LOGIN_URL ?? "https://itsm.geimser.cl/geimser/bot/login";
+const requireITSMLogin = process.env.NEXT_PUBLIC_REQUIRE_ITSM_LOGIN !== "false";
+
+type ITSMIdentity = {
+  id?: number;
+  login?: string;
+  email: string;
+  name?: string;
+  firstname?: string;
+  lastname?: string;
+};
 
 const smartActions = [
   {
@@ -159,6 +173,7 @@ const statusLabels: Partial<Record<OperationalStatus, string>> = {
 /* ─────────────────────────────────── COMPONENTE PRINCIPAL ─────────────────────────────────── */
 
 export function SondaAssistant() {
+  const storedIdentity = readStoredIdentity();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const storedContext = readStoredSessionContext();
     return storedContext?.messages.length ? [initialMessage, ...storedContext.messages] : [initialMessage];
@@ -167,8 +182,10 @@ export function SondaAssistant() {
   const [context, setContext] = useState<SessionContext | undefined>(() => readStoredSessionContext());
   const [selectedUserEmail, setSelectedUserEmail] = useState(() => {
     const storedContext = readStoredSessionContext();
-    return storedContext?.collectedFields?.correo || "";
+    return storedIdentity?.email || storedContext?.collectedFields?.correo || "";
   });
+  const [selectedUserName, setSelectedUserName] = useState(() => storedIdentity?.name || readStoredSessionContext()?.collectedFields?.nombre || "");
+  const [identityStatus, setIdentityStatus] = useState<"anonymous" | "authenticated">(() => storedIdentity?.email ? "authenticated" : "anonymous");
   const [status, setStatus] = useState("en línea");
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -197,6 +214,7 @@ export function SondaAssistant() {
   }, [input]);
 
   const hasConversation = useMemo(() => messages.length > 1, [messages.length]);
+  const canUseChat = !requireITSMLogin || identityStatus === "authenticated";
 
   function openAssistant() {
     setClosed(false);
@@ -212,6 +230,11 @@ export function SondaAssistant() {
     const activeFile = fileToAttach !== undefined ? fileToAttach : attachedFile;
     if (!cleanMessage && !activeFile) return;
     if (isLoading) return;
+    if (requireITSMLogin && identityStatus !== "authenticated") {
+      setStatus("login ITSM requerido");
+      openITSMLogin();
+      return;
+    }
 
     setExpanded(true);
     setInput("");
@@ -234,6 +257,7 @@ export function SondaAssistant() {
 
     const activeContext = removeSuggestedRepliesFromContext(overrideContext ?? context);
     const knownEmail = normalizeEmail(selectedUserEmail || activeContext?.collectedFields?.correo || "");
+    const knownName = selectedUserName || activeContext?.collectedFields?.nombre || "";
 
     try {
       const response = await withMinimumDelay(fetch("/api/chat", {
@@ -245,6 +269,7 @@ export function SondaAssistant() {
           attachmentName: activeFile?.name,
           attachmentUrl: activeFile?.url,
           userEmail: knownEmail || undefined,
+          userName: knownName || undefined,
         }),
       }));
 
@@ -283,6 +308,60 @@ export function SondaAssistant() {
     void sendMessage(input);
   }
 
+  function openITSMLogin() {
+    const url = new URL(itsmLoginUrl);
+    url.searchParams.set("return_origin", window.location.origin);
+    setStatus("esperando login ITSM...");
+    window.open(url.toString(), "geimser-itsm-login", "popup=yes,width=520,height=640");
+  }
+
+  function applyITSMIdentity(identity: ITSMIdentity) {
+    const email = normalizeEmail(identity.email);
+    if (!email || !emailPattern.test(email)) return;
+
+    const name = identity.name || [identity.firstname, identity.lastname].filter(Boolean).join(" ") || identity.login || email;
+    const nextIdentity = { ...identity, email, name };
+    const newContext: SessionContext = {
+      sessionId: `session-${crypto.randomUUID()}`,
+      collectedFields: { correo: email, nombre: name },
+      messages: [],
+      stepsExecuted: [],
+    };
+
+    const greetingMsg: ChatMessage = {
+      id: "sonda-welcome-personal",
+      role: "assistant",
+      createdAt: new Date().toISOString(),
+      content: `Listo, quedaste conectado con ITSM como ${name} (${email}).\n\nPuedo revisar tus tickets actuales o registrar uno nuevo a tu nombre.`,
+    };
+
+    setIdentityStatus("authenticated");
+    setSelectedUserEmail(email);
+    setSelectedUserName(name);
+    setContext(newContext);
+    setMessages([greetingMsg]);
+    setInput("");
+    setTicket(null);
+    setAttachedFile(null);
+    setShowAttachmentMenu(false);
+    setStatus("sesión ITSM activa");
+    storeIdentity(nextIdentity);
+    storeSessionContext(newContext);
+  }
+
+  useEffect(() => {
+    function handleITSMIdentityMessage(event: MessageEvent) {
+      if (event.origin !== new URL(itsmLoginUrl).origin) return;
+      if (!event.data || event.data.type !== "geimser:itsm-identity") return;
+      if (!event.data.authenticated || !event.data.user?.email) return;
+
+      applyITSMIdentity(event.data.user as ITSMIdentity);
+    }
+
+    window.addEventListener("message", handleITSMIdentityMessage);
+    return () => window.removeEventListener("message", handleITSMIdentityMessage);
+  }, []);
+
   // Se restablece todo limpiamente
   function startNewChat() {
     if (isLoading) return;
@@ -296,7 +375,7 @@ export function SondaAssistant() {
     } else {
       const newContext: SessionContext = {
         sessionId: `session-${crypto.randomUUID()}`,
-        collectedFields: { correo: email },
+        collectedFields: { correo: email, nombre: selectedUserName || undefined },
         messages: [],
         stepsExecuted: [],
       };
@@ -305,7 +384,9 @@ export function SondaAssistant() {
         id: "sonda-welcome-personal",
         role: "assistant",
         createdAt: new Date().toISOString(),
-        content: `Perfecto, trabajaré con el correo ${email}.\n\nSi ya tienes usuario en ITSM, consultaré tus tickets a tu nombre. Si no existe todavía, lo crearé automáticamente al registrar el primer caso.`,
+        content: selectedUserName
+          ? `Listo, sigo conectado con ITSM como ${selectedUserName} (${email}).\n\nCuéntame qué necesitas revisar.`
+          : `Perfecto, trabajaré con el correo ${email}.\n\nSi ya tienes usuario en ITSM, consultaré tus tickets a tu nombre. Si no existe todavía, lo crearé automáticamente al registrar el primer caso.`,
       };
 
       setContext(newContext);
@@ -319,54 +400,6 @@ export function SondaAssistant() {
     setShowAttachmentMenu(false);
     setStatus("en línea");
     setExpanded(true);
-  }
-
-  function handleUserChange(email: string) {
-    if (isLoading) return;
-    const normalizedEmail = normalizeEmail(email);
-    setSelectedUserEmail(normalizedEmail);
-
-    if (!normalizedEmail) {
-      clearStoredSessionContext();
-      setContext(undefined);
-      setMessages([initialMessage]);
-      setInput("");
-      setTicket(null);
-      setAttachedFile(null);
-      setShowAttachmentMenu(false);
-      setStatus("en línea");
-      return;
-    }
-
-    const newContext: SessionContext = {
-      sessionId: `session-${crypto.randomUUID()}`,
-      collectedFields: { correo: normalizedEmail },
-      messages: [],
-      stepsExecuted: [],
-    };
-
-    const greetingMsg: ChatMessage = {
-      id: "sonda-welcome-personal",
-      role: "assistant",
-      createdAt: new Date().toISOString(),
-      content: `Perfecto, trabajaré con el correo ${normalizedEmail}.\n\nPuedo revisar tus tickets actuales o registrar uno nuevo en ITSM Geimser.`,
-    };
-
-    setContext(newContext);
-    setMessages([greetingMsg]);
-    setInput("");
-    setTicket(null);
-    setAttachedFile(null);
-    setShowAttachmentMenu(false);
-    setStatus("en línea");
-    storeSessionContext(newContext);
-  }
-
-  function handleUserEmailBlur() {
-    const email = normalizeEmail(selectedUserEmail);
-    if (!email || !emailPattern.test(email)) return;
-    if (context?.collectedFields?.correo?.toLowerCase() === email) return;
-    handleUserChange(email);
   }
 
   function handleSuggestion(topic: string) {
@@ -550,31 +583,33 @@ export function SondaAssistant() {
         className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-3.5 py-2 text-[11px]"
         style={{ background: "rgba(2, 6, 23, 0.38)", borderBottom: "1px solid rgba(148, 163, 184, 0.1)" }}
       >
-        <label htmlFor="itsm-user-email" className="flex shrink-0 items-center gap-1.5" style={{ color: "rgba(203, 213, 225, 0.62)" }}>
-          <UserRound size={12} style={{ color: "#55F4FF" }} aria-hidden />
-          <span>Correo</span>
-        </label>
-        <input
-          id="itsm-user-email"
-          type="email"
-          value={selectedUserEmail}
-          onChange={(e) => setSelectedUserEmail(e.target.value)}
-          onBlur={handleUserEmailBlur}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleUserEmailBlur();
-            }
-          }}
+        <div className="flex min-w-0 items-center gap-1.5" style={{ color: "rgba(203, 213, 225, 0.72)" }}>
+          {identityStatus === "authenticated" ? (
+            <ShieldCheck size={12} style={{ color: "#2FE56F" }} aria-hidden />
+          ) : (
+            <UserRound size={12} style={{ color: "#55F4FF" }} aria-hidden />
+          )}
+          <span className="shrink-0">{identityStatus === "authenticated" ? "ITSM" : "Login"}</span>
+          <span className="min-w-0 truncate font-semibold" style={{ color: "#F8FAFC" }}>
+            {identityStatus === "authenticated"
+              ? selectedUserName || selectedUserEmail
+              : "sesión requerida"}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={openITSMLogin}
           disabled={isLoading}
-          placeholder="tu.correo@geimser.cl"
-          className="min-w-0 flex-1 rounded-md px-2 py-1 text-[11px] font-medium outline-none transition-all"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
           style={{
-            background: "rgba(15, 23, 42, 0.72)",
-            border: "1px solid rgba(148, 163, 184, 0.18)",
-            color: "#F8FAFC",
+            border: identityStatus === "authenticated" ? "1px solid rgba(47, 229, 111, 0.2)" : "1px solid rgba(85, 244, 255, 0.28)",
+            background: identityStatus === "authenticated" ? "rgba(47, 229, 111, 0.07)" : "rgba(85, 244, 255, 0.08)",
+            color: identityStatus === "authenticated" ? "#8CF0B2" : "#55F4FF",
           }}
-        />
+        >
+          <LogIn size={12} aria-hidden />
+          {identityStatus === "authenticated" ? "cambiar" : "iniciar"}
+        </button>
       </div>
 
       {expanded ? (
@@ -592,6 +627,7 @@ export function SondaAssistant() {
                     <SmartActionCard
                       key={action.topic}
                       action={action}
+                      disabled={!canUseChat}
                       onClick={() => handleSuggestion(action.topic)}
                     />
                   ))}
@@ -759,7 +795,8 @@ export function SondaAssistant() {
                   }
                 }}
                 rows={1}
-                placeholder={attachedFile ? "Agrega un comentario o envía..." : "Describe tu problema..."}
+                disabled={!canUseChat || isLoading}
+                placeholder={!canUseChat ? "Inicia sesión con ITSM para continuar..." : attachedFile ? "Agrega un comentario o envía..." : "Describe tu problema..."}
                 className="thin-scrollbar max-h-28 min-h-10 flex-1 resize-none rounded-lg px-3.5 py-2.5 text-[13px] leading-5 outline-none transition-all duration-200"
                 style={{
                   border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -778,14 +815,14 @@ export function SondaAssistant() {
 
               <button
                 type="submit"
-                disabled={(!input.trim() && !attachedFile) || isLoading}
+                disabled={!canUseChat || (!input.trim() && !attachedFile) || isLoading}
                 className="grid size-10 shrink-0 place-items-center rounded-lg transition-all duration-200 disabled:cursor-not-allowed"
                 style={{
-                  background: (!input.trim() && !attachedFile) || isLoading
+                  background: !canUseChat || (!input.trim() && !attachedFile) || isLoading
                     ? "rgba(255, 255, 255, 0.04)"
                     : "linear-gradient(135deg, #55F4FF 0%, #38BDF8 100%)",
-                  color: (!input.trim() && !attachedFile) || isLoading ? "rgba(255, 255, 255, 0.3)" : "#000000",
-                  boxShadow: (!input.trim() && !attachedFile) || isLoading
+                  color: !canUseChat || (!input.trim() && !attachedFile) || isLoading ? "rgba(255, 255, 255, 0.3)" : "#000000",
+                  boxShadow: !canUseChat || (!input.trim() && !attachedFile) || isLoading
                     ? "none"
                     : "0 4px 14px rgba(56, 189, 248, 0.24)",
                   border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -806,9 +843,11 @@ export function SondaAssistant() {
 
 function SmartActionCard({
   action,
+  disabled,
   onClick,
 }: {
   action: (typeof smartActions)[number];
+  disabled?: boolean;
   onClick: () => void;
 }) {
   const Icon = action.icon;
@@ -817,7 +856,8 @@ function SmartActionCard({
     <button
       type="button"
       onClick={onClick}
-      className="group relative min-h-[58px] overflow-hidden rounded-lg text-left transition-all duration-200 focus:outline-none"
+      disabled={disabled}
+      className="group relative min-h-[58px] overflow-hidden rounded-lg text-left transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-45"
       style={{
         border: "1px solid rgba(148, 163, 184, 0.14)",
         borderLeft: `3px solid ${action.color}`,
@@ -1149,6 +1189,23 @@ function removeAssumedName(message: string) {
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function readStoredIdentity() {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.localStorage.getItem(identityStorageKey);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as ITSMIdentity;
+    return parsed.email ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function storeIdentity(identity: ITSMIdentity) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(identityStorageKey, JSON.stringify(identity));
 }
 
 function readStoredSessionContext() {
