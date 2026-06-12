@@ -7,25 +7,136 @@
 
 import { findTicketByNumber, hasZammadConfig, searchTicketsByCustomer, type ZammadTicketSummary } from "@/lib/zammad/client";
 
-const QUERY_PATTERNS = [
-  /\b(mis|los)\s+tickets?\b/i,
-  /\b(estado|estatus|status|avance|c[oó]mo va|que pas[oó]|en qu[eé] va)\b.*\bticket\b/i,
-  /\b(estado|estatus|status|avance|c[oó]mo va|que pas[oó]|en qu[eé] va)\b.*\b(mi|mis|el|los)?\s*(caso|solicitud|requerimiento)s?\b/i,
-  /\bticket\b.*\b(estado|estatus|status|avance|abierto|pendiente|cerrado)\b/i,
-  /\b(mi|mis|el|los)?\s*(caso|solicitud|requerimiento)s?\b.*\b(estado|estatus|status|avance|c[oó]mo va|que pas[oó]|en qu[eé] va|abierto|pendiente|cerrado)\b/i,
-  /\bconsultar?\b.*\b(ticket|caso|solicitud)\b/i,
-  /\bseguimiento\b.*\b(ticket|caso)\b/i,
-  /\btengo\s+(alg[uú]n|alg[uú]nos|un)?\s*(ticket|caso)s?\s+(abierto|pendiente|activo)/i,
+const TICKET_ENTITY_TERMS = [
+  "ticket",
+  "tickets",
+  "caso",
+  "casos",
+  "solicitud",
+  "solicitudes",
+  "requerimiento",
+  "requerimientos",
+  "incidente",
+  "incidentes",
+  "reclamo",
+  "reclamos",
+];
+
+const LOOKUP_ACTION_TERMS = [
+  "estado",
+  "estatus",
+  "status",
+  "avance",
+  "seguimiento",
+  "consultar",
+  "consulta",
+  "revisar",
+  "revisa",
+  "buscar",
+  "busca",
+  "ver",
+  "verificar",
+  "verifica",
+  "como va",
+  "como van",
+  "en que va",
+  "en que van",
+  "que paso",
+  "que ha pasado",
+  "en que quedo",
+  "en que quedaron",
+  "pendiente",
+  "pendientes",
+  "abierto",
+  "abiertos",
+  "cerrado",
+  "cerrados",
+  "resuelto",
+  "resueltos",
+];
+
+const HISTORY_TERMS = [
+  "anterior",
+  "anteriores",
+  "pasado",
+  "pasados",
+  "historial",
+  "historico",
+  "ultimos",
+  "ultimo",
+  "reciente",
+  "recientes",
+  "ayer",
+  "lo mio",
+  "lo anterior",
+  "lo pasado",
+  "lo de ayer",
+  "lo del",
+  "lo de",
+];
+
+const CREATE_CASE_TERMS = [
+  "crear caso",
+  "crear un caso",
+  "crear ticket",
+  "crear un ticket",
+  "abrir caso",
+  "abrir un caso",
+  "abrir ticket",
+  "abrir un ticket",
+  "levantar caso",
+  "levantar un caso",
+  "levantar ticket",
+  "levantar un ticket",
+  "registrar caso",
+  "registrar un caso",
+  "registrar ticket",
+  "registrar un ticket",
+  "reportar problema",
+  "reportar falla",
+  "nuevo caso",
+  "nuevo ticket",
 ];
 
 export function isTicketQueryMessage(message: string): boolean {
-  const normalized = message.normalize("NFD").replace(/[̀-ͯ]/g, "");
-  return QUERY_PATTERNS.some((pattern) => pattern.test(message) || pattern.test(normalized));
+  const text = normalizeText(message);
+  if (!text) return false;
+
+  if (extractTicketNumber(text)) return true;
+
+  const mentionsTicketEntity = hasAnyTerm(text, TICKET_ENTITY_TERMS);
+  const mentionsLookupAction = hasAnyTerm(text, LOOKUP_ACTION_TERMS);
+  const mentionsHistory = hasAnyTerm(text, HISTORY_TERMS);
+  const wantsNewCase = hasAnyTerm(text, CREATE_CASE_TERMS);
+
+  if (wantsNewCase && !mentionsLookupAction && !mentionsHistory) return false;
+  if (mentionsTicketEntity && (mentionsLookupAction || mentionsHistory)) return true;
+  if (mentionsTicketEntity && /\b(mis|mi|los|el|un|unos)\s+(ticket|tickets|caso|casos|solicitud|solicitudes|requerimiento|requerimientos)\b/.test(text)) return true;
+
+  return mentionsLookupAction && mentionsHistory;
 }
 
 export function extractTicketNumber(message: string): string | null {
-  const match = message.match(/(?:ticket|caso|n[uú]mero|#|zam-)\s*#?\s*(\d{4,})/i);
+  const match = normalizeText(message).match(/(?:ticket|caso|numero|#|zam-)\s*#?\s*(\d{4,})/i);
   return match?.[1] ?? null;
+}
+
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[¿?¡!,.;:()[\]{}"'`´]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasAnyTerm(text: string, terms: string[]): boolean {
+  return terms.some((term) => new RegExp(`\\b${escapeRegExp(normalizeText(term))}\\b`, "i").test(text));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export type TicketQueryResult = {
