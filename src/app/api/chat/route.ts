@@ -7,6 +7,7 @@ import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
 import { extractTicketNumber, isTicketCreationMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
+import { addTicketNote, findTicketByNumber } from "@/lib/zammad/client";
 
 type ChatRequest = {
   userMessage: string;
@@ -76,6 +77,84 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── Continuidad operacional de ticket activo ────────────────────────────
+  // Si soporte pidió datos para un ticket específico, el siguiente turno debe
+  // alimentar ese ticket, no reiniciar RAG/playbook.
+  if (sessionContext.ticketFollowUp?.status === "awaiting_user_data") {
+    const contactUpdate = extractRequestedTicketData(userMessage, sessionContext.ticketFollowUp.requestedFields);
+
+    if (contactUpdate.hasAny) {
+      const ticketNumber = sessionContext.ticketFollowUp.ticketNumber;
+      const ticketId = sessionContext.ticketFollowUp.ticketId ?? (await findTicketByNumber(ticketNumber))?.id;
+      const noteBody = [
+        `Datos actualizados por el usuario para el ticket #${ticketNumber}:`,
+        contactUpdate.email ? `Correo: ${contactUpdate.email}` : undefined,
+        contactUpdate.phone ? `Teléfono: ${contactUpdate.phone}` : undefined,
+        `Mensaje original: ${userMessage}`,
+      ].filter(Boolean).join("\n");
+
+      let noteSaved = false;
+      if (ticketId) {
+        await addTicketNote(ticketId, noteBody)
+          .then(() => {
+            noteSaved = true;
+          })
+          .catch(() => {
+            noteSaved = false;
+          });
+      }
+
+      const assistantText = noteSaved
+        ? `Perfecto, actualicé el ticket #${ticketNumber} con los datos que pidió soporte: ${formatCapturedContactData(contactUpdate)}.`
+        : `Perfecto, dejo estos datos asociados al seguimiento del ticket #${ticketNumber}: ${formatCapturedContactData(contactUpdate)}. Si necesitas, puedo ayudarte a agregar otro dato al mismo caso.`;
+
+      const assistantChatMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: assistantText,
+        createdAt: new Date().toISOString(),
+        metadata: {
+          intent: "SERVICE_REQUEST",
+          ticketId: ticketNumber,
+        },
+      };
+
+      const nextContext: SessionContext = {
+        ...sessionContextForEngine,
+        messages: [...sessionContextForEngine.messages, assistantChatMessage],
+        ticketFollowUp: {
+          ...sessionContext.ticketFollowUp,
+          ticketId,
+          status: "updated",
+          updatedAt: new Date().toISOString(),
+        },
+      };
+
+      if (knownEmail) {
+        await upsertUserMemory(knownEmail, {
+          episodicEvent: `Actualizó datos solicitados para ticket #${ticketNumber}.`,
+        });
+      }
+
+      await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], "active", channel);
+
+      return NextResponse.json({
+        response: {
+          assistantMessage: assistantText,
+          classification: "SERVICE_REQUEST",
+          priority: sessionContext.priority ?? "P4",
+          requiredFields: [],
+          suggestedActions: ["Actualizar ticket existente"],
+          operationalStatuses: ["Preparando ticket"],
+          shouldCreateTicket: false,
+          shouldEscalate: false,
+          ticketDraft: sessionContext.ticketDraft,
+        },
+        sessionContext: nextContext,
+      });
+    }
+  }
+
   // ── Consulta de tickets (omnicanal, determinístico) ─────────────────────
   const ticketNumberInMessage = extractTicketNumber(userMessage) ?? extractShownTicketNumber(userMessage, sessionContext);
   const isTicketEmailContinuation = Boolean(sessionContext.lastTicketLookup?.needsEmail && emailInMessage);
@@ -115,8 +194,10 @@ export async function POST(request: Request) {
           email: knownEmail,
           ticketNumbers: queryResult.tickets.map((ticket) => ticket.number),
           selectedTicketNumber: queryResult.tickets.length === 1 && queryResult.matched ? queryResult.tickets[0].number : undefined,
+          requestedFields: queryResult.requestedFields,
           createdAt: new Date().toISOString(),
         },
+        ticketFollowUp: buildTicketFollowUp(queryResult),
       };
 
       if (knownEmail && !queryResult.needsEmail) {
@@ -616,6 +697,48 @@ function normalizePendingValue(value?: string | null) {
 function getExistingCreatedTicket(ticket?: TicketDraft) {
   if (!ticket?.id && !ticket?.externalId) return undefined;
   return ticket;
+}
+
+function buildTicketFollowUp(queryResult: TicketQueryResult): SessionContext["ticketFollowUp"] | undefined {
+  if (!queryResult.matched || queryResult.tickets.length !== 1 || !queryResult.requestedFields?.length) {
+    return undefined;
+  }
+
+  const ticket = queryResult.tickets[0];
+  return {
+    status: "awaiting_user_data",
+    ticketNumber: ticket.number,
+    ticketId: ticket.id,
+    requestedFields: queryResult.requestedFields,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function extractRequestedTicketData(message: string, requestedFields: string[]) {
+  const wantsEmail = requestedFields.some((field) => normalizePlainText(field).includes("correo"));
+  const wantsPhone = requestedFields.some((field) => normalizePlainText(field).includes("telefono"));
+  const email = wantsEmail ? message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0] : undefined;
+  const phone = wantsPhone ? extractPhoneNumber(message) : undefined;
+
+  return {
+    email,
+    phone,
+    hasAny: Boolean(email || phone),
+  };
+}
+
+function extractPhoneNumber(message: string) {
+  const matches = message.match(/\+?\d[\d\s().-]{6,}\d/g) ?? [];
+  return matches
+    .map((value) => value.replace(/[^\d+]/g, ""))
+    .find((value) => value.replace(/\D/g, "").length >= 8);
+}
+
+function formatCapturedContactData(input: { email?: string; phone?: string }) {
+  return [
+    input.email ? `correo ${input.email}` : undefined,
+    input.phone ? `teléfono ${input.phone}` : undefined,
+  ].filter(Boolean).join(" y ");
 }
 
 function isRecentTicketForDuplicateGuard(ticket: TicketQueryResult["tickets"][number]) {

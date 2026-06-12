@@ -299,6 +299,7 @@ export type TicketQueryResult = {
   tickets: ZammadTicketSummary[];
   topics: string[];
   matched: boolean;
+  requestedFields?: string[];
   needsEmail?: boolean;
 };
 
@@ -333,7 +334,8 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
       };
     }
     const detail = await getTicketDetail(ticket);
-    return { handled: true, tickets: [ticket], topics: [], matched: true, message: formatTicketDetail(detail) };
+    const formatted = formatTicketDetail(detail);
+    return { handled: true, tickets: [ticket], topics: [], matched: true, message: formatted.message, requestedFields: formatted.requestedFields };
   }
 
   const topics = extractTicketQueryTopics(userMessage, options.fallbackTopics);
@@ -401,7 +403,7 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
         tickets: [bestMatch.detail],
         topics,
         matched: true,
-        message: formatTicketDetail(
+        ...formatTicketDetail(
           bestMatch.detail,
           bestMatches.length === 1
             ? `Encontré el ticket relacionado con ${formatTopics(topics)}:`
@@ -422,7 +424,8 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
 
   if (tickets.length === 1) {
     const detail = await getTicketDetail(tickets[0]);
-    return { handled: true, tickets, topics, matched: true, message: formatTicketDetail(detail) };
+    const formatted = formatTicketDetail(detail);
+    return { handled: true, tickets, topics, matched: true, message: formatted.message, requestedFields: formatted.requestedFields };
   }
 
   return { handled: true, tickets, topics, matched: true, message: formatTickets(tickets) };
@@ -434,7 +437,7 @@ function formatTickets(tickets: ZammadTicketSummary[], customHeader?: string): s
   return [header, ...formatTicketLines(tickets), "¿Quieres que revise el detalle de alguno o necesitas reportar algo nuevo?"].join("\n");
 }
 
-function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): string {
+function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): { message: string; requestedFields: string[] } {
   const operationalNotes = extractOperationalNotes(ticket.articles);
   const createdDate = ticket.createdAt.slice(0, 10);
   const intro = customHeader
@@ -457,7 +460,10 @@ function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): 
     base.push("¿Quieres que agregue alguna información nueva a este caso?");
   }
 
-  return base.join("\n\n");
+  return {
+    message: base.join("\n\n"),
+    requestedFields: operationalNotes.requestedFields,
+  };
 }
 
 export function extractTicketQueryTopics(message: string, fallbackTopics: string[] = []): string[] {

@@ -136,7 +136,16 @@ export type SessionContext = {
     email?: string;
     ticketNumbers?: string[];
     selectedTicketNumber?: string;
+    requestedFields?: string[];
     createdAt: string;
+  };
+  ticketFollowUp?: {
+    status: "awaiting_user_data" | "updated";
+    ticketNumber: string;
+    ticketId?: number;
+    requestedFields: string[];
+    createdAt: string;
+    updatedAt?: string;
   };
   /** Memoria relacional del usuario reconocido (perfil, tono, historial). */
   userMemory?: {

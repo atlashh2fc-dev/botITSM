@@ -259,6 +259,20 @@ export async function getTicketArticles(ticketId: number): Promise<ZammadTicketA
   return zammadFetch<ZammadTicketArticle[]>(`/ticket_articles/by_ticket/${ticketId}`);
 }
 
+export async function addTicketNote(ticketId: number, body: string): Promise<ZammadTicketArticle> {
+  return zammadFetch<ZammadTicketArticle>("/ticket_articles", {
+    method: "POST",
+    body: JSON.stringify({
+      ticket_id: ticketId,
+      type: "note",
+      internal: false,
+      sender: "Customer",
+      body,
+      content_type: "text/plain",
+    }),
+  });
+}
+
 export async function getTicketDetail(ticket: ZammadTicketSummary): Promise<ZammadTicketDetail> {
   const [expanded, articles] = await Promise.all([
     getZammadTicket(ticket.id).catch(() => undefined),
