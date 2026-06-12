@@ -6,7 +6,7 @@ import type { ChatMessage, SessionContext, TicketDraft } from "@/lib/itsm/types"
 import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
-import { extractTicketNumber, isTicketCreationMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
+import { extractTicketNumber, isTicketCreationMessage, isTicketLookupAlternativeMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
 import { addTicketNote, findTicketByNumber } from "@/lib/zammad/client";
 
 type ChatRequest = {
@@ -159,21 +159,23 @@ export async function POST(request: Request) {
   const ticketNumberInMessage = extractTicketNumber(userMessage) ?? extractShownTicketNumber(userMessage, sessionContext);
   const isTicketEmailContinuation = Boolean(sessionContext.lastTicketLookup?.needsEmail && emailInMessage);
   const isCorrection = isTicketLookupCorrectionMessage(userMessage, sessionContext);
+  const isAlternativeLookup = isTicketLookupAlternativeMessage(userMessage, sessionContext);
   const isTicketLookupTurn =
     !wantsTicketCreation &&
     !sessionContext.awaitingCloseConfirmation &&
-    (ticketQueryIntent || isCorrection || isTicketEmailContinuation || Boolean(ticketNumberInMessage));
+    (ticketQueryIntent || isCorrection || isAlternativeLookup || isTicketEmailContinuation || Boolean(ticketNumberInMessage));
 
   if (isTicketLookupTurn) {
     const lookupMessage = ticketNumberInMessage
       ? `ticket ${ticketNumberInMessage}`
-      : (isCorrection || isTicketEmailContinuation) && sessionContext.lastTicketLookup?.topics.length
+      : (isCorrection || isAlternativeLookup || isTicketEmailContinuation) && sessionContext.lastTicketLookup?.topics.length
       ? sessionContext.lastTicketLookup.topics.join(" ")
       : userMessage;
     const queryResult = await resolveTicketQuery(lookupMessage, knownEmail, {
-      fallbackTopics: isCorrection || isTicketEmailContinuation ? sessionContext.lastTicketLookup?.topics : undefined,
-      lenient: isCorrection || isTicketEmailContinuation,
-      lenientReason: isCorrection ? "correction" : isTicketEmailContinuation ? "continuation" : undefined,
+      fallbackTopics: isCorrection || isAlternativeLookup || isTicketEmailContinuation ? sessionContext.lastTicketLookup?.topics : undefined,
+      excludeTicketNumbers: isAlternativeLookup ? sessionContext.lastTicketLookup?.ticketNumbers : undefined,
+      lenient: isCorrection || isAlternativeLookup || isTicketEmailContinuation,
+      lenientReason: isCorrection || isAlternativeLookup ? "correction" : isTicketEmailContinuation ? "continuation" : undefined,
     });
 
     if (queryResult.handled) {

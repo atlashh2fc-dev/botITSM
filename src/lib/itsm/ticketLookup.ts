@@ -68,6 +68,12 @@ const HISTORY_TERMS = [
   "reciente",
   "recientes",
   "ayer",
+  "ingresado",
+  "ingresada",
+  "registrado",
+  "registrada",
+  "creado",
+  "creada",
   "lo mio",
   "lo anterior",
   "lo pasado",
@@ -254,6 +260,22 @@ export function isTicketLookupCorrectionMessage(message: string, context: Sessio
   return correction && (refersToPreviousLookup || repeatsTopic);
 }
 
+export function isTicketLookupAlternativeMessage(message: string, context: SessionContext): boolean {
+  if (!context.lastTicketLookup?.topics.length) return false;
+
+  const text = normalizeText(message);
+  if (!text) return false;
+
+  const lastLookupAge = Date.now() - new Date(context.lastTicketLookup.createdAt).getTime();
+  if (!Number.isFinite(lastLookupAge) || lastLookupAge > 10 * 60 * 1000) return false;
+
+  const mentionsAlternative = /\b(otro|otra|otros|otras|distinto|distinta|no es ese|no era ese)\b/.test(text);
+  const mentionsExistingTicket = /\b(ticket|caso|solicitud|ingresado|registrado|creado|ya ingresado|ya registrado)\b/.test(text);
+  const repeatsTopic = context.lastTicketLookup.topics.some((topic) => containsTerm(text, topic));
+
+  return mentionsAlternative && (mentionsExistingTicket || repeatsTopic || Boolean(context.lastTicketLookup.selectedTicketNumber));
+}
+
 export function isTicketCreationMessage(message: string): boolean {
   const text = normalizeText(message);
   if (!text) return false;
@@ -305,6 +327,7 @@ export type TicketQueryResult = {
 
 type ResolveTicketQueryOptions = {
   fallbackTopics?: string[];
+  excludeTicketNumbers?: string[];
   lenient?: boolean;
   lenientReason?: "correction" | "continuation";
 };
@@ -351,7 +374,9 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
     };
   }
 
-  const tickets = await searchTicketsByCustomer(email, topics.length ? 50 : 5);
+  const excludedNumbers = new Set(options.excludeTicketNumbers ?? []);
+  const tickets = (await searchTicketsByCustomer(email, topics.length ? 50 : 5))
+    .filter((ticket) => !excludedNumbers.has(ticket.number));
 
   if (!tickets.length) {
     return {
