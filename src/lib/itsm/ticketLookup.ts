@@ -111,6 +111,18 @@ const QUERY_NOISE_TERMS = new Set([
   ...TICKET_ENTITY_TERMS,
   ...LOOKUP_ACTION_TERMS,
   ...HISTORY_TERMS,
+  ...CREATE_CASE_TERMS,
+  "abre",
+  "abrir",
+  "abreme",
+  "crear",
+  "crea",
+  "levantar",
+  "levanta",
+  "registrar",
+  "registra",
+  "generar",
+  "genera",
   "hola",
   "buenas",
   "tengo",
@@ -168,6 +180,15 @@ const QUERY_NOISE_TERMS = new Set([
   "uno",
   "muy",
   "mas",
+  "malo",
+  "mala",
+  "malos",
+  "malas",
+  "fallando",
+  "falla",
+  "fallas",
+  "problema",
+  "problemas",
 ]);
 
 const TOPIC_ALIASES: string[][] = [
@@ -204,6 +225,7 @@ export function isTicketQueryMessage(message: string): boolean {
   const mentionsHistory = hasAnyTerm(text, HISTORY_TERMS);
   const wantsNewCase = hasAnyTerm(text, CREATE_CASE_TERMS);
 
+  if (mentionsTicketEntity && mentionsLookupAction) return true;
   if (wantsNewCase && !mentionsHistory) return false;
   if (mentionsTicketEntity && (mentionsLookupAction || mentionsHistory)) return true;
   if (mentionsTicketEntity && isTicketCreationMessage(text)) return false;
@@ -232,10 +254,14 @@ export function isTicketCreationMessage(message: string): boolean {
   const text = normalizeText(message);
   if (!text) return false;
 
+  const mentionsTicketEntity = hasAnyTerm(text, TICKET_ENTITY_TERMS);
+  const mentionsLookupAction = hasAnyTerm(text, LOOKUP_ACTION_TERMS);
+  if (mentionsTicketEntity && mentionsLookupAction) return false;
+
   if (hasAnyTerm(text, CREATE_CASE_TERMS)) return true;
 
   return (
-    hasAnyTerm(text, TICKET_ENTITY_TERMS) &&
+    mentionsTicketEntity &&
     /\b(abre|abrir|crear|crea|levantar|levanta|registrar|registra|generar|genera|necesito|quiero)\b/.test(text)
   );
 }

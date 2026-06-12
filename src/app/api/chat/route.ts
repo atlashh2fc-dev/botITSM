@@ -53,7 +53,8 @@ export async function POST(request: Request) {
   // ── Reconocimiento de usuario + Memoria Relacional ──────────────────────
   const emailInMessage = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0];
   const knownEmail = (body.userEmail ?? emailInMessage ?? sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
-  const wantsTicketCreation = isTicketCreationMessage(userMessage);
+  const ticketQueryIntent = isTicketQueryMessage(userMessage);
+  const wantsTicketCreation = !ticketQueryIntent && isTicketCreationMessage(userMessage);
 
   if (knownEmail && sessionContextForEngine.userMemory?.email !== knownEmail) {
     const memory = await getUserMemory(knownEmail);
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
   const isTicketLookupTurn =
     !wantsTicketCreation &&
     !sessionContext.awaitingCloseConfirmation &&
-    (isTicketQueryMessage(userMessage) || isCorrection || isTicketEmailContinuation || Boolean(ticketNumberInMessage));
+    (ticketQueryIntent || isCorrection || isTicketEmailContinuation || Boolean(ticketNumberInMessage));
 
   if (isTicketLookupTurn) {
     const lookupMessage = ticketNumberInMessage
@@ -299,10 +300,67 @@ export async function POST(request: Request) {
     });
   }
 
+  const existingTicket = getExistingCreatedTicket(sessionContextForEngine.ticketDraft);
+  const bypassDuplicateGuard = isDuplicateOverrideMessage(userMessage);
+
+  if (wantsTicketCreation && knownEmail && !existingTicket && !bypassDuplicateGuard) {
+    const duplicateResult = await resolveTicketQuery(userMessage, knownEmail, { lenient: true, lenientReason: "continuation" });
+    const duplicateTicket = duplicateResult.matched
+      ? duplicateResult.tickets.find(isRecentTicketForDuplicateGuard)
+      : undefined;
+
+    if (duplicateTicket) {
+      const assistantText = buildDuplicateTicketMessage(duplicateTicket, duplicateResult.topics);
+      const assistantChatMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: assistantText,
+        createdAt: new Date().toISOString(),
+        metadata: {
+          intent: "SERVICE_REQUEST",
+          priority: sessionContextForEngine.priority,
+        },
+      };
+
+      const nextContext: SessionContext = {
+        ...sessionContextForEngine,
+        messages: [...sessionContextForEngine.messages, assistantChatMessage],
+        lastTicketLookup: {
+          topics: duplicateResult.topics,
+          found: true,
+          email: knownEmail,
+          ticketNumbers: [duplicateTicket.number],
+          selectedTicketNumber: duplicateTicket.number,
+          createdAt: new Date().toISOString(),
+        },
+      };
+
+      await upsertUserMemory(knownEmail, {
+        episodicEvent: `Intentó crear ticket por ${duplicateResult.topics.join(", ") || "tema existente"}; se detectó ticket reciente #${duplicateTicket.number}.`,
+      });
+      await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], "active", channel);
+
+      return NextResponse.json({
+        response: {
+          assistantMessage: assistantText,
+          classification: "SERVICE_REQUEST",
+          priority: sessionContextForEngine.priority ?? "P4",
+          requiredFields: [],
+          suggestedActions: ["Evitar ticket duplicado", "Agregar información al ticket existente"],
+          operationalStatuses: ["Consultando base de conocimiento", "Preparando ticket"],
+          shouldCreateTicket: false,
+          shouldEscalate: false,
+          ticketDraft: sessionContextForEngine.ticketDraft,
+        },
+        tickets: [duplicateTicket],
+        sessionContext: nextContext,
+      });
+    }
+  }
+
   const llmUserMessage = buildChannelAwareMessage(userMessage, body);
   const detectedIntent = detectTurnIntent(llmUserMessage, sessionContextForEngine);
   const knowledgeMatches = findKnowledgeMatches(llmUserMessage, detectedIntent);
-  const existingTicket = getExistingCreatedTicket(sessionContextForEngine.ticketDraft);
   const rawLlmResponse = await generateITSMResponse({
     userMessage: llmUserMessage,
     sessionContext: sessionContextForEngine,
@@ -558,6 +616,31 @@ function normalizePendingValue(value?: string | null) {
 function getExistingCreatedTicket(ticket?: TicketDraft) {
   if (!ticket?.id && !ticket?.externalId) return undefined;
   return ticket;
+}
+
+function isRecentTicketForDuplicateGuard(ticket: TicketQueryResult["tickets"][number]) {
+  const timestamp = new Date(ticket.updatedAt || ticket.createdAt).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+
+  const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+  return Date.now() - timestamp <= fourteenDays;
+}
+
+function buildDuplicateTicketMessage(ticket: TicketQueryResult["tickets"][number], topics: string[]) {
+  const topicText = topics.length ? ` por ${topics.join(", ")}` : "";
+  const createdDate = ticket.createdAt.slice(0, 10);
+  const updatedDate = ticket.updatedAt.slice(0, 10);
+
+  return [
+    `Antes de abrir un ticket nuevo, encontré un caso reciente${topicText}: #${ticket.number}.`,
+    `Está ${ticket.state}, fue creado el ${createdDate} y su última actualización es del ${updatedDate}.`,
+    "Para evitar duplicar la atención, puedo agregar esta información al ticket existente o abrir uno nuevo solo si me confirmas que es otro problema distinto.",
+  ].join("\n\n");
+}
+
+function isDuplicateOverrideMessage(message: string) {
+  const text = normalizePlainText(message);
+  return /\b(igual|de todas formas|de todos modos|abrelo igual|abre uno nuevo|nuevo ticket|otro ticket|es otro problema|problema distinto)\b/.test(text);
 }
 
 function extractShownTicketNumber(message: string, context: SessionContext) {
