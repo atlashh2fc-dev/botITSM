@@ -520,6 +520,9 @@ function inferAffectedSystem(intent: ITSMIntent, article?: KnowledgeArticle) {
 }
 
 function summarizeDescription(message: string, article?: KnowledgeArticle) {
-  if (message.length > 180) return `${message.slice(0, 177)}...`;
-  return article ? `${message} | Referencia KB: ${article.title}` : message;
+  const base = message.length > 180 ? `${message.slice(0, 177)}...` : message;
+  if (!article) return base;
+
+  const source = article.sourceUrls?.[0] ? ` | Fuente: ${article.sourceUrls[0]}` : "";
+  return `${base} | Referencia KB: ${article.title}${source}`;
 }

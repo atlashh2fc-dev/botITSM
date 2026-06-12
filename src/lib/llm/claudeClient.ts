@@ -58,7 +58,8 @@ function buildKBSection(matches: KnowledgeArticle[]): string {
       `Pasos de descarte autorizados:`,
       a.resolutionSteps.map((s, i) => `  ${i + 1}. ${s}`).join("\n"),
       `Escalar si: ${a.escalationCriteria.join("; ")}`,
-    ].join("\n")
+      a.sourceUrls?.length ? `Fuentes públicas: ${a.sourceUrls.join("; ")}` : undefined,
+    ].filter(Boolean).join("\n")
   );
 
   return (

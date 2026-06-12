@@ -52,6 +52,7 @@ export type KnowledgeArticle = {
   resolutionSteps: string[];
   escalationCriteria: string[];
   tags: string[];
+  sourceUrls?: string[];
 };
 
 export type TicketDraft = {

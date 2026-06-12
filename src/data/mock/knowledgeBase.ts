@@ -1,6 +1,7 @@
 import type { ITSMIntent, KnowledgeArticle } from "@/lib/itsm/types";
+import { publicTroubleshootingKnowledge } from "@/data/mock/publicTroubleshootingKnowledge";
 
-export const knowledgeBase: KnowledgeArticle[] = [
+const coreKnowledgeBase: KnowledgeArticle[] = [
   {
     id: "kb-password-mail",
     title: "Reset y validación de acceso a correo corporativo",
@@ -788,6 +789,11 @@ export const knowledgeBase: KnowledgeArticle[] = [
   },
 ];
 
+export const knowledgeBase: KnowledgeArticle[] = [
+  ...coreKnowledgeBase,
+  ...publicTroubleshootingKnowledge,
+];
+
 export type KnowledgeMatchWithScore = {
   article: KnowledgeArticle;
   /** Score total (tag + symptom + intent + preferred). Usado para umbrales de confianza. */
@@ -804,19 +810,33 @@ export function findKnowledgeMatchesWithScore(
   message: string,
   intent?: ITSMIntent,
 ): KnowledgeMatchWithScore[] {
-  const normalizedMessage = normalizeSearchText(message);
+  const normalizedMessage = expandSearchText(normalizeSearchText(message));
   const preferredArticleId = resolvePreferredArticleId(normalizedMessage);
+  const messageTokens = tokenSet(normalizedMessage);
 
   return knowledgeBase
     .map((article) => {
+      const articleText = expandSearchText(normalizeSearchText([
+        article.title,
+        article.category,
+        article.symptoms.join(" "),
+        article.tags.join(" "),
+        article.resolutionSteps.join(" "),
+        article.escalationCriteria.join(" "),
+      ].join(" ")));
+      const articleTokens = tokenSet(articleText);
       const tagScore =
         article.tags.filter((tag) =>
           normalizedMessage.includes(normalizeSearchText(tag)),
         ).length * 2;
       const symptomScore = article.symptoms.filter((symptom) =>
         normalizedMessage.includes(normalizeSearchText(symptom)),
+      ).length * 3;
+      const stepScore = article.resolutionSteps.filter((step) =>
+        hasTokenOverlap(messageTokens, tokenSet(expandSearchText(normalizeSearchText(step))), 2),
       ).length;
-      const rawContent = tagScore + symptomScore;
+      const semanticScore = countTokenOverlap(messageTokens, articleTokens);
+      const rawContent = tagScore + symptomScore + stepScore + semanticScore;
       const preferredScore = preferredArticleId === article.id ? 8 : 0;
       const contentScore = rawContent + preferredScore;
       const intentScore =
@@ -878,3 +898,68 @@ function hasAnySearchText(value: string, terms: string[]) {
 function normalizeSearchText(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
+
+function expandSearchText(value: string) {
+  const synonyms: Record<string, string[]> = {
+    correo: ["mail", "outlook", "email", "buzon", "buzón"],
+    password: ["clave", "contrasena", "contraseña", "credencial", "login"],
+    pantalla: ["display", "monitor", "segunda pantalla", "pantalla externa"],
+    monitor: ["pantalla", "display", "hdmi", "displayport", "usb-c"],
+    impresora: ["printer", "imprimir", "cola impresion", "cola impresión", "toner", "tóner"],
+    red: ["internet", "wifi", "wi-fi", "ethernet", "lan", "vpn", "conectividad"],
+    lento: ["lentitud", "pegado", "congelado", "no responde", "se pega", "colapsa"],
+    teams: ["reunion", "reunión", "microfono", "micrófono", "camara", "cámara", "audio"],
+    onedrive: ["sharepoint", "sincroniza", "sync", "archivo pendiente", "biblioteca"],
+    roto: ["cortado", "quebrado", "partido", "pelado", "danado", "dañado", "fisico", "físico"],
+  };
+
+  const additions = Object.entries(synonyms)
+    .filter(([key, alternatives]) => value.includes(key) || alternatives.some((term) => value.includes(normalizeSearchText(term))))
+    .flatMap(([key, alternatives]) => [key, ...alternatives])
+    .join(" ");
+
+  return `${value} ${normalizeSearchText(additions)}`.trim();
+}
+
+function tokenSet(value: string) {
+  return new Set(
+    value
+      .split(/[^a-z0-9ñ]+/i)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3 && !STOP_WORDS.has(token)),
+  );
+}
+
+function countTokenOverlap(left: Set<string>, right: Set<string>) {
+  let count = 0;
+  for (const token of left) {
+    if (right.has(token)) count += 1;
+  }
+  return count;
+}
+
+function hasTokenOverlap(left: Set<string>, right: Set<string>, minimum: number) {
+  return countTokenOverlap(left, right) >= minimum;
+}
+
+const STOP_WORDS = new Set([
+  "con",
+  "para",
+  "por",
+  "que",
+  "del",
+  "los",
+  "las",
+  "una",
+  "uno",
+  "este",
+  "esta",
+  "esto",
+  "desde",
+  "tiene",
+  "tengo",
+  "problema",
+  "problemas",
+  "falla",
+  "fallas",
+]);
