@@ -220,6 +220,55 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── Agradecimiento contextual sobre caso derivado/preparado ─────────────
+  // "ok gracias" después de preparar o crear ticket no significa que la falla
+  // se resolvió; solo confirma que el usuario entendió la derivación.
+  if (isCourtesyAcknowledgement(userMessage) && hasActiveSupportCase(sessionContextForEngine)) {
+    const activeTicket = getExistingCreatedTicket(sessionContextForEngine.ticketDraft);
+    const ticketLabel = activeTicket?.id ?? activeTicket?.externalId;
+    const assistantText = ticketLabel
+      ? `De nada. El caso queda registrado como ${ticketLabel}; soporte continuará con la revisión usando el contexto que ya entregaste.`
+      : "De nada. El caso queda preparado para soporte con el contexto que ya entregaste. No lo cerraré como resuelto.";
+
+    const assistantChatMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: assistantText,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        intent: sessionContextForEngine.detectedIntent,
+        priority: sessionContextForEngine.priority,
+        ticketId: activeTicket?.id,
+      },
+    };
+
+    const nextContext: SessionContext = {
+      ...sessionContextForEngine,
+      messages: [...sessionContextForEngine.messages, assistantChatMessage],
+      awaitingResolutionConfirmation: false,
+      awaitingCloseConfirmation: false,
+      ticketDraft: activeTicket ?? sessionContextForEngine.ticketDraft,
+    };
+
+    await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], "active", channel);
+
+    return NextResponse.json({
+      response: {
+        assistantMessage: assistantText,
+        classification: sessionContextForEngine.detectedIntent ?? activeTicket?.type ?? "SERVICE_REQUEST",
+        priority: sessionContextForEngine.priority ?? activeTicket?.priority ?? "P4",
+        requiredFields: [],
+        suggestedActions: ["Mantener caso derivado abierto"],
+        operationalStatuses: ["Preparando ticket"],
+        shouldCreateTicket: false,
+        shouldEscalate: Boolean(activeTicket?.status === "escalated" || activeTicket?.status === "created"),
+        ticketDraft: activeTicket ?? sessionContextForEngine.ticketDraft,
+      },
+      ticket: activeTicket,
+      sessionContext: nextContext,
+    });
+  }
+
   const llmUserMessage = buildChannelAwareMessage(userMessage, body);
   const detectedIntent = detectTurnIntent(llmUserMessage, sessionContextForEngine);
   const knowledgeMatches = findKnowledgeMatches(llmUserMessage, detectedIntent);
@@ -479,4 +528,38 @@ function normalizePendingValue(value?: string | null) {
 function getExistingCreatedTicket(ticket?: TicketDraft) {
   if (!ticket?.id && !ticket?.externalId) return undefined;
   return ticket;
+}
+
+function isCourtesyAcknowledgement(message: string) {
+  const text = normalizePlainText(message);
+  return /^(ok|oka|dale|vale|ya|perfecto|excelente|gracias|muchas gracias|ok gracias|oka gracias|dale gracias|vale gracias|listo gracias|entendido gracias)[.!¡! ]*$/.test(text);
+}
+
+function hasActiveSupportCase(context: SessionContext) {
+  const ticket = context.ticketDraft;
+  const lastAssistant = context.messages.filter((message) => message.role === "assistant").at(-1)?.content ?? "";
+  const assistantText = normalizePlainText(lastAssistant);
+
+  return Boolean(
+    ticket?.id ||
+      ticket?.externalId ||
+      ticket?.status === "created" ||
+      ticket?.status === "escalated" ||
+      context.diagnostic?.stage === "ticket_created" ||
+      context.diagnostic?.stage === "prepare_escalation" ||
+      assistantText.includes("caso preparado") ||
+      assistantText.includes("caso registrado") ||
+      assistantText.includes("dejo el caso preparado") ||
+      assistantText.includes("soporte con esa evidencia") ||
+      assistantText.includes("derivar"),
+  );
+}
+
+function normalizePlainText(message: string) {
+  return message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
