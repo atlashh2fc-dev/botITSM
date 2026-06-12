@@ -42,6 +42,8 @@ type ITSMIdentity = {
   name?: string;
   firstname?: string;
   lastname?: string;
+  area?: string;
+  organization?: string;
 };
 
 const smartActions = [
@@ -185,6 +187,7 @@ export function SondaAssistant() {
     return storedIdentity?.email || storedContext?.collectedFields?.correo || "";
   });
   const [selectedUserName, setSelectedUserName] = useState(() => storedIdentity?.name || readStoredSessionContext()?.collectedFields?.nombre || "");
+  const [selectedUserArea, setSelectedUserArea] = useState(() => storedIdentity?.area || storedIdentity?.organization || readStoredSessionContext()?.collectedFields?.area || "");
   const [identityStatus, setIdentityStatus] = useState<"anonymous" | "authenticated">(() => storedIdentity?.email ? "authenticated" : "anonymous");
   const [status, setStatus] = useState("en línea");
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -258,6 +261,7 @@ export function SondaAssistant() {
     const activeContext = removeSuggestedRepliesFromContext(overrideContext ?? context);
     const knownEmail = normalizeEmail(selectedUserEmail || activeContext?.collectedFields?.correo || "");
     const knownName = selectedUserName || activeContext?.collectedFields?.nombre || "";
+    const knownArea = selectedUserArea || activeContext?.collectedFields?.area || "";
 
     try {
       const response = await withMinimumDelay(fetch("/api/chat", {
@@ -270,6 +274,7 @@ export function SondaAssistant() {
           attachmentUrl: activeFile?.url,
           userEmail: knownEmail || undefined,
           userName: knownName || undefined,
+          userArea: knownArea || undefined,
         }),
       }));
 
@@ -320,10 +325,11 @@ export function SondaAssistant() {
     if (!email || !emailPattern.test(email)) return;
 
     const name = identity.name || [identity.firstname, identity.lastname].filter(Boolean).join(" ") || identity.login || email;
-    const nextIdentity = { ...identity, email, name };
+    const area = identity.area || identity.organization || "";
+    const nextIdentity = { ...identity, email, name, area };
     const newContext: SessionContext = {
       sessionId: `session-${crypto.randomUUID()}`,
-      collectedFields: { correo: email, nombre: name },
+      collectedFields: { correo: email, nombre: name, area: area || undefined },
       messages: [],
       stepsExecuted: [],
     };
@@ -338,6 +344,7 @@ export function SondaAssistant() {
     setIdentityStatus("authenticated");
     setSelectedUserEmail(email);
     setSelectedUserName(name);
+    setSelectedUserArea(area);
     setContext(newContext);
     setMessages([greetingMsg]);
     setInput("");
@@ -375,7 +382,7 @@ export function SondaAssistant() {
     } else {
       const newContext: SessionContext = {
         sessionId: `session-${crypto.randomUUID()}`,
-        collectedFields: { correo: email, nombre: selectedUserName || undefined },
+        collectedFields: { correo: email, nombre: selectedUserName || undefined, area: selectedUserArea || undefined },
         messages: [],
         stepsExecuted: [],
       };

@@ -76,9 +76,11 @@ function buildBody(input: ITSMCreateTicketInput): string {
   const draft = input.draft;
   const transcript = input.transcript
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-14)
-    .map((m) => `${m.role === "user" ? "Usuario" : "Atlas (bot)"}: ${m.content}`)
-    .join("\n");
+    .map((m, index) => [
+      `${index + 1}. ${m.role === "user" ? "Usuario" : "Bot ITSM"}`,
+      indent(m.content),
+    ].join("\n"))
+    .join("\n\n");
 
   const diagnostic = input.diagnostic
     ? [
@@ -90,20 +92,37 @@ function buildBody(input: ITSMCreateTicketInput): string {
     : undefined;
 
   return [
-    `Ticket generado automáticamente por el chatbot omnicanal (canal: ${input.source}).`,
+    "TICKET GENERADO POR BOT ITSM GEIMSER",
+    `Canal: ${input.source}`,
+    `Sesión: ${input.sessionId}`,
     "",
+    "SOLICITANTE",
+    `Nombre: ${draft.requesterName || "No informado"}`,
+    `Correo: ${draft.requesterEmail || "No informado"}`,
+    `Área: ${draft.businessArea || "No informada"}`,
+    "",
+    "RESUMEN DEL CASO",
     `Descripción: ${draft.description}`,
-    `Clasificación: ${draft.type} · Prioridad: ${draft.priority} · Categoría: ${draft.category}`,
-    draft.affectedSystem ? `Sistema afectado: ${draft.affectedSystem}` : undefined,
-    draft.affectedAsset ? `Activo afectado: ${draft.affectedAsset}` : undefined,
-    draft.businessArea ? `Área: ${draft.businessArea}` : undefined,
-    draft.impact ? `Impacto: ${draft.impact}` : undefined,
-    draft.executedSteps?.length ? `Descartes ejecutados: ${draft.executedSteps.join("; ")}` : undefined,
+    `Clasificación: ${draft.type}`,
+    `Prioridad: ${draft.priority}`,
+    `Categoría: ${draft.category}`,
+    `Sistema afectado: ${draft.affectedSystem || "No informado"}`,
+    `Activo afectado: ${draft.affectedAsset || "No informado"}`,
+    `Impacto: ${draft.impact || "No informado"}`,
+    `Siguiente acción: ${draft.nextAction || "Seguimiento en ITSM"}`,
+    "",
+    draft.executedSteps?.length ? `DESCARTES EJECUTADOS\n${draft.executedSteps.map((step, i) => `${i + 1}. ${step}`).join("\n")}` : undefined,
     draft.attachmentName ? `Evidencia adjunta: ${draft.attachmentName} (${draft.attachmentAnalysis ?? "sin análisis"})` : undefined,
-    diagnostic ? `\n— Diagnóstico —\n${diagnostic}` : undefined,
-    transcript ? `\n— Transcripción —\n${transcript}` : undefined,
-    `\nSesión: ${input.sessionId}`,
+    diagnostic ? `\nDIAGNÓSTICO DEL BOT\n${diagnostic}` : undefined,
+    transcript ? `\nTRANSCRIPCIÓN COMPLETA BOT-USUARIO\n${transcript}` : undefined,
   ]
     .filter((line): line is string => line !== undefined)
+    .join("\n");
+}
+
+function indent(text: string) {
+  return text
+    .split("\n")
+    .map((line) => `   ${line}`)
     .join("\n");
 }

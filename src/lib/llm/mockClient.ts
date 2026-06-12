@@ -89,8 +89,8 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
     };
   }
 
-  return {
-    assistantMessage: buildOperationalMessage({
+  const assistantMessage = normalizeRequesterDataPrompt(
+    buildOperationalMessage({
       intent: detectedIntent,
       article,
       requiredFields,
@@ -98,6 +98,12 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
       serviceDeskTurn,
       softwareEntitlement,
     }),
+    requiredFields,
+    mergedContext,
+  );
+
+  return {
+    assistantMessage,
     classification: detectedIntent,
     priority,
     requiredFields,
@@ -208,6 +214,31 @@ function buildOperationalMessage({
 
 function normalizeText(message: string) {
   return message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeRequesterDataPrompt(message: string, requiredFields: string[], context: SessionContext) {
+  const hasIdentity = Boolean(context.collectedFields.correo && context.collectedFields.nombre);
+  if (!hasIdentity) return message;
+
+  const missing = requiredFields.filter((field) => !["nombre", "correo"].includes(field));
+  const replacement = missing.length
+    ? `Lo registraré con tu sesión ITSM. Si falta ${missing.join(", ")}, soporte lo completará desde el perfil del ITSM.`
+    : "Lo registraré con los datos de tu sesión ITSM.";
+
+  return message
+    .replace(/Lo registraré como solicitud de reemplazo; confírmame nombre completo, correo y área si falta algún dato\./gi, replacement)
+    .replace(/Para dejar el caso preparado con todos los descartes, ¿podrías darme tu nombre completo, correo y área\?/gi, replacement)
+    .replace(/Para dejar constancia en la bitácora y cerrar este caso, confírmame tu nombre completo, correo y área\./gi, replacement)
+    .replace(/Corresponde preparar reemplazo\. ¿Me das tu nombre completo, correo y área para registrar el caso con el descarte completo\?/gi, `Corresponde preparar reemplazo. ${replacement}`)
+    .replace(/Debemos escalar el caso a soporte en terreno\. ¿Me das tu nombre completo, correo y área para registrar la solicitud con todo el detalle de las pruebas realizadas\?/gi, `Debemos escalar el caso a soporte en terreno. ${replacement}`)
+    .replace(/Para dejar el caso preparado, ¿podrías darme tu nombre completo, correo y área\?/gi, replacement)
+    .replace(/Corresponde escalarlo a soporte técnico en terreno\. ¿Me compartes tu nombre completo, correo y área para derivarlo de inmediato con todo el contexto\?/gi, `Corresponde escalarlo a soporte técnico en terreno. ${replacement}`)
+    .replace(/Para dejar el caso registrado y derivarlo de inmediato con esta evidencia, ¿podrías darme tu nombre completo, correo y área\?/gi, replacement)
+    .replace(/Procederemos a registrar el ticket de derivación técnica\. ¿Me confirmas tu nombre completo, correo y área\?/gi, `Procederemos a registrar el ticket de derivación técnica. ${replacement}`)
+    .replace(/Procederemos a registrar el ticket de derivación técnica para soporte en terreno\. ¿Me confirmas tu nombre completo, correo y área\?/gi, `Procederemos a registrar el ticket de derivación técnica para soporte en terreno. ${replacement}`)
+    .replace(/Para gestionar el envío del nuevo tóner con el área de logística, ¿me confirmas tu nombre completo, correo y área\?/gi, `Para gestionar el envío del nuevo tóner con logística. ${replacement}`)
+    .replace(/¿Me confirmas tu nombre completo, correo y área\?/gi, replacement)
+    .replace(/confírmame tu nombre completo, correo y área/gi, replacement);
 }
 
 function formatStepForUser(step: string) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findKnowledgeMatches, knowledgeBase } from "@/data/mock/knowledgeBase";
 import { createSessionContext, detectTurnIntent, extractFields, isResolvedMessage } from "@/lib/itsm/engine";
 import { createTicketThroughITSM } from "@/lib/itsm/itsmGateway";
-import type { ChatMessage, SessionContext } from "@/lib/itsm/types";
+import type { ChatMessage, SessionContext, TicketDraft } from "@/lib/itsm/types";
 import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
@@ -17,6 +17,7 @@ type ChatRequest = {
   sourceChannel?: "portal-web" | "field-copilot" | string;
   userEmail?: string;
   userName?: string;
+  userArea?: string;
   fieldRole?: string;
   fieldZone?: string;
   audioNoteName?: string;
@@ -61,13 +62,14 @@ export async function POST(request: Request) {
         ...sessionContextForEngine.collectedFields,
         correo: sessionContextForEngine.collectedFields?.correo ?? memory.email,
         nombre: sessionContextForEngine.collectedFields?.nombre ?? memory.name ?? undefined,
-        area: sessionContextForEngine.collectedFields?.area ?? memory.area ?? undefined,
+        area: sessionContextForEngine.collectedFields?.area ?? memory.area ?? body.userArea,
       };
     } else {
       sessionContextForEngine.collectedFields = {
         ...sessionContextForEngine.collectedFields,
         correo: sessionContextForEngine.collectedFields?.correo ?? knownEmail,
         nombre: sessionContextForEngine.collectedFields?.nombre ?? body.userName,
+        area: sessionContextForEngine.collectedFields?.area ?? body.userArea,
       };
     }
   }
@@ -252,18 +254,16 @@ export async function POST(request: Request) {
     (isResolved ||
       (llmResponse.shouldEscalate && conversationTurns >= 2));
 
-  const draftForTicket = shouldForceTicket
-    ? {
-        ...llmResponse.ticketDraft,
-        status: isResolved ? ("resolved" as const) : ("escalated" as const),
-        requesterName: llmResponse.ticketDraft.requesterName?.includes("pendiente")
-          ? "Sin identificar"
-          : llmResponse.ticketDraft.requesterName,
-        requesterEmail: llmResponse.ticketDraft.requesterEmail?.includes("pendiente")
-          ? "sin-datos@sonda.cl"
-          : llmResponse.ticketDraft.requesterEmail,
-      }
-    : llmResponse.ticketDraft;
+  const draftForTicket = enrichRequesterDraft(
+    shouldForceTicket
+      ? {
+          ...llmResponse.ticketDraft,
+          status: isResolved ? ("resolved" as const) : ("escalated" as const),
+        }
+      : llmResponse.ticketDraft,
+    sessionContextForEngine,
+    knownEmail,
+  );
 
   const fullTranscript = [...sessionContextForEngine.messages, assistantChatMessage];
 
@@ -394,4 +394,42 @@ function referencesKnowledgeArticle(ticketDescription: string) {
 
 function nextContextFields(context: SessionContext, userMessage: string) {
   return extractFields(userMessage, context) ?? context.collectedFields ?? {};
+}
+
+function enrichRequesterDraft(
+  draft: TicketDraft,
+  context: SessionContext,
+  knownEmail?: string,
+) {
+  const fields = context.collectedFields ?? {};
+  const memory = context.userMemory;
+  const requesterName = normalizePendingValue(draft.requesterName)
+    ?? fields.nombre
+    ?? memory?.name
+    ?? "Usuario autenticado ITSM";
+  const requesterEmail = normalizePendingValue(draft.requesterEmail)
+    ?? knownEmail
+    ?? fields.correo
+    ?? memory?.email
+    ?? "sin-datos@sonda.cl";
+  const businessArea = normalizePendingValue(draft.businessArea)
+    ?? fields.area
+    ?? memory?.area
+    ?? (requesterEmail.includes("@") ? "No informada (usuario autenticado ITSM)" : "Área pendiente");
+
+  return {
+    ...draft,
+    requesterName,
+    requesterEmail,
+    businessArea,
+  };
+}
+
+function normalizePendingValue(value?: string | null) {
+  if (!value) return undefined;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("pendiente") || normalized.includes("sin identificar") || normalized.includes("sin-datos")) {
+    return undefined;
+  }
+  return value;
 }
