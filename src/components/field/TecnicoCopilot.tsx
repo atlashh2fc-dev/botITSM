@@ -121,9 +121,18 @@ const C = {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
+function createWelcomeMessage(): Message {
+  return {
+    id: "welcome",
+    role: "assistant",
+    content: `**Copiloto Técnico SONDA** listo para asistirte.\n\nPuedes:\n- Describir una falla con texto\n- 📷 Fotografiar el equipo o error y lo analizo\n- Preguntar sobre procedimientos SONDA\n\n¿Qué falla estás enfrentando hoy?`,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 export function TecnicoCopilot() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => [createWelcomeMessage()]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [imageData, setImageData] = useState<{ base64: string; mime: string; preview: string } | null>(null);
@@ -135,18 +144,6 @@ export function TecnicoCopilot() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Mensaje de bienvenida inicial
-  useEffect(() => {
-    setMessages([
-      {
-        id: "welcome",
-        role: "assistant",
-        content: `**Copiloto Técnico SONDA** listo para asistirte.\n\nPuedes:\n- Describir una falla con texto\n- 📷 Fotografiar el equipo o error y lo analizo\n- Preguntar sobre procedimientos SONDA\n\n¿Qué falla estás enfrentando hoy?`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-  }, []);
 
   // Auto-scroll al último mensaje
   useEffect(() => {
@@ -676,7 +673,6 @@ function ChatBubble({ message }: { message: Message }) {
           color: C.textPrimary,
           wordBreak: "break-word",
         }}
-        // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>

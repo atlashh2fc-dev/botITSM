@@ -26,6 +26,7 @@ export async function persistChatTurn(
       active_article_id: context.activeArticleId ?? null,
       detected_intent: context.detectedIntent ?? null,
       priority: context.priority ?? null,
+      user_email: context.collectedFields?.correo?.toLowerCase() ?? context.userMemory?.email ?? null,
       updated_at: now,
       ...(isClosed ? { closed_at: now } : {}),
     });

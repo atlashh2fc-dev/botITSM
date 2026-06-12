@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { itsmSystemPrompt, itsmToolCallingNote } from "@/lib/llm/prompts/itsmSystemPrompt";
+import { buildMemoryPromptSection } from "@/services/memory.repository";
 import { generateMockITSMResponse } from "@/lib/llm/mockClient";
 import {
   buildTicketDraft,
@@ -158,8 +159,9 @@ export async function generateAnthropicITSMResponse(
 
   const kbSection = buildKBSection(input.knowledgeMatches);
   const caseContext = buildCaseContext(input.sessionContext);
+  const memorySection = buildMemoryPromptSection(input.sessionContext.userMemory ?? null);
   const systemFull =
-    itsmSystemPrompt + itsmToolCallingNote + kbSection + caseContext;
+    itsmSystemPrompt + itsmToolCallingNote + kbSection + caseContext + memorySection;
 
   // Historial conversacional como mensajes reales (no JSON embebido)
   const conversationHistory: Anthropic.MessageParam[] =

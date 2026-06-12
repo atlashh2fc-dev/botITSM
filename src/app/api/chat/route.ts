@@ -5,6 +5,8 @@ import { createTicketThroughITSM } from "@/lib/itsm/itsmGateway";
 import type { ChatMessage, SessionContext } from "@/lib/itsm/types";
 import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
+import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
+import { isTicketQueryMessage, resolveTicketQuery } from "@/lib/itsm/ticketLookup";
 
 type ChatRequest = {
   userMessage: string;
@@ -13,6 +15,8 @@ type ChatRequest = {
   attachmentName?: string;
   attachmentUrl?: string;
   sourceChannel?: "portal-web" | "field-copilot" | string;
+  userEmail?: string;
+  userName?: string;
   fieldRole?: string;
   fieldZone?: string;
   audioNoteName?: string;
@@ -44,6 +48,72 @@ export async function POST(request: Request) {
     ...sessionContext,
     messages: [...sessionContext.messages, userChatMessage]
   };
+
+  // ── Reconocimiento de usuario + Memoria Relacional ──────────────────────
+  const emailInMessage = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0];
+  const knownEmail = (body.userEmail ?? emailInMessage ?? sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
+
+  if (knownEmail && sessionContextForEngine.userMemory?.email !== knownEmail) {
+    const memory = await getUserMemory(knownEmail);
+    if (memory) {
+      sessionContextForEngine.userMemory = memory;
+      sessionContextForEngine.collectedFields = {
+        ...sessionContextForEngine.collectedFields,
+        correo: sessionContextForEngine.collectedFields?.correo ?? memory.email,
+        nombre: sessionContextForEngine.collectedFields?.nombre ?? memory.name ?? undefined,
+        area: sessionContextForEngine.collectedFields?.area ?? memory.area ?? undefined,
+      };
+    } else {
+      sessionContextForEngine.collectedFields = {
+        ...sessionContextForEngine.collectedFields,
+        correo: sessionContextForEngine.collectedFields?.correo ?? knownEmail,
+        nombre: sessionContextForEngine.collectedFields?.nombre ?? body.userName,
+      };
+    }
+  }
+
+  // ── Consulta de tickets (omnicanal, determinístico) ─────────────────────
+  if (isTicketQueryMessage(userMessage) && !sessionContext.awaitingCloseConfirmation) {
+    const queryResult = await resolveTicketQuery(userMessage, knownEmail);
+
+    if (queryResult.handled) {
+      const assistantChatMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: queryResult.message,
+        createdAt: new Date().toISOString(),
+      };
+
+      const nextContext: SessionContext = {
+        ...sessionContextForEngine,
+        messages: [...sessionContextForEngine.messages, assistantChatMessage],
+      };
+
+      if (knownEmail && !queryResult.needsEmail) {
+        await upsertUserMemory(knownEmail, {
+          episodicEvent: `Consultó el estado de sus tickets (${queryResult.tickets.length} encontrados).`,
+        });
+      }
+
+      await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], "active", channel);
+
+      return NextResponse.json({
+        response: {
+          assistantMessage: queryResult.message,
+          classification: "SERVICE_REQUEST",
+          priority: sessionContext.priority ?? "P4",
+          requiredFields: queryResult.needsEmail ? ["correo"] : [],
+          suggestedActions: ["Consulta de tickets en ITSM Geimser"],
+          operationalStatuses: ["Consultando base de conocimiento"],
+          shouldCreateTicket: false,
+          shouldEscalate: false,
+          ticketDraft: sessionContext.ticketDraft,
+        },
+        tickets: queryResult.tickets,
+        sessionContext: nextContext,
+      });
+    }
+  }
 
   // ── Intercepción de Confirmación de Cierre (ITIL) ───────────────────────
   if (sessionContext.awaitingCloseConfirmation) {
@@ -108,6 +178,15 @@ export async function POST(request: Request) {
         awaitingCloseConfirmation: false,
         ticketDraft: itsmResult?.ticket ?? resolvedDraft,
       };
+
+      const closeEmail = (sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
+      if (closeEmail?.includes("@") && !closeEmail.includes("sin-datos")) {
+        await upsertUserMemory(closeEmail, {
+          name: sessionContext.collectedFields?.nombre,
+          area: sessionContext.collectedFields?.area,
+          episodicEvent: `Caso resuelto de forma autónoma y cerrado (${resolvedDraft.category}).`,
+        });
+      }
 
       await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], "resolved", channel);
 
@@ -203,6 +282,16 @@ export async function POST(request: Request) {
       ...assistantChatMessage.metadata,
       ticketId: itsmResult.ticket.id,
     };
+
+    const memoryEmail = knownEmail ?? draftForTicket.requesterEmail?.toLowerCase();
+    if (memoryEmail?.includes("@") && !memoryEmail.includes("sin-datos") && !memoryEmail.includes("pendiente")) {
+      const updatedMemory = await upsertUserMemory(memoryEmail, {
+        name: nextContextFields(sessionContextForEngine, userMessage).nombre ?? draftForTicket.requesterName,
+        area: nextContextFields(sessionContextForEngine, userMessage).area,
+        episodicEvent: `Ticket ${itsmResult.externalId} (${draftForTicket.type}/${draftForTicket.priority}): ${draftForTicket.category}.`,
+      });
+      if (updatedMemory) sessionContextForEngine.userMemory = updatedMemory;
+    }
   }
   const nextDiagnostic = itsmResult && diagnosticForTurn
     ? {
@@ -300,4 +389,9 @@ function resolveActiveArticleId(
 
 function referencesKnowledgeArticle(ticketDescription: string) {
   return ticketDescription.includes("Referencia KB:");
+}
+
+
+function nextContextFields(context: SessionContext, userMessage: string) {
+  return extractFields(userMessage, context) ?? context.collectedFields ?? {};
 }

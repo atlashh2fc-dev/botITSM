@@ -3,6 +3,36 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      bot_user_memory: {
+        Row: {
+          email: string;
+          name: string | null;
+          area: string | null;
+          zammad_user_id: number | null;
+          preferred_tone: string | null;
+          profile: Json;
+          episodic_summary: string | null;
+          interaction_count: number;
+          last_seen_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          email: string;
+          name?: string | null;
+          area?: string | null;
+          zammad_user_id?: number | null;
+          preferred_tone?: string | null;
+          profile?: Json;
+          episodic_summary?: string | null;
+          interaction_count?: number;
+          last_seen_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["bot_user_memory"]["Insert"]>;
+        Relationships: [];
+      };
       demo_users: {
         Row: {
           id: string;
@@ -30,6 +60,7 @@ export type Database = {
           active_article_id: string | null;
           detected_intent: string | null;
           priority: string | null;
+          user_email: string | null;
           created_at: string;
           updated_at: string;
           closed_at: string | null;
@@ -42,6 +73,7 @@ export type Database = {
           active_article_id?: string | null;
           detected_intent?: string | null;
           priority?: string | null;
+          user_email?: string | null;
           created_at?: string;
           updated_at?: string;
           closed_at?: string | null;
@@ -78,6 +110,9 @@ export type Database = {
           description: string;
           status: string;
           payload: Json;
+          provider: string | null;
+          external_id: string | null;
+          external_url: string | null;
           created_at: string;
         };
         Insert: {
@@ -88,6 +123,9 @@ export type Database = {
           description: string;
           status?: string;
           payload: Json;
+          provider?: string | null;
+          external_id?: string | null;
+          external_url?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["tickets"]["Insert"]>;

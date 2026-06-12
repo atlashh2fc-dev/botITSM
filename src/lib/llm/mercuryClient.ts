@@ -11,6 +11,7 @@
  */
 
 import { itsmSystemPrompt } from "@/lib/llm/prompts/itsmSystemPrompt";
+import { buildMemoryPromptSection } from "@/services/memory.repository";
 import { generateMockITSMResponse } from "@/lib/llm/mockClient";
 import {
   buildTicketDraft,
@@ -33,7 +34,7 @@ import type {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export function hasMercuryConfig(): boolean {
-  return Boolean(process.env.MERCURY_API_KEY && process.env.MERCURY_BASE_URL);
+  return Boolean(process.env.MERCURY_API_KEY);
 }
 
 // ─── Context builders ────────────────────────────────────────────────────────
@@ -98,7 +99,8 @@ export async function generateMercuryITSMResponse(
 
   const kbSection = buildKBSection(input.knowledgeMatches);
   const caseCtx = buildCaseContext(input.sessionContext);
-  const systemFull = itsmSystemPrompt + kbSection + caseCtx;
+  const memorySection = buildMemoryPromptSection(input.sessionContext.userMemory ?? null);
+  const systemFull = itsmSystemPrompt + kbSection + caseCtx + memorySection;
 
   // Historial conversacional como mensajes separados (NO como JSON embebido)
   const messages: OpenAIMessage[] = [
@@ -115,7 +117,7 @@ export async function generateMercuryITSMResponse(
     { role: "user", content: input.userMessage },
   ];
 
-  const baseUrl = process.env.MERCURY_BASE_URL!.replace(/\/$/, "");
+  const baseUrl = (process.env.MERCURY_BASE_URL ?? "https://api.inceptionlabs.ai/v1").replace(/\/$/, "");
 
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {

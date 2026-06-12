@@ -11,3 +11,4 @@ build/
 verification-*.png
 .DS_Store
 .vercel
+.env.local

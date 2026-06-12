@@ -22,6 +22,9 @@ export async function listTickets(): Promise<Ticket[]> {
         createdAt: row.created_at,
         requesterName: ((row.payload as { requesterName?: string })?.requesterName ?? "Usuario pendiente") as string,
         requesterEmail: ((row.payload as { requesterEmail?: string })?.requesterEmail ?? "pendiente@example.com") as string,
+        provider: row.provider ?? ((row.payload as { provider?: string })?.provider),
+        externalId: row.external_id ?? ((row.payload as { externalId?: string })?.externalId),
+        externalUrl: row.external_url ?? ((row.payload as { externalUrl?: string })?.externalUrl),
       }));
     }
   }
@@ -50,6 +53,9 @@ export async function createTicket(draft: TicketDraft): Promise<Ticket> {
       description: ticket.description,
       status: ticket.status,
       payload: ticket,
+      provider: ticket.provider ?? null,
+      external_id: ticket.externalId ?? null,
+      external_url: ticket.externalUrl ?? null,
     });
 
     if (!error) return ticket;

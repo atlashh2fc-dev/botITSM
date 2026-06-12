@@ -75,6 +75,9 @@ export type TicketDraft = {
   attachmentUrl?: string;
   attachmentName?: string;
   attachmentAnalysis?: string;
+  provider?: string;
+  externalId?: string;
+  externalUrl?: string;
 };
 
 export type ChatMessage = {
@@ -117,6 +120,18 @@ export type SessionContext = {
   stepsExecuted: string[];
   awaitingResolutionConfirmation?: boolean;
   awaitingCloseConfirmation?: boolean;
+  /** Memoria relacional del usuario reconocido (perfil, tono, historial). */
+  userMemory?: {
+    email: string;
+    name: string | null;
+    area: string | null;
+    zammadUserId: number | null;
+    preferredTone: string | null;
+    profile: Record<string, string | number | boolean | null>;
+    episodicSummary: string | null;
+    interactionCount: number;
+    lastSeenAt: string | null;
+  };
 };
 
 export type ITSMResponseInput = {

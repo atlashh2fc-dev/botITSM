@@ -1,6 +1,6 @@
 import type { ChatMessage, DiagnosticContext, Ticket, TicketDraft } from "@/lib/itsm/types";
 
-export type ITSMProvider = "demo" | "servicenow" | "jira-service-management" | "freshservice" | "glpi";
+export type ITSMProvider = "demo" | "zammad" | "servicenow" | "jira-service-management" | "freshservice" | "glpi";
 
 export type ITSMCreateTicketInput = {
   draft: TicketDraft;
