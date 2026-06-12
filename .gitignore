@@ -12,3 +12,4 @@ verification-*.png
 .DS_Store
 .vercel
 .env.local
+supabase/.temp
