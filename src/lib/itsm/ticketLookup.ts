@@ -5,7 +5,7 @@
  * estado de un ticket" y resolución contra Zammad (ITSM Geimser).
  */
 
-import { findTicketByNumber, hasZammadConfig, searchTicketsByCustomer, type ZammadTicketSummary } from "@/lib/zammad/client";
+import { findTicketByNumber, getTicketDetail, hasZammadConfig, searchTicketsByCustomer, type ZammadTicketArticle, type ZammadTicketDetail, type ZammadTicketSummary } from "@/lib/zammad/client";
 
 const TICKET_ENTITY_TERMS = [
   "ticket",
@@ -166,7 +166,8 @@ export async function resolveTicketQuery(userMessage: string, email?: string): P
         message: `No encontré el ticket #${ticketNumber} en el sistema. ¿Puedes confirmar el número? También puedo listar tus tickets si me confirmas tu correo corporativo.`,
       };
     }
-    return { handled: true, tickets: [ticket], message: formatTickets([ticket]) };
+    const detail = await getTicketDetail(ticket);
+    return { handled: true, tickets: [ticket], message: formatTicketDetail(detail) };
   }
 
   if (!email) {
@@ -188,6 +189,11 @@ export async function resolveTicketQuery(userMessage: string, email?: string): P
     };
   }
 
+  if (tickets.length === 1) {
+    const detail = await getTicketDetail(tickets[0]);
+    return { handled: true, tickets, message: formatTicketDetail(detail) };
+  }
+
   return { handled: true, tickets, message: formatTickets(tickets) };
 }
 
@@ -200,4 +206,76 @@ function formatTickets(tickets: ZammadTicketSummary[]): string {
   });
 
   return [header, ...lines, "¿Quieres que revise el detalle de alguno o necesitas reportar algo nuevo?"].join("\n");
+}
+
+function formatTicketDetail(ticket: ZammadTicketDetail): string {
+  const base = [
+    `Encontré este ticket a tu nombre:`,
+    `• #${ticket.number} — ${ticket.title}`,
+    `• Estado: ${ticket.state}`,
+    `• Prioridad: ${ticket.priority}`,
+    `• Creado: ${ticket.createdAt.slice(0, 10)}`,
+  ];
+
+  const operationalNotes = extractOperationalNotes(ticket.articles);
+  if (operationalNotes.schedule) {
+    base.push(`• Última gestión: ${operationalNotes.schedule}`);
+  } else if (operationalNotes.latestUpdate) {
+    base.push(`• Última actualización: ${operationalNotes.latestUpdate}`);
+  }
+
+  if (operationalNotes.needsPhone) {
+    base.push("Necesito que me confirmes tu número de teléfono para actualizar el ticket.");
+  } else {
+    base.push("¿Quieres que revise otro ticket o necesitas agregar algo a este caso?");
+  }
+
+  return base.join("\n");
+}
+
+function extractOperationalNotes(articles: ZammadTicketArticle[]) {
+  const ordered = [...articles].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const bodies = ordered.map((article) => cleanArticleBody(article.body)).filter(Boolean);
+  const combined = bodies.join("\n");
+
+  return {
+    schedule: extractSchedule(combined),
+    latestUpdate: bodies[0]?.slice(0, 260),
+    needsPhone: /\b(telefono|teléfono|fono|celular|numero de telefono|número de teléfono)\b/i.test(combined),
+  };
+}
+
+function extractSchedule(text: string): string | undefined {
+  const sentences = text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  const scheduleSentence = sentences.find((sentence) =>
+    /\b(programa|programado|agenda|agendado|coordina|coordinado|cambio|visita)\b/i.test(sentence) &&
+    /(\b\d{1,2}[./-]\d{1,2}\b|\b\d{1,2}:\d{2}\b|\b(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b)/i.test(sentence),
+  );
+
+  return scheduleSentence ? cleanOperationalSentence(scheduleSentence) : undefined;
+}
+
+function cleanArticleBody(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanOperationalSentence(value: string): string {
+  return value
+    .replace(/\bsi el usuario pregunta por el ticket\b.*$/i, "")
+    .replace(/[,\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }

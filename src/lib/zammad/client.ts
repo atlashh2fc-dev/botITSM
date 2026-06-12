@@ -42,6 +42,22 @@ export type ZammadTicketSummary = {
   url: string;
 };
 
+export type ZammadTicketArticle = {
+  id: number;
+  ticket_id: number;
+  subject?: string;
+  body: string;
+  internal: boolean;
+  sender?: string;
+  type?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ZammadTicketDetail = ZammadTicketSummary & {
+  articles: ZammadTicketArticle[];
+};
+
 const STATE_LABELS: Record<number, string> = {
   1: "nuevo",
   2: "abierto",
@@ -187,6 +203,16 @@ export async function findTicketByNumber(number: string): Promise<ZammadTicketSu
 
   const ticket = normalizeSearchResult(result)[0];
   return ticket ? toSummary(ticket) : null;
+}
+
+/** Artículos/comentarios del ticket, incluyendo notas internas para entender la última gestión operativa. */
+export async function getTicketArticles(ticketId: number): Promise<ZammadTicketArticle[]> {
+  return zammadFetch<ZammadTicketArticle[]>(`/ticket_articles/by_ticket/${ticketId}`);
+}
+
+export async function getTicketDetail(ticket: ZammadTicketSummary): Promise<ZammadTicketDetail> {
+  const articles = await getTicketArticles(ticket.id).catch(() => []);
+  return { ...ticket, articles };
 }
 
 function toSummary(ticket: ZammadTicket): ZammadTicketSummary {
