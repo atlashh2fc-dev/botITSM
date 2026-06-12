@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Monitor, Wrench, LayoutDashboard } from "lucide-react";
+import { Monitor, Wrench, LayoutDashboard, RadioTower } from "lucide-react";
 import { SondaLogo } from "@/components/shared/BrandMark";
 
 export default function LandingPage() {
@@ -160,28 +160,52 @@ export default function LandingPage() {
         </button>
       </div>
 
-      {/* Dashboard link */}
-      <button
-        onClick={() => router.push("/dashboard")}
-        style={{
-          background: "none",
-          border: "1px solid #1E2E3D",
-          borderRadius: 8,
-          padding: "8px 18px",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          color: "#4B6A9B",
-          fontSize: 13,
-          transition: "all 0.15s ease",
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#F59E0B"; (e.currentTarget as HTMLButtonElement).style.color = "#F59E0B"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1E2E3D"; (e.currentTarget as HTMLButtonElement).style.color = "#4B6A9B"; }}
-      >
-        <LayoutDashboard size={14} />
-        Dashboard Admin
-      </button>
+      {/* Dashboard links */}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
+        <button
+          onClick={() => router.push("/dashboard")}
+          style={{
+            background: "none",
+            border: "1px solid #1E2E3D",
+            borderRadius: 8,
+            padding: "8px 18px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#4B6A9B",
+            fontSize: 13,
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#F59E0B"; (e.currentTarget as HTMLButtonElement).style.color = "#F59E0B"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#1E2E3D"; (e.currentTarget as HTMLButtonElement).style.color = "#4B6A9B"; }}
+        >
+          <LayoutDashboard size={14} />
+          Dashboard Admin
+        </button>
+        <button
+          onClick={() => router.push("/dashboard/tiempo-real")}
+          style={{
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.35)",
+            borderRadius: 8,
+            padding: "8px 18px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#F59E0B",
+            fontSize: 13,
+            fontWeight: 600,
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(245, 158, 11, 0.16)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(245, 158, 11, 0.08)"; }}
+        >
+          <RadioTower size={14} />
+          Tiempo real
+        </button>
+      </div>
 
       <p style={{ color: "#1E2E3D", fontSize: 12, margin: 0, textAlign: "center" }}>
         SONDA IA Platform · Demo Interna

@@ -31,6 +31,20 @@ export type ZammadTicket = {
   updated_at: string;
 };
 
+export type ZammadExpandedTicket = ZammadTicket & {
+  close_at: string | null;
+  last_close_at: string | null;
+  last_contact_at: string | null;
+  escalation_at: string | null;
+  article_count?: number;
+  group?: string;
+  state?: string;
+  priority?: string;
+  owner?: string;
+  customer?: string;
+  organization?: string | null;
+};
+
 export type ZammadTicketSummary = {
   id: number;
   number: string;
@@ -56,6 +70,19 @@ export type ZammadTicketArticle = {
 
 export type ZammadTicketDetail = ZammadTicketSummary & {
   articles: ZammadTicketArticle[];
+};
+
+export type ZammadUserDetail = ZammadUser & {
+  organization_id: number | null;
+  department?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+};
+
+export type ZammadOrganization = {
+  id: number;
+  name: string;
+  active: boolean;
 };
 
 const STATE_LABELS: Record<number, string> = {
@@ -213,6 +240,33 @@ export async function getTicketArticles(ticketId: number): Promise<ZammadTicketA
 export async function getTicketDetail(ticket: ZammadTicketSummary): Promise<ZammadTicketDetail> {
   const articles = await getTicketArticles(ticket.id).catch(() => []);
   return { ...ticket, articles };
+}
+
+export async function listZammadTickets(limit = 500): Promise<ZammadExpandedTicket[]> {
+  const perPage = Math.min(Math.max(limit, 1), 100);
+  const pages = Math.ceil(limit / perPage);
+  const tickets: ZammadExpandedTicket[] = [];
+
+  for (let page = 1; page <= pages; page += 1) {
+    const batch = await zammadFetch<ZammadExpandedTicket[]>(
+      `/tickets?per_page=${perPage}&page=${page}&expand=true`,
+    );
+    tickets.push(...batch);
+    if (batch.length < perPage || tickets.length >= limit) break;
+  }
+
+  return tickets
+    .slice(0, limit)
+    .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime());
+}
+
+export async function getZammadUserDetail(userId: number): Promise<ZammadUserDetail | null> {
+  if (!userId) return null;
+  return zammadFetch<ZammadUserDetail>(`/users/${userId}`).catch(() => null);
+}
+
+export async function listZammadOrganizations(): Promise<ZammadOrganization[]> {
+  return zammadFetch<ZammadOrganization[]>("/organizations").catch(() => []);
 }
 
 function toSummary(ticket: ZammadTicket): ZammadTicketSummary {

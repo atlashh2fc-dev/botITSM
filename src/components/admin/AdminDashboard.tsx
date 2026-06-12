@@ -6,15 +6,14 @@ import {
   Activity,
   BarChart3,
   BookOpen,
+  Building2,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   Clock3,
-  Database,
   Gauge,
-  KeyRound,
   LockKeyhole,
   MessageSquareText,
+  RadioTower,
   RefreshCw,
   Smartphone,
   Settings,
@@ -55,10 +54,10 @@ const PBI = {
 };
 
 /* ─── Helpers de datos (sin cambios funcionales) ───────────────────── */
-export function AdminDashboard() {
+export function AdminDashboard({ initialSection = "overview" }: { initialSection?: string }) {
   const [authenticated, setAuthenticated] = useState(false);
   if (!authenticated) return <AdminLogin onSuccess={() => setAuthenticated(true)} />;
-  return <AdminWorkspace />;
+  return <AdminWorkspace initialSection={initialSection} />;
 }
 
 /* ═══════════════════════ LOGIN ═══════════════════════════════════════ */
@@ -142,15 +141,6 @@ function PbiInput({ label, id, type = "text", value, onChange, autoComplete }: {
           padding: "0 8px", fontSize: 13, color: PBI.text1, outline: "none", boxSizing: "border-box",
         }}
       />
-    </div>
-  );
-}
-
-function CredentialLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: PBI.pageBg, borderRadius: 2, marginBottom: 4 }}>
-      <span style={{ fontSize: 11, color: PBI.text2 }}>{label}</span>
-      <strong style={{ fontSize: 11, color: PBI.text1, fontFamily: "monospace" }}>{value}</strong>
     </div>
   );
 }
@@ -316,6 +306,36 @@ function buildFieldCopilotModel(cases: OperationalCase[]) {
   };
 }
 
+function buildRealtimeModel(cases: OperationalCase[], realTicketCount: number) {
+  const active = cases.filter((item) => item.status !== "Resuelto");
+  const escalated = active.filter((item) => item.escalated);
+  const slaRisk = active.filter((item) => item.duration_minutes > item.sla_minutes * 0.75);
+  const byDivision = groupByField(cases, "department", 8);
+  const byManagement = groupByField(cases, "assigned_technician", 8);
+  const byStatus = groupByField(cases, "status", 5);
+  const recent = [...cases]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 8);
+
+  return {
+    active,
+    escalated,
+    slaRisk,
+    byDivision,
+    byManagement,
+    byStatus,
+    recent,
+    kpis: [
+      { label: "Abiertos ahora", value: active.length.toString(), meta: "casos no resueltos", tone: active.length ? "warning" : "positive" },
+      { label: "Tickets reales", value: realTicketCount.toString(), meta: "sincronizados con ITSM", tone: "neutral" },
+      { label: "Divisiones", value: byDivision.length.toString(), meta: "con actividad", tone: "neutral" },
+      { label: "Gestiones activas", value: byManagement.length.toString(), meta: "grupos resolutores", tone: "neutral" },
+      { label: "Riesgo SLA", value: slaRisk.length.toString(), meta: "sobre 75% del plazo", tone: slaRisk.length ? "critical" : "positive" },
+      { label: "Escalados", value: escalated.length.toString(), meta: "requieren seguimiento", tone: escalated.length ? "warning" : "positive" },
+    ],
+  };
+}
+
 function buildOperationalModel(cases: OperationalCase[], kpis: AdminKpi[], knowledge: ChartPoint[]) {
   const incidentCases = cases.filter(i => ["INCIDENT", "NETWORK_ISSUE", "HARDWARE_ISSUE", "SECURITY_INCIDENT"].includes(i.issue_type));
   const requestCases = cases.filter(i => ["SERVICE_REQUEST", "SOFTWARE_REQUEST"].includes(i.issue_type));
@@ -363,11 +383,11 @@ function averageDuration(items: OperationalCase[]) {
 }
 
 /* ═══════════════════════ WORKSPACE ══════════════════════════════════ */
-function AdminWorkspace() {
-  const [activeSection, setActiveSection] = useState("overview");
+function AdminWorkspace({ initialSection }: { initialSection: string }) {
+  const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
-  const [ticketSource, setTicketSource] = useState<"cargando" | "supabase" | "demo">("cargando");
-  const [showOnlyReal, setShowOnlyReal] = useState(false);
+  const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
+  const [showOnlyReal, setShowOnlyReal] = useState(true);
 
   const mockCases = useMemo(() => listOperationalCases(100), []);
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
@@ -385,6 +405,7 @@ function AdminWorkspace() {
   const sentimentBreakdown = useMemo(() => groupByField(cases, "sentiment", 5), [cases]);
   const operationalModel = useMemo(() => buildOperationalModel(cases, kpis, knowledge), [cases, kpis, knowledge]);
   const fieldCopilot = useMemo(() => buildFieldCopilotModel(cases), [cases]);
+  const realtimeModel = useMemo(() => buildRealtimeModel(cases, realTickets.length), [cases, realTickets.length]);
   const incidentCases = useMemo(() => cases.filter(i => ["INCIDENT", "NETWORK_ISSUE", "HARDWARE_ISSUE", "SECURITY_INCIDENT"].includes(i.issue_type)), [cases]);
   const requestCases = useMemo(() => cases.filter(i => ["SERVICE_REQUEST", "SOFTWARE_REQUEST"].includes(i.issue_type)), [cases]);
   const accessCases = useMemo(() => cases.filter(i => i.issue_type === "ACCESS_REQUEST"), [cases]);
@@ -395,10 +416,10 @@ function AdminWorkspace() {
       try {
         const res = await fetch("/api/tickets", { cache: "no-store" });
         if (!res.ok) throw new Error();
-        const payload = (await res.json()) as { tickets?: ITSMDemoTicket[]; source?: "supabase" | "memory" };
+        const payload = (await res.json()) as { tickets?: ITSMDemoTicket[]; source?: "zammad" | "supabase" | "memory" };
         if (!active) return;
         setRealTickets(payload.tickets ?? []);
-        setTicketSource(payload.source === "supabase" ? "supabase" : "demo");
+        setTicketSource(payload.source === "zammad" ? "zammad" : payload.source === "supabase" ? "supabase" : "demo");
       } catch { if (!active) return; setTicketSource("demo"); }
     }
     void load();
@@ -408,6 +429,7 @@ function AdminWorkspace() {
 
   const nav = [
     { id: "overview",       label: "Vista General",             icon: Activity },
+    { id: "realtime",       label: "Tiempo real",               icon: RadioTower },
     { id: "incidents",      label: "Gestión Incidentes",        icon: ShieldAlert },
     { id: "requests",       label: "Gestión Requerimientos",    icon: BarChart3 },
     { id: "access",         label: "Gestión de Accesos",        icon: UsersRound },
@@ -420,6 +442,7 @@ function AdminWorkspace() {
 
   const sectionTitle: Record<string, string> = {
     overview:      "Vista General",
+    realtime:      "Tiempo real",
     incidents:     "Gestión de Incidentes",
     requests:      "Gestión de Requerimientos",
     access:        "Gestión de Accesos",
@@ -455,11 +478,11 @@ function AdminWorkspace() {
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{
               width: 7, height: 7, borderRadius: "50%",
-              background: ticketSource === "supabase" ? "#6FCF97" : ticketSource === "cargando" ? "#F59E0B" : "#A19F9D",
+              background: ticketSource === "zammad" || ticketSource === "supabase" ? "#6FCF97" : ticketSource === "cargando" ? "#F59E0B" : "#A19F9D",
               flexShrink: 0,
             }} />
             <span style={{ fontSize: 11, color: "#C8C6C4" }}>
-              {ticketSource === "cargando" ? "Conectando..." : ticketSource === "supabase" ? `${realTickets.length} tickets en BD` : "Modo demo"}
+              {ticketSource === "cargando" ? "Conectando..." : ticketSource === "zammad" ? `${realTickets.length} tickets ITSM` : ticketSource === "supabase" ? `${realTickets.length} tickets en BD` : "Modo demo"}
             </span>
           </div>
         </div>
@@ -532,8 +555,8 @@ function AdminWorkspace() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {/* Badges */}
             <PbiBadge color={PBI.blue}>ITIL v4</PbiBadge>
-            <PbiBadge color={ticketSource === "supabase" ? PBI.green : PBI.amber}>
-              {ticketSource === "supabase" ? `${realTickets.length} tickets reales` : "modo demo"}
+            <PbiBadge color={ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : PBI.amber}>
+              {ticketSource === "zammad" ? `${realTickets.length} tickets ITSM real` : ticketSource === "supabase" ? `${realTickets.length} tickets reales` : "modo demo"}
             </PbiBadge>
             <PbiBadge color={PBI.text3}>Supabase</PbiBadge>
             <button style={{ background: "none", border: "none", cursor: "pointer", color: PBI.text2, padding: "4px" }}>
@@ -547,7 +570,7 @@ function AdminWorkspace() {
           {showOnlyReal && cases.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
               <Ticket size={40} color={PBI.text3} />
-              <p style={{ fontWeight: 600, fontSize: 14, color: PBI.text1, margin: 0 }}>Sin tickets reales en Supabase</p>
+              <p style={{ fontWeight: 600, fontSize: 14, color: PBI.text1, margin: 0 }}>Sin tickets reales en ITSM</p>
               <p style={{ fontSize: 12, color: PBI.text2, margin: 0 }}>Inicia una conversación en el chatbot y completa el diagnóstico.</p>
             </div>
           ) : (
@@ -577,6 +600,33 @@ function AdminWorkspace() {
                       <HeatmapPbi items={heatmap} />
                     </PbiPanel>
                   </div>
+                </div>
+              )}
+
+              {activeSection === "realtime" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <SectionHeader title="Dashboard en tiempo real" subtitle="Lectura operacional por divisiones, gestiones, tickets activos y señales de SLA" />
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+                    {realtimeModel.kpis.map(k => <KpiCard key={k.label} kpi={k} />)}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1.05fr 0.9fr", gap: 8 }}>
+                    <PbiPanel title="Entrada por divisiones" icon={Building2}>
+                      <HorizBarPbi items={realtimeModel.byDivision} color={PBI.blue} />
+                    </PbiPanel>
+                    <PbiPanel title="Gestiones y grupos resolutores" icon={UsersRound}>
+                      <HorizBarPbi items={realtimeModel.byManagement} color={PBI.green} />
+                    </PbiPanel>
+                    <PbiPanel title="Estado operacional" icon={RadioTower}>
+                      <PriorityPbi items={realtimeModel.byStatus} />
+                    </PbiPanel>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 8 }}>
+                    <RealtimeActivity cases={realtimeModel.recent} />
+                    <PbiPanel title="Riesgo de SLA" icon={Clock3}>
+                      <EscalatedListPbi cases={realtimeModel.slaRisk.slice(0, 6)} />
+                    </PbiPanel>
+                  </div>
+                  <OperationalTable cases={realtimeModel.active.length ? realtimeModel.active : cases.slice(0, 12)} />
                 </div>
               )}
 
@@ -924,6 +974,13 @@ function KnowledgeListPbi({ items }: { items: ChartPoint[] }) {
 /* ─── Escalated list ─────────────────────────────────────────────── */
 function EscalatedListPbi({ cases }: { cases: OperationalCase[] }) {
   const pColor: Record<string, string> = { P1: PBI.p1, P2: PBI.p2, P3: PBI.p3, P4: PBI.p4 };
+  if (!cases.length) {
+    return (
+      <div style={{ display: "grid", placeItems: "center", minHeight: 120, color: PBI.text3, fontSize: 12 }}>
+        Sin casos en alerta
+      </div>
+    );
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {cases.map(item => (
@@ -936,6 +993,38 @@ function EscalatedListPbi({ cases }: { cases: OperationalCase[] }) {
           <p style={{ fontSize: 11, color: PBI.text3, margin: 0 }}>{item.assigned_technician}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function RealtimeActivity({ cases }: { cases: OperationalCase[] }) {
+  return (
+    <div style={{ background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "11px 14px", borderBottom: `1px solid ${PBI.cardBorder}` }}>
+        <RadioTower size={13} color={PBI.blue} />
+        <p style={{ fontWeight: 700, fontSize: 12, color: PBI.text1, margin: 0 }}>Actividad reciente</p>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: PBI.text3 }}>refresco cada 15 s</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {cases.map((item) => {
+          const pColor = P_COLOR[item.priority] ?? PBI.text2;
+          const sColor = S_COLOR[item.status] ?? { bg: "#F3F2F1", text: PBI.text2 };
+          return (
+            <div key={item.id} style={{ display: "grid", gridTemplateColumns: "96px 1fr 160px 88px", gap: 10, alignItems: "center", padding: "9px 14px", borderBottom: "1px solid #F3F2F1" }}>
+              <span style={{ fontFamily: "monospace", fontSize: 11, color: PBI.blue, fontWeight: 700 }}>{item.id}</span>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, color: PBI.text1, fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</p>
+                <p style={{ margin: "2px 0 0", color: PBI.text3, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.department} · {item.user_name}</p>
+              </div>
+              <span style={{ color: PBI.text2, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.assigned_technician}</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: pColor }} />
+                <span style={{ background: sColor.bg, color: sColor.text, padding: "2px 6px", borderRadius: 2, fontSize: 10, fontWeight: 700 }}>{item.status}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

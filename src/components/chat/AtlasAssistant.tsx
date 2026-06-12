@@ -1055,33 +1055,96 @@ function TypingIndicator() {
 }
 
 function RegisteredCase({ ticket }: { ticket: Ticket }) {
+  const isLinkedToITSM = Boolean(ticket.externalUrl || ticket.externalId || ticket.id.startsWith("ZAM-"));
+  const statusLabel = ticket.status === "resolved"
+    ? "Caso resuelto"
+    : ticket.status === "escalated"
+      ? "Derivado a grupo resolutor"
+      : isLinkedToITSM
+        ? "Registrado en ticket vigente"
+        : "Ticket nuevo creado";
+  const nextAction = ticket.assignedTeam.includes("Redes") ? "Derivación a soporte de redes" : ticket.nextAction;
+
   return (
     <article
       className="ml-8 flex flex-col gap-3 rounded-2xl p-4"
       style={{
         border: "1px solid rgba(0, 255, 255, 0.3)",
-        background: "linear-gradient(135deg, rgba(0, 255, 255, 0.05) 0%, rgba(0, 255, 255, 0.01) 100%)",
-        boxShadow: "0 8px 32px rgba(0, 255, 255, 0.05)",
+        background: "linear-gradient(135deg, rgba(0, 255, 255, 0.08) 0%, rgba(8, 18, 35, 0.96) 52%, rgba(245, 158, 11, 0.05) 100%)",
+        boxShadow: "0 18px 44px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(255,255,255,0.03) inset",
       }}
     >
-      <div className="flex items-center gap-2 text-sm font-bold" style={{ color: "#00FFFF" }}>
-        <CheckCircle2 size={16} style={{ color: "#00FFFF" }} aria-hidden />
-        Caso registrado exitosamente
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-bold" style={{ color: "#67F8FF" }}>
+            <CheckCircle2 size={16} style={{ color: "#67F8FF" }} aria-hidden />
+            Caso registrado en ITSM
+          </div>
+          <p className="mt-1 text-[11px] leading-4" style={{ color: "rgba(255,255,255,0.58)" }}>
+            {statusLabel}
+          </p>
+        </div>
+        <span
+          className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase"
+          style={{
+            border: "1px solid rgba(103, 248, 255, 0.22)",
+            background: "rgba(103, 248, 255, 0.08)",
+            color: "#BFFBFF",
+            letterSpacing: "0.06em",
+          }}
+        >
+          {ticket.priority}
+        </span>
       </div>
 
-      <p className="font-data text-xs font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
-        {ticket.id}
-      </p>
+      <div
+        className="grid gap-2 rounded-xl p-3"
+        style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(0, 0, 0, 0.22)" }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-bold uppercase" style={{ color: "rgba(255, 255, 255, 0.38)", letterSpacing: "0.1em" }}>
+              Ticket
+            </p>
+            <p className="font-data text-sm font-semibold" style={{ color: "#FFFFFF" }}>
+              {ticket.externalId ? `ZAM-${ticket.externalId}` : ticket.id}
+            </p>
+          </div>
+          {ticket.externalUrl ? (
+            <a
+              href={ticket.externalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg px-3 py-2 text-[11px] font-bold"
+              style={{ border: "1px solid rgba(0,255,255,0.2)", color: "#67F8FF", background: "rgba(0,255,255,0.06)" }}
+            >
+              Abrir
+            </a>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <MiniCaseMetric label="Solicitante" value={ticket.requesterName} />
+          <MiniCaseMetric label="Grupo" value={ticket.assignedTeam} />
+        </div>
+      </div>
 
       <div className="space-y-2.5 text-sm">
         <CaseLine label="Resumen" value={summarize(ticket.description)} />
         <CaseLine label="Prioridad" value={priorityText(ticket.priority)} />
-        <CaseLine
-          label="Siguiente acción"
-          value={ticket.assignedTeam.includes("Redes") ? "Derivación a soporte de redes" : ticket.nextAction}
-        />
+        <CaseLine label="Siguiente acción" value={nextAction} />
         <CaseLine label="SLA estimado" value={ticket.estimatedSla.replace("respuesta inicial", "")} />
       </div>
+
+      {ticket.executedSteps?.length ? (
+        <div className="border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <p className="text-[10px] font-bold uppercase" style={{ color: "rgba(255, 255, 255, 0.4)", letterSpacing: "0.1em" }}>
+            Evidencia añadida
+          </p>
+          <p className="mt-1 text-xs leading-5" style={{ color: "rgba(255,255,255,0.74)" }}>
+            {ticket.executedSteps.slice(0, 2).join(" · ")}
+          </p>
+        </div>
+      ) : null}
 
       {ticket.attachmentName && (
         <div className="border-t pt-3 flex flex-col gap-1.5" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
@@ -1107,6 +1170,19 @@ function RegisteredCase({ ticket }: { ticket: Ticket }) {
         </div>
       )}
     </article>
+  );
+}
+
+function MiniCaseMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.035)" }}>
+      <p className="text-[9.5px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.34)", letterSpacing: "0.08em" }}>
+        {label}
+      </p>
+      <p className="mt-1 truncate text-xs font-semibold" style={{ color: "rgba(255,255,255,0.88)" }}>
+        {value || "Pendiente"}
+      </p>
+    </div>
   );
 }
 

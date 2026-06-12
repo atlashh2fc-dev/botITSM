@@ -5,7 +5,12 @@ import { createTicket, listTickets } from "@/services/tickets.repository";
 
 export async function GET() {
   const tickets = await listTickets();
-  return NextResponse.json({ tickets, source: hasSupabaseServerEnv() ? "supabase" : "memory" });
+  const source = tickets.some((ticket) => ticket.provider === "zammad")
+    ? "zammad"
+    : hasSupabaseServerEnv()
+      ? "supabase"
+      : "memory";
+  return NextResponse.json({ tickets, source });
 }
 
 export async function POST(request: Request) {

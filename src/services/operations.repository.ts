@@ -1,7 +1,8 @@
 import { operationalCases } from "@/data/mock/operationalCases";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
-import type { ITSMIntent, ITSMPriority } from "@/lib/itsm/types";
+import type { ITSMIntent, ITSMPriority, Ticket } from "@/lib/itsm/types";
+import { listTickets } from "@/services/tickets.repository";
 
 // ─── Tipos internos de Supabase ───────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ async function loadLiveData(): Promise<{ sessions: RawSession[]; tickets: RawTic
   };
 }
 
-function sessionToCase(session: RawSession, index: number): OperationalCase {
+function sessionToCase(session: RawSession): OperationalCase {
   const ctx = session.context as Record<string, unknown> | null;
   const fields = (ctx?.collectedFields as Record<string, string> | undefined) ?? {};
   const createdAt = new Date(session.created_at);
@@ -114,6 +115,72 @@ function sessionToCase(session: RawSession, index: number): OperationalCase {
   };
 }
 
+async function listItmsTicketCases(limit = 500): Promise<OperationalCase[]> {
+  const tickets = await listTickets().catch(() => []);
+  return tickets
+    .filter((ticket) => ticket.provider === "zammad")
+    .slice(0, limit)
+    .map(ticketToCase);
+}
+
+function ticketToCase(ticket: Ticket): OperationalCase {
+  const duration = Math.max(1, Math.round((Date.now() - new Date(ticket.createdAt).getTime()) / 60000));
+  const statusMap: Record<Ticket["status"], OperationalCase["status"]> = {
+    draft: "Nuevo",
+    created: "En diagnóstico",
+    escalated: "Escalado",
+    resolved: "Resuelto",
+  };
+  const slaBySeverity: Record<ITSMPriority, number> = { P1: 240, P2: 480, P3: 1440, P4: 4320 };
+
+  return {
+    id: ticket.id,
+    user_name: ticket.requesterName,
+    department: ticket.businessArea ?? "Sin división informada",
+    issue_type: ticket.type,
+    category: ticket.category,
+    priority: ticket.priority,
+    status: statusMap[ticket.status] ?? "En diagnóstico",
+    created_at: ticket.createdAt,
+    resolved_at: ticket.status === "resolved" ? ticket.createdAt : null,
+    resolution_type: ticket.status === "resolved" ? "Asistida" : ticket.status === "escalated" ? "Escalada" : "Pendiente",
+    escalated: ticket.status === "escalated",
+    assigned_technician: ticket.assignedTeam,
+    sentiment: ticket.priority === "P1" ? "Crítico" : ticket.status === "escalated" ? "Tenso" : "Neutral",
+    conversation_summary: ticket.description,
+    sla_minutes: slaBySeverity[ticket.priority] ?? 1440,
+    duration_minutes: duration,
+    knowledge_article: ticket.provider === "zammad" ? "ITSM Zammad" : "Diagnóstico conversacional",
+  };
+}
+
+function buildKpisFromCases(cases: OperationalCase[], ticketDelta = "desde ITSM real"): AdminKpi[] {
+  const total = Math.max(cases.length, 1);
+  const generatedTickets = cases.filter((item) => item.status !== "Resuelto" || item.escalated).length;
+  const autonomous = cases.filter((item) => item.resolution_type === "Autónoma").length;
+  const escalated = cases.filter((item) => item.escalated).length;
+  const criticalActive = cases.filter((item) => item.priority === "P1" && item.status !== "Resuelto").length;
+  const resolved = cases.filter((item) => item.status === "Resuelto");
+  const avgResolution = resolved.length
+    ? Math.round(resolved.reduce((sum, item) => sum + item.duration_minutes, 0) / resolved.length)
+    : Math.round(cases.reduce((sum, item) => sum + item.duration_minutes, 0) / total);
+  const slaMet = Math.round((cases.filter((item) => item.duration_minutes <= item.sla_minutes).length / total) * 100);
+  const positiveSentiment = Math.round(
+    (cases.filter((item) => item.sentiment === "Positivo" || item.sentiment === "Neutral").length / total) * 100,
+  );
+
+  return [
+    { label: "Conversaciones", value: cases.length.toLocaleString("es-CL"), delta: ticketDelta, emphasis: "neutral" },
+    { label: "Tickets generados", value: generatedTickets.toString(), delta: ticketDelta, emphasis: "neutral" },
+    { label: "Resolución autónoma", value: `${Math.round((autonomous / total) * 100)}%`, delta: "tickets Zammad", emphasis: "positive" },
+    { label: "Escalados humanos", value: escalated.toString(), delta: "con grupo resolutor", emphasis: "neutral" },
+    { label: "Tiempo promedio", value: `${avgResolution} min`, delta: "casos gestionados", emphasis: "positive" },
+    { label: "Cumplimiento SLA", value: `${slaMet}%`, delta: "según prioridad", emphasis: slaMet >= 95 ? "positive" : "critical" },
+    { label: "Sentiment usuarios", value: `${positiveSentiment}%`, delta: "positivo o neutral", emphasis: "positive" },
+    { label: "Críticos activos", value: criticalActive.toString(), delta: "requiere seguimiento", emphasis: criticalActive ? "critical" : "positive" },
+  ];
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 /**
@@ -129,14 +196,20 @@ export function listOperationalCasesSync(limit = 100): OperationalCase[] {
  * Usada por Server Actions y API routes.
  */
 export async function listOperationalCases(limit = 100): Promise<OperationalCase[]> {
+  const itsmCases = await listItmsTicketCases(limit);
+  if (itsmCases.length > 0) return itsmCases;
+
   const live = await loadLiveData();
   if (live && live.sessions.length > 0) {
-    return live.sessions.slice(0, limit).map((s, i) => sessionToCase(s, i));
+    return live.sessions.slice(0, limit).map((s) => sessionToCase(s));
   }
   return operationalCases.slice(0, limit);
 }
 
 export async function getAdminKpis(): Promise<AdminKpi[]> {
+  const itsmCases = await listItmsTicketCases(500);
+  if (itsmCases.length > 0) return buildKpisFromCases(itsmCases);
+
   const live = await loadLiveData();
 
   if (live && live.sessions.length > 0) {
@@ -185,29 +258,8 @@ export async function getAdminKpis(): Promise<AdminKpi[]> {
   // ── Fallback mock ─────────────────────────────────────────────────────────
   const cases = operationalCases;
   const total = cases.length;
-  const generatedTickets = cases.filter((item) => item.status !== "Resuelto" || item.escalated).length;
-  const autonomous = cases.filter((item) => item.resolution_type === "Autónoma").length;
-  const escalated = cases.filter((item) => item.escalated).length;
-  const criticalActive = cases.filter((item) => item.priority === "P1" && item.status !== "Resuelto").length;
-  const resolved = cases.filter((item) => item.status === "Resuelto");
-  const avgResolution = Math.round(resolved.reduce((sum, item) => sum + item.duration_minutes, 0) / Math.max(1, resolved.length));
-  const slaMet = Math.round(
-    (cases.filter((item) => item.duration_minutes <= item.sla_minutes * (item.priority === "P1" ? 8 : 1.6)).length / total) * 100,
-  );
-  const positiveSentiment = Math.round(
-    (cases.filter((item) => item.sentiment === "Positivo" || item.sentiment === "Neutral").length / total) * 100,
-  );
-
-  return [
-    { label: "Conversaciones", value: total.toLocaleString("es-CL"), delta: "+18% últimos 7 días", emphasis: "neutral" },
-    { label: "Tickets generados", value: generatedTickets.toString(), delta: "derivación controlada", emphasis: "neutral" },
-    { label: "Resolución autónoma", value: `${Math.round((autonomous / total) * 100)}%`, delta: "+7 pts mensual", emphasis: "positive" },
-    { label: "Escalados humanos", value: escalated.toString(), delta: "con contexto completo", emphasis: "neutral" },
-    { label: "Tiempo promedio", value: `${avgResolution} min`, delta: "casos resueltos", emphasis: "positive" },
-    { label: "Cumplimiento SLA", value: `${slaMet}%`, delta: "objetivo 95%", emphasis: slaMet >= 95 ? "positive" : "critical" },
-    { label: "Sentiment usuarios", value: `${positiveSentiment}%`, delta: "positivo o neutral", emphasis: "positive" },
-    { label: "Críticos activos", value: criticalActive.toString(), delta: "requiere seguimiento", emphasis: criticalActive ? "critical" : "positive" },
-  ];
+  void total;
+  return buildKpisFromCases(cases, "+18% últimos 7 días");
 }
 
 export async function getVolumeByDay(): Promise<ChartPoint[]> {
