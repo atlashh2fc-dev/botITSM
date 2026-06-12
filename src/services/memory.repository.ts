@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { MemoryProfileValue } from "@/lib/itsm/types";
 
 export type UserMemory = {
   email: string;
@@ -16,7 +17,7 @@ export type UserMemory = {
   area: string | null;
   zammadUserId: number | null;
   preferredTone: string | null;
-  profile: Record<string, string | number | boolean | null>;
+  profile: Record<string, MemoryProfileValue>;
   episodicSummary: string | null;
   interactionCount: number;
   lastSeenAt: string | null;
@@ -48,7 +49,7 @@ export async function getUserMemory(email: string): Promise<UserMemory | null> {
         area: data.area,
         zammadUserId: data.zammad_user_id,
         preferredTone: data.preferred_tone,
-        profile: (data.profile as Record<string, string | number | boolean | null>) ?? {},
+        profile: (data.profile as Record<string, MemoryProfileValue>) ?? {},
         episodicSummary: data.episodic_summary,
         interactionCount: data.interaction_count ?? 0,
         lastSeenAt: data.last_seen_at,
@@ -64,7 +65,7 @@ export type UserMemoryPatch = Partial<{
   area: string;
   zammadUserId: number;
   preferredTone: string;
-  profile: Record<string, string | number | boolean | null>;
+  profile: Record<string, MemoryProfileValue>;
   episodicEvent: string; // se agrega al resumen episódico con fecha
 }>;
 

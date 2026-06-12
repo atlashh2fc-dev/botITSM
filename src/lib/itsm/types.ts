@@ -32,6 +32,14 @@ export type DiagnosticStage =
 
 export type DiagnosticFactValue = boolean | string | string[];
 
+export type MemoryProfileValue =
+  | string
+  | number
+  | boolean
+  | null
+  | MemoryProfileValue[]
+  | { [key: string]: MemoryProfileValue | undefined };
+
 export type DiagnosticContext = {
   playbookId: string;
   knowledgeArticleId: string;
@@ -121,6 +129,15 @@ export type SessionContext = {
   stepsExecuted: string[];
   awaitingResolutionConfirmation?: boolean;
   awaitingCloseConfirmation?: boolean;
+  lastTicketLookup?: {
+    topics: string[];
+    found: boolean;
+    needsEmail?: boolean;
+    email?: string;
+    ticketNumbers?: string[];
+    selectedTicketNumber?: string;
+    createdAt: string;
+  };
   /** Memoria relacional del usuario reconocido (perfil, tono, historial). */
   userMemory?: {
     email: string;
@@ -128,7 +145,7 @@ export type SessionContext = {
     area: string | null;
     zammadUserId: number | null;
     preferredTone: string | null;
-    profile: Record<string, string | number | boolean | null>;
+    profile: Record<string, MemoryProfileValue>;
     episodicSummary: string | null;
     interactionCount: number;
     lastSeenAt: string | null;

@@ -6,7 +6,7 @@ import type { ChatMessage, SessionContext, TicketDraft } from "@/lib/itsm/types"
 import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
-import { isTicketCreationMessage, isTicketQueryMessage, resolveTicketQuery } from "@/lib/itsm/ticketLookup";
+import { extractTicketNumber, isTicketCreationMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
 
 type ChatRequest = {
   userMessage: string;
@@ -76,8 +76,25 @@ export async function POST(request: Request) {
   }
 
   // ── Consulta de tickets (omnicanal, determinístico) ─────────────────────
-  if (!wantsTicketCreation && isTicketQueryMessage(userMessage) && !sessionContext.awaitingCloseConfirmation) {
-    const queryResult = await resolveTicketQuery(userMessage, knownEmail);
+  const ticketNumberInMessage = extractTicketNumber(userMessage) ?? extractShownTicketNumber(userMessage, sessionContext);
+  const isTicketEmailContinuation = Boolean(sessionContext.lastTicketLookup?.needsEmail && emailInMessage);
+  const isCorrection = isTicketLookupCorrectionMessage(userMessage, sessionContext);
+  const isTicketLookupTurn =
+    !wantsTicketCreation &&
+    !sessionContext.awaitingCloseConfirmation &&
+    (isTicketQueryMessage(userMessage) || isCorrection || isTicketEmailContinuation || Boolean(ticketNumberInMessage));
+
+  if (isTicketLookupTurn) {
+    const lookupMessage = ticketNumberInMessage
+      ? `ticket ${ticketNumberInMessage}`
+      : (isCorrection || isTicketEmailContinuation) && sessionContext.lastTicketLookup?.topics.length
+      ? sessionContext.lastTicketLookup.topics.join(" ")
+      : userMessage;
+    const queryResult = await resolveTicketQuery(lookupMessage, knownEmail, {
+      fallbackTopics: isCorrection || isTicketEmailContinuation ? sessionContext.lastTicketLookup?.topics : undefined,
+      lenient: isCorrection || isTicketEmailContinuation,
+      lenientReason: isCorrection ? "correction" : isTicketEmailContinuation ? "continuation" : undefined,
+    });
 
     if (queryResult.handled) {
       const assistantChatMessage: ChatMessage = {
@@ -90,11 +107,24 @@ export async function POST(request: Request) {
       const nextContext: SessionContext = {
         ...sessionContextForEngine,
         messages: [...sessionContextForEngine.messages, assistantChatMessage],
+        lastTicketLookup: {
+          topics: queryResult.topics,
+          found: queryResult.matched,
+          needsEmail: queryResult.needsEmail,
+          email: knownEmail,
+          ticketNumbers: queryResult.tickets.map((ticket) => ticket.number),
+          selectedTicketNumber: queryResult.tickets.length === 1 && queryResult.matched ? queryResult.tickets[0].number : undefined,
+          createdAt: new Date().toISOString(),
+        },
       };
 
       if (knownEmail && !queryResult.needsEmail) {
+        const recentTicketLookups = buildRecentTicketLookups(sessionContext.userMemory?.profile?.recentTicketLookups, queryResult);
         await upsertUserMemory(knownEmail, {
-          episodicEvent: `Consultó el estado de sus tickets (${queryResult.tickets.length} encontrados).`,
+          episodicEvent: queryResult.topics.length
+            ? `Consultó tickets por ${queryResult.topics.join(", ")} (${queryResult.tickets.length} encontrados).`
+            : `Consultó el estado de sus tickets (${queryResult.tickets.length} encontrados).`,
+          profile: recentTicketLookups.length ? { recentTicketLookups } : undefined,
         });
       }
 
@@ -528,6 +558,59 @@ function normalizePendingValue(value?: string | null) {
 function getExistingCreatedTicket(ticket?: TicketDraft) {
   if (!ticket?.id && !ticket?.externalId) return undefined;
   return ticket;
+}
+
+function extractShownTicketNumber(message: string, context: SessionContext) {
+  const normalized = normalizePlainText(message);
+  const shownNumbers = context.lastTicketLookup?.ticketNumbers ?? [];
+
+  if (!shownNumbers.length) return undefined;
+
+  const directNumber = normalized.match(/\b(\d{4,})\b/)?.[1];
+  if (directNumber && shownNumbers.includes(directNumber)) return directNumber;
+
+  if (/\b(el primero|el 1|primero|primer)\b/.test(normalized)) return shownNumbers[0];
+  if (/\b(el segundo|el 2|segundo)\b/.test(normalized)) return shownNumbers[1];
+  if (/\b(el tercero|el 3|tercero)\b/.test(normalized)) return shownNumbers[2];
+
+  return undefined;
+}
+
+function buildRecentTicketLookups(previous: unknown, queryResult: TicketQueryResult) {
+  const previousItems = Array.isArray(previous)
+    ? previous.filter(isRecentTicketLookup)
+    : [];
+
+  const nextItems = queryResult.tickets.map((ticket) => ({
+    number: ticket.number,
+    title: ticket.title,
+    state: ticket.state,
+    priority: ticket.priority,
+    topics: queryResult.topics,
+    matched: queryResult.matched,
+    lookedAt: new Date().toISOString(),
+  }));
+
+  return [...nextItems, ...previousItems]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.number === item.number) === index)
+    .slice(0, 10);
+}
+
+function isRecentTicketLookup(value: unknown): value is {
+  number: string;
+  title: string;
+  state: string;
+  priority: string;
+  topics: string[];
+  matched: boolean;
+  lookedAt: string;
+} {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof (value as { number?: unknown }).number === "string"
+  );
 }
 
 function isCourtesyAcknowledgement(message: string) {

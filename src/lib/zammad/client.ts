@@ -211,13 +211,34 @@ function normalizeSearchResult(result: TicketSearchResponse): ZammadTicket[] {
 /** Tickets del cliente (por email), más recientes primero. */
 export async function searchTicketsByCustomer(email: string, limit = 5): Promise<ZammadTicketSummary[]> {
   const user = await findUserByEmail(email);
-  if (!user) return [];
+  const safeEmail = email.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
+  if (!safeEmail) return [];
 
-  const result = await zammadFetch<TicketSearchResponse>(
-    `/tickets/search?query=${encodeURIComponent(`customer_id:${user.id}`)}&limit=${limit}&sort_by=created_at&order_by=desc`,
+  const searches: Promise<TicketSearchResponse>[] = [];
+
+  if (user) {
+    searches.push(searchTicketsByQuery(`customer_id:${user.id}`, limit));
+  }
+
+  searches.push(searchTicketsByQuery(safeEmail, limit));
+
+  const results = await Promise.all(searches.map((search) => search.catch(() => [] as ZammadTicket[])));
+  const unique = new Map<number, ZammadTicket>();
+
+  results.flatMap(normalizeSearchResult).forEach((ticket) => {
+    unique.set(ticket.id, ticket);
+  });
+
+  return [...unique.values()]
+    .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime())
+    .slice(0, limit)
+    .map(toSummary);
+}
+
+function searchTicketsByQuery(query: string, limit: number) {
+  return zammadFetch<TicketSearchResponse>(
+    `/tickets/search?query=${encodeURIComponent(query)}&limit=${limit}&sort_by=created_at&order_by=desc`,
   );
-
-  return normalizeSearchResult(result).map(toSummary);
 }
 
 /** Busca un ticket por número visible (ej. 87008). */
