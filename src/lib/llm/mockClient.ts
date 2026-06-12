@@ -136,6 +136,13 @@ function buildOperationalMessage({
     }
 
     if (serviceDeskTurn?.stage === "prepare_escalation") {
+      if (serviceDeskTurn.diagnostic.facts.physicalDamageDeclared) {
+        return [
+          "¡Listo! Caso registrado por daño físico declarado.",
+          "El equipo de soporte recibirá la solicitud de reemplazo del activo afectado. No tendrás que hacer más pruebas sobre ese periférico.",
+        ].join("\n\n");
+      }
+
       return [
         "¡Listo! Caso registrado con todos los descartes realizados.",
         "El equipo de soporte recibirá el síntoma, las pruebas ya ejecutadas y el activo afectado — no tendrás que repetir nada. Te contactarán a la brevedad.",

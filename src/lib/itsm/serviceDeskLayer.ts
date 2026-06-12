@@ -134,6 +134,27 @@ function resolvePeripheralTurn(params: {
 
   // Determinar el qualifier actual o heredado del diagnóstico previo
   const activeQualifier = qualifier ?? (previousDiagnostic?.facts.qualifier as ServiceDeskQualifier) ?? undefined;
+  const physicalDamage = mentionsPeripheralPhysicalDamage(current);
+
+  if (physicalDamage) {
+    return {
+      asset,
+      qualifier: activeQualifier ?? "wired",
+      symptoms,
+      playbookId: playbook.id,
+      knowledgeArticleId: playbook.knowledgeArticleId,
+      stage: "prepare_escalation",
+      response: [
+        `Entendido: ${assetLabel(asset)} con daño físico declarado.`,
+        "No corresponde seguir haciendo descartes. Lo registraré como solicitud de reemplazo; confírmame nombre completo, correo y área si falta algún dato.",
+      ].join("\n\n"),
+      suggestedActions: [`Playbook ${playbook.id}: reemplazo por daño físico declarado`],
+      facts: {
+        physicalDamageDeclared: true,
+        replacementRequired: true,
+      },
+    };
+  }
 
   // 1. Si estamos en la etapa inicial o no hay calificador de conexión
   if (currentStage === "identify_asset" && !activeQualifier) {
@@ -715,6 +736,37 @@ function mentionsReplacementWorks(text: string) {
 
 function mentionsDetected(text: string) {
   return hasAnyText(text, ["si lo detecta", "sí lo detecta", "lo detecta", "funciona", "aparece", "conecto", "conectó"]);
+}
+
+function mentionsPeripheralPhysicalDamage(text: string) {
+  return hasAnyText(text, [
+    "cable roto",
+    "cable esta roto",
+    "cable está roto",
+    "cable cortado",
+    "cable partido",
+    "cable quebrado",
+    "cable pelado",
+    "esta roto",
+    "está roto",
+    "esta rota",
+    "está rota",
+    "quebrado",
+    "quebrada",
+    "partido",
+    "partida",
+    "fisicamente danado",
+    "fisicamente dañado",
+    "daño fisico",
+    "daño físico",
+    "requiere cambio",
+    "necesita cambio",
+    "necesita reemplazo",
+    "cambiar teclado",
+    "cambiar mouse",
+    "reemplazar teclado",
+    "reemplazar mouse",
+  ]);
 }
 
 function mentionsMonitorNoPower(text: string) {
