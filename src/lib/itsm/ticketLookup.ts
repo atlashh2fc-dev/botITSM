@@ -138,6 +138,10 @@ const QUERY_NOISE_TERMS = new Set([
   "indica",
   "indicas",
   "indicar",
+  "encontrar",
+  "encuentra",
+  "encuentro",
+  "encuentran",
   "dime",
   "decir",
   "saber",
@@ -507,7 +511,7 @@ function scoreTicketDetail(ticket: ZammadTicketDetail, topics: string[]): number
     const genericPeripheralOnly = topic === "mouse" && !assetMatch && !titleMatch && containsTerm(articleText, "periferico");
 
     if (assetConflict) return score - 4;
-    return score + (assetMatch ? 8 : 0) + (titleMatch ? 4 : 0) + (articleMatch && !genericPeripheralOnly ? 2 : 0);
+    return score + (assetMatch ? 8 : 0) + (titleMatch ? 4 : 0) + (articleMatch && !genericPeripheralOnly ? 2 : 0) - scoreTechnicalBotNoise(relevanceText);
   }, 0);
 }
 
@@ -522,13 +526,26 @@ function scoreFallbackCandidate(ticket: ZammadTicketDetail): number {
   const title = normalizeText(ticket.title);
   const state = normalizeText(ticket.state);
   const priority = normalizeText(ticket.priority);
+  const articleText = ticket.articles.map((article) => cleanArticleBody(article.body)).join(" ");
 
   return (
     (state.includes("abierto") || state.includes("nuevo") || state.includes("pendiente") ? 4 : 0) +
     (priority.includes("alta") ? 2 : priority.includes("normal") ? 1 : 0) +
     (title.includes("hardware") || title.includes("puesto de trabajo") ? 3 : 0) -
-    (title.includes("prueba") || title.includes("test") ? 6 : 0)
+    (title.includes("prueba") || title.includes("test") ? 6 : 0) -
+    scoreTechnicalBotNoise(articleText)
   );
+}
+
+function scoreTechnicalBotNoise(text: string): number {
+  const normalized = normalizeText(text);
+  return [
+    "ticket generado por bot itsm",
+    "ticket generado automaticamente por el chatbot",
+    "resumen del caso descripcion quiero saber",
+    "quiero saber en que estado",
+    "quiero saber el estado",
+  ].some((pattern) => normalized.includes(pattern)) ? 10 : 0;
 }
 
 function extractAssetText(body: string): string {
@@ -619,6 +636,15 @@ function isUsefulOperationalNote(body: string): boolean {
   if (!text) return false;
 
   return ![
+    "ticket generado por bot itsm",
+    "ticket generado automaticamente por el chatbot",
+    "solicitante nombre",
+    "resumen del caso",
+    "transcripcion",
+    "clasificacion",
+    "prioridad p",
+    "descartes ejecutados",
+    "sesion session",
     "unable to send email",
     "unable to get sent email",
     "delivery status notification",
