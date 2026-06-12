@@ -3,16 +3,46 @@ import type { Ticket, TicketDraft } from "@/lib/itsm/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getZammadUserDetail,
+  findTicketByNumber,
+  getTicketDetail,
   hasZammadConfig,
   listZammadOrganizations,
   listZammadTickets,
   zammadTicketUrl,
+  type ZammadTicketArticle,
+  type ZammadTicketDetail,
   type ZammadExpandedTicket,
   type ZammadOrganization,
   type ZammadUserDetail,
 } from "@/lib/zammad/client";
 
 const inMemoryTickets: Ticket[] = [...fallbackTickets];
+
+export type TicketTimelineEntry = {
+  id: string;
+  subject: string;
+  body: string;
+  internal: boolean;
+  sender?: string;
+  type?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TicketDetail = Ticket & {
+  updatedAt?: string;
+  closedAt?: string | null;
+  lastContactAt?: string | null;
+  escalationAt?: string | null;
+  stateLabel?: string;
+  priorityLabel?: string;
+  group?: string;
+  owner?: string;
+  organization?: string | null;
+  articleCount?: number;
+  timeline: TicketTimelineEntry[];
+  raw?: Record<string, unknown>;
+};
 
 export async function listTickets(): Promise<Ticket[]> {
   if (hasZammadConfig()) {
@@ -45,6 +75,107 @@ export async function listTickets(): Promise<Ticket[]> {
   }
 
   return inMemoryTickets;
+}
+
+export async function getTicketFullDetail(ticketId: string): Promise<TicketDetail | null> {
+  const baseTicket = (await listTickets()).find((ticket) => ticket.id === ticketId);
+
+  if (hasZammadConfig() && ticketId.toUpperCase().startsWith("ZAM-")) {
+    const number = ticketId.replace(/^ZAM-/i, "");
+    const zammadSummary = await findTicketByNumber(number).catch(() => null);
+    if (zammadSummary) {
+      const detail = await getTicketDetail(zammadSummary).catch(() => null);
+      if (detail) return zammadDetailToTicketDetail(detail, baseTicket);
+    }
+  }
+
+  if (!baseTicket) return null;
+  return {
+    ...baseTicket,
+    timeline: ticketToFallbackTimeline(baseTicket),
+  };
+}
+
+function zammadDetailToTicketDetail(detail: ZammadTicketDetail, baseTicket?: Ticket): TicketDetail {
+  const expanded = detail.expanded;
+  const mappedTicket = expanded ? zammadTicketToTicket(expanded, undefined, new Map()) : undefined;
+  const ticket = baseTicket ?? mappedTicket;
+
+  const fallbackTicket: Ticket = ticket ?? {
+    id: `ZAM-${detail.number}`,
+    type: "INCIDENT",
+    priority: mapZammadPriority(detail.priority),
+    category: expanded?.group ?? "Gestión ITSM",
+    description: detail.title,
+    affectedSystem: expanded?.group ?? "ITSM Geimser",
+    requesterName: expanded?.customer ?? "Solicitante ITSM",
+    requesterEmail: emailFromCustomerLabel(expanded?.customer) ?? "sin-correo@geimser.local",
+    businessArea: expanded?.organization ?? "Sin división informada",
+    executedSteps: [],
+    nextAction: "Seguimiento según cola y estado en Zammad",
+    assignedTeam: expanded?.group ?? "Grupo no asignado",
+    estimatedSla: estimateSla(mapZammadPriority(detail.priority)),
+    status: normalizeZammadState(detail.state),
+    createdAt: detail.createdAt,
+    provider: "zammad",
+    externalId: detail.number,
+    externalUrl: detail.url,
+  };
+
+  return {
+    ...fallbackTicket,
+    description: expanded?.title ?? fallbackTicket.description,
+    updatedAt: expanded?.updated_at ?? detail.updatedAt,
+    closedAt: expanded?.close_at ?? expanded?.last_close_at ?? null,
+    lastContactAt: expanded?.last_contact_at ?? null,
+    escalationAt: expanded?.escalation_at ?? null,
+    stateLabel: expanded?.state ?? detail.state,
+    priorityLabel: expanded?.priority ?? detail.priority,
+    group: expanded?.group,
+    owner: expanded?.owner,
+    organization: expanded?.organization,
+    articleCount: expanded?.article_count ?? detail.articles.length,
+    timeline: detail.articles.map(zammadArticleToTimelineEntry),
+    raw: expanded ? { ...expanded } as Record<string, unknown> : undefined,
+  };
+}
+
+function zammadArticleToTimelineEntry(article: ZammadTicketArticle): TicketTimelineEntry {
+  return {
+    id: String(article.id),
+    subject: article.subject || article.type || "Actualización",
+    body: article.body,
+    internal: article.internal,
+    sender: article.sender,
+    type: article.type,
+    createdAt: article.created_at,
+    updatedAt: article.updated_at,
+  };
+}
+
+function ticketToFallbackTimeline(ticket: Ticket): TicketTimelineEntry[] {
+  return [
+    {
+      id: `${ticket.id}-created`,
+      subject: "Ticket registrado",
+      body: ticket.description,
+      internal: false,
+      sender: "Customer",
+      type: "ticket",
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.createdAt,
+    },
+    ...ticket.executedSteps.map((step, index) => ({
+      id: `${ticket.id}-step-${index + 1}`,
+      subject: `Paso ejecutado ${index + 1}`,
+      body: step,
+      internal: true,
+      sender: "System",
+      type: "diagnostic",
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.createdAt,
+    })),
+  ];
 }
 
 async function listTicketsFromZammad(): Promise<Ticket[]> {

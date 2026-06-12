@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock3,
+  ExternalLink,
+  FileText,
   Gauge,
   LockKeyhole,
   MessageSquareText,
@@ -20,6 +22,7 @@ import {
   ShieldAlert,
   Ticket,
   TrendingUp,
+  X,
   UsersRound,
 } from "lucide-react";
 import { AtlasHexLogo } from "@/components/shared/BrandMark";
@@ -27,6 +30,7 @@ import {
   listOperationalCasesSync as listOperationalCases,
 } from "@/services/operations.repository";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
+import type { TicketDetail } from "@/services/tickets.repository";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
 
 /* ─── Colores Power BI / SONDA ─────────────────────────────────────── */
@@ -388,6 +392,10 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
   const [showOnlyReal, setShowOnlyReal] = useState(true);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketDetail, setTicketDetail] = useState<TicketDetail | null>(null);
+  const [ticketDetailLoading, setTicketDetailLoading] = useState(false);
+  const [ticketDetailError, setTicketDetailError] = useState("");
 
   const mockCases = useMemo(() => listOperationalCases(100), []);
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
@@ -426,6 +434,31 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
     const iv = window.setInterval(load, 15000);
     return () => { active = false; window.clearInterval(iv); };
   }, []);
+
+  async function openTicketDetail(ticketId: string) {
+    setSelectedTicketId(ticketId);
+    setTicketDetail(null);
+    setTicketDetailError("");
+    setTicketDetailLoading(true);
+
+    try {
+      const res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("No se pudo obtener el detalle del ticket.");
+      const payload = (await res.json()) as { ticket?: TicketDetail };
+      setTicketDetail(payload.ticket ?? null);
+    } catch {
+      setTicketDetailError("No fue posible cargar el detalle desde el ITSM.");
+    } finally {
+      setTicketDetailLoading(false);
+    }
+  }
+
+  function closeTicketDetail() {
+    setSelectedTicketId(null);
+    setTicketDetail(null);
+    setTicketDetailError("");
+    setTicketDetailLoading(false);
+  }
 
   const nav = [
     { id: "overview",       label: "Vista General",             icon: Activity },
@@ -623,12 +656,12 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                     </PbiPanel>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 8 }}>
-                    <RealtimeActivity cases={realtimeModel.recent} />
+                    <RealtimeActivity cases={realtimeModel.recent} onOpenTicket={openTicketDetail} />
                     <PbiPanel title="Riesgo de SLA" icon={Clock3}>
-                      <EscalatedListPbi cases={realtimeModel.slaRisk.slice(0, 6)} />
+                      <EscalatedListPbi cases={realtimeModel.slaRisk.slice(0, 6)} onOpenTicket={openTicketDetail} />
                     </PbiPanel>
                   </div>
-                  <OperationalTable cases={realtimeModel.active.length ? realtimeModel.active : cases.slice(0, 12)} />
+                  <OperationalTable cases={realtimeModel.active.length ? realtimeModel.active : cases.slice(0, 12)} onOpenTicket={openTicketDetail} />
                 </div>
               )}
 
@@ -641,7 +674,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                       <HorizBarPbi items={topIntents.filter(x => ["INCIDENT", "NETWORK_ISSUE", "HARDWARE_ISSUE"].includes(x.label))} color={PBI.red} />
                     </PbiPanel>
                   </div>
-                  <OperationalTable cases={incidentCases} />
+                  <OperationalTable cases={incidentCases} onOpenTicket={openTicketDetail} />
                 </div>
               )}
 
@@ -654,7 +687,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                       <HorizBarPbi items={topIntents.filter(x => ["SERVICE_REQUEST", "SOFTWARE_REQUEST"].includes(x.label))} color={PBI.blue} />
                     </PbiPanel>
                   </div>
-                  <OperationalTable cases={requestCases} />
+                  <OperationalTable cases={requestCases} onOpenTicket={openTicketDetail} />
                 </div>
               )}
 
@@ -667,7 +700,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                       <HorizBarPbi items={byType.filter(x => ["Acceso a correo", "Permisos", "Password reset"].includes(x.label))} color={PBI.purple} />
                     </PbiPanel>
                   </div>
-                  <OperationalTable cases={accessCases} />
+                  <OperationalTable cases={accessCases} onOpenTicket={openTicketDetail} />
                 </div>
               )}
 
@@ -735,7 +768,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     <PbiPanel title="Casos escalados desde terreno" icon={ShieldAlert}>
-                      <EscalatedListPbi cases={fieldCopilot.recent.filter(i => i.escalated)} />
+                      <EscalatedListPbi cases={fieldCopilot.recent.filter(i => i.escalated)} onOpenTicket={openTicketDetail} />
                     </PbiPanel>
                     <PbiPanel title="Gobernanza del canal móvil" icon={LockKeyhole}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -760,9 +793,9 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 8 }}>
                     <PbiPanel title="Casos escalados" icon={ShieldAlert}>
-                      <EscalatedListPbi cases={escalated} />
+                      <EscalatedListPbi cases={escalated} onOpenTicket={openTicketDetail} />
                     </PbiPanel>
-                    <OperationalTable cases={cases} />
+                    <OperationalTable cases={cases} onOpenTicket={openTicketDetail} />
                   </div>
                 </div>
               )}
@@ -788,6 +821,15 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
           )}
         </main>
       </div>
+      {selectedTicketId && (
+        <TicketDetailModal
+          ticketId={selectedTicketId}
+          ticket={ticketDetail}
+          loading={ticketDetailLoading}
+          error={ticketDetailError}
+          onClose={closeTicketDetail}
+        />
+      )}
     </div>
   );
 }
@@ -974,7 +1016,7 @@ function KnowledgeListPbi({ items }: { items: ChartPoint[] }) {
 }
 
 /* ─── Escalated list ─────────────────────────────────────────────── */
-function EscalatedListPbi({ cases }: { cases: OperationalCase[] }) {
+function EscalatedListPbi({ cases, onOpenTicket }: { cases: OperationalCase[]; onOpenTicket?: (ticketId: string) => void }) {
   const pColor: Record<string, string> = { P1: PBI.p1, P2: PBI.p2, P3: PBI.p3, P4: PBI.p4 };
   if (!cases.length) {
     return (
@@ -988,7 +1030,7 @@ function EscalatedListPbi({ cases }: { cases: OperationalCase[] }) {
       {cases.map(item => (
         <div key={item.id} style={{ background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, padding: "8px 10px", borderLeft: `3px solid ${pColor[item.priority] ?? PBI.text3}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 10, fontFamily: "monospace", color: PBI.text2 }}>{item.id}</span>
+            <TicketIdButton id={item.id} onOpenTicket={onOpenTicket} color={PBI.text2} />
             <span style={{ fontSize: 10, fontWeight: 700, color: pColor[item.priority] ?? PBI.text3 }}>{item.priority}</span>
           </div>
           <p style={{ fontSize: 12, fontWeight: 600, color: PBI.text1, margin: "4px 0 2px" }}>{item.category}</p>
@@ -999,7 +1041,7 @@ function EscalatedListPbi({ cases }: { cases: OperationalCase[] }) {
   );
 }
 
-function RealtimeActivity({ cases }: { cases: OperationalCase[] }) {
+function RealtimeActivity({ cases, onOpenTicket }: { cases: OperationalCase[]; onOpenTicket?: (ticketId: string) => void }) {
   return (
     <div style={{ background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "11px 14px", borderBottom: `1px solid ${PBI.cardBorder}` }}>
@@ -1013,7 +1055,7 @@ function RealtimeActivity({ cases }: { cases: OperationalCase[] }) {
           const sColor = S_COLOR[item.status] ?? { bg: "#F3F2F1", text: PBI.text2 };
           return (
             <div key={item.id} style={{ display: "grid", gridTemplateColumns: "96px 1fr 160px 88px", gap: 10, alignItems: "center", padding: "9px 14px", borderBottom: "1px solid #F3F2F1" }}>
-              <span style={{ fontFamily: "monospace", fontSize: 11, color: PBI.blue, fontWeight: 700 }}>{item.id}</span>
+              <TicketIdButton id={item.id} onOpenTicket={onOpenTicket} />
               <div style={{ minWidth: 0 }}>
                 <p style={{ margin: 0, color: PBI.text1, fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</p>
                 <p style={{ margin: "2px 0 0", color: PBI.text3, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.department} · {item.user_name}</p>
@@ -1039,7 +1081,7 @@ const S_COLOR: Record<string, { bg: string; text: string }> = {
   "En diagnóstico":{ bg: "#DEECF9", text: "#0078D4" },
 };
 
-function OperationalTable({ cases }: { cases: OperationalCase[] }) {
+function OperationalTable({ cases, onOpenTicket }: { cases: OperationalCase[]; onOpenTicket: (ticketId: string) => void }) {
   return (
     <div style={{ background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${PBI.cardBorder}` }}>
@@ -1071,7 +1113,9 @@ function OperationalTable({ cases }: { cases: OperationalCase[] }) {
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#EFF6FC"}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? "#fff" : "#FAFAF9"}
                 >
-                  <td style={{ padding: "7px 12px", fontFamily: "monospace", fontSize: 11, color: PBI.blue, fontWeight: 600 }}>{item.id}</td>
+                  <td style={{ padding: "7px 12px" }}>
+                    <TicketIdButton id={item.id} onOpenTicket={onOpenTicket} />
+                  </td>
                   <td style={{ padding: "7px 12px", fontWeight: 600, color: PBI.text1 }}>{item.user_name || "—"}</td>
                   <td style={{ padding: "7px 12px", color: PBI.text2 }}>{item.issue_type.replaceAll("_", " ")}</td>
                   <td style={{ padding: "7px 12px", color: PBI.text2 }}>{item.category}</td>
@@ -1104,8 +1148,242 @@ function OperationalTable({ cases }: { cases: OperationalCase[] }) {
   );
 }
 
+function TicketIdButton({ id, onOpenTicket, color = PBI.blue }: { id: string; onOpenTicket?: (ticketId: string) => void; color?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenTicket?.(id)}
+      title={`Ver detalle ${id}`}
+      style={{
+        appearance: "none",
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        color,
+        cursor: onOpenTicket ? "pointer" : "default",
+        fontFamily: "monospace",
+        fontSize: 11,
+        fontWeight: 700,
+        textAlign: "left",
+        textDecoration: onOpenTicket ? "underline" : "none",
+        textUnderlineOffset: 2,
+      }}
+    >
+      {id}
+    </button>
+  );
+}
+
+function TicketDetailModal({ ticketId, ticket, loading, error, onClose }: {
+  ticketId: string;
+  ticket: TicketDetail | null;
+  loading: boolean;
+  error: string;
+  onClose: () => void;
+}) {
+  const statusColor = ticket ? S_COLOR[ticket.status === "resolved" ? "Resuelto" : ticket.status === "escalated" ? "Escalado" : "En diagnóstico"] ?? { bg: "#F3F2F1", text: PBI.text2 } : { bg: "#F3F2F1", text: PBI.text2 };
+  const priorityColor = ticket ? P_COLOR[ticket.priority] ?? PBI.text2 : PBI.text2;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ticket-detail-title"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "rgba(32,31,30,0.46)",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
+      <section
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: "min(1120px, 96vw)",
+          maxHeight: "88vh",
+          background: PBI.cardBg,
+          border: `1px solid ${PBI.cardBorder}`,
+          borderRadius: 6,
+          boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <header style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderBottom: `1px solid ${PBI.cardBorder}`, background: "#FBFAF9" }}>
+          <div style={{ width: 36, height: 36, borderRadius: 6, background: `${PBI.blue}14`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Ticket size={18} color={PBI.blue} />
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p id="ticket-detail-title" style={{ margin: 0, fontSize: 16, fontWeight: 800, color: PBI.text1 }}>
+              {ticket?.id ?? ticketId}
+            </p>
+            <p style={{ margin: "3px 0 0", fontSize: 12, color: PBI.text2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {loading ? "Cargando detalle desde ITSM..." : ticket?.description ?? "Detalle operacional del ticket"}
+            </p>
+          </div>
+          {ticket?.externalUrl && (
+            <a href={ticket.externalUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: PBI.blue, textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
+              <ExternalLink size={14} />
+              ITSM
+            </a>
+          )}
+          <button type="button" onClick={onClose} aria-label="Cerrar detalle" style={{ width: 32, height: 32, border: `1px solid ${PBI.cardBorder}`, background: "#fff", borderRadius: 4, display: "grid", placeItems: "center", cursor: "pointer", color: PBI.text2 }}>
+            <X size={16} />
+          </button>
+        </header>
+
+        <div style={{ overflowY: "auto", padding: 18 }}>
+          {loading && (
+            <div style={{ display: "grid", placeItems: "center", minHeight: 260, color: PBI.text2, fontSize: 13 }}>
+              Consultando información completa del ticket...
+            </div>
+          )}
+
+          {!loading && error && (
+            <div style={{ border: `1px solid #F3C0C7`, background: "#FFF4F5", color: PBI.red, borderRadius: 4, padding: 14, fontSize: 13, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
+
+          {!loading && ticket && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                <DetailMetric label="Prioridad" value={ticket.priority} color={priorityColor} />
+                <DetailMetric label="Estado" value={ticket.stateLabel ?? ticket.status} color={statusColor.text} />
+                <DetailMetric label="SLA" value={ticket.estimatedSla} />
+                <DetailMetric label="Artículos" value={String(ticket.articleCount ?? ticket.timeline.length)} />
+                <DetailMetric label="Proveedor" value={ticket.provider ?? "dashboard"} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 12 }}>
+                <PbiPanel title="Resumen del caso" icon={FileText}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <DetailRow label="Tipo" value={ticket.type.replaceAll("_", " ")} />
+                    <DetailRow label="Categoría" value={ticket.category} />
+                    <DetailRow label="Sistema afectado" value={ticket.affectedSystem} />
+                    <DetailRow label="Activo" value={ticket.affectedAsset} />
+                    <DetailRow label="Impacto" value={ticket.impact} />
+                    <DetailRow label="Urgencia" value={ticket.urgency} />
+                  </div>
+                  <p style={{ margin: "12px 0 0", color: PBI.text1, fontSize: 13, lineHeight: 1.55 }}>{ticket.description}</p>
+                </PbiPanel>
+
+                <PbiPanel title="Solicitante y asignación" icon={UsersRound}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <DetailRow label="Usuario" value={ticket.requesterName} />
+                    <DetailRow label="Correo" value={ticket.requesterEmail} />
+                    <DetailRow label="Área / organización" value={ticket.businessArea ?? ticket.organization} />
+                    <DetailRow label="Grupo" value={ticket.group ?? ticket.assignedTeam} />
+                    <DetailRow label="Owner" value={ticket.owner} />
+                  </div>
+                </PbiPanel>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <PbiPanel title="Gestión operacional" icon={CheckCircle2}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <DetailRow label="Siguiente acción" value={ticket.nextAction} />
+                    <DetailRow label="Equipo asignado" value={ticket.assignedTeam} />
+                    <DetailRow label="Creado" value={formatLongDate(ticket.createdAt)} />
+                    <DetailRow label="Actualizado" value={formatLongDate(ticket.updatedAt)} />
+                    <DetailRow label="Último contacto" value={formatLongDate(ticket.lastContactAt)} />
+                    <DetailRow label="Escalamiento" value={formatLongDate(ticket.escalationAt)} />
+                  </div>
+                </PbiPanel>
+
+                <PbiPanel title="Pasos ejecutados" icon={Activity}>
+                  {ticket.executedSteps.length ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                      {ticket.executedSteps.map((step, index) => (
+                        <div key={`${step}-${index}`} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <span style={{ width: 18, height: 18, borderRadius: 9, background: `${PBI.green}18`, color: PBI.green, display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{index + 1}</span>
+                          <span style={{ color: PBI.text2, fontSize: 12, lineHeight: 1.45 }}>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: PBI.text3, fontSize: 12 }}>Sin pasos registrados en el resumen del dashboard.</p>
+                  )}
+                </PbiPanel>
+              </div>
+
+              <PbiPanel title="Historial y comentarios del ITSM" icon={MessageSquareText}>
+                {ticket.timeline.length ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {ticket.timeline.map((entry) => (
+                      <article key={entry.id} style={{ border: `1px solid ${PBI.cardBorder}`, borderLeft: `3px solid ${entry.internal ? PBI.amber : PBI.blue}`, borderRadius: 4, padding: 12, background: entry.internal ? "#FFF9ED" : "#fff" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: PBI.text1 }}>{entry.subject}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: entry.internal ? PBI.amber : PBI.blue, background: entry.internal ? "#FFF2CC" : "#EAF4FD", padding: "2px 6px", borderRadius: 2 }}>
+                            {entry.internal ? "Interno" : "Visible"}
+                          </span>
+                          <span style={{ marginLeft: "auto", fontSize: 11, color: PBI.text3 }}>{formatLongDate(entry.createdAt)}</span>
+                        </div>
+                        <p style={{ margin: 0, whiteSpace: "pre-wrap", color: PBI.text2, fontSize: 12, lineHeight: 1.5 }}>{cleanArticleBody(entry.body)}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, color: PBI.text3, fontSize: 12 }}>No hay comentarios disponibles para este ticket.</p>
+                )}
+              </PbiPanel>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DetailMetric({ label, value, color = PBI.blue }: { label: string; value?: string; color?: string }) {
+  return (
+    <div style={{ border: `1px solid ${PBI.cardBorder}`, borderTop: `3px solid ${color}`, borderRadius: 4, padding: "10px 12px", background: "#fff" }}>
+      <p style={{ margin: "0 0 5px", color: PBI.text3, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
+      <p style={{ margin: 0, color: PBI.text1, fontSize: 14, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value || "—"}</p>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <p style={{ margin: "0 0 3px", color: PBI.text3, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
+      <p style={{ margin: 0, color: PBI.text1, fontSize: 12, fontWeight: 650, overflowWrap: "anywhere", lineHeight: 1.35 }}>{value || "—"}</p>
+    </div>
+  );
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es-CL", {
     day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC",
   }).format(new Date(value));
+}
+
+function formatLongDate(value?: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("es-CL", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
+function cleanArticleBody(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
 }

@@ -69,6 +69,7 @@ export type ZammadTicketArticle = {
 };
 
 export type ZammadTicketDetail = ZammadTicketSummary & {
+  expanded?: ZammadExpandedTicket;
   articles: ZammadTicketArticle[];
 };
 
@@ -238,8 +239,15 @@ export async function getTicketArticles(ticketId: number): Promise<ZammadTicketA
 }
 
 export async function getTicketDetail(ticket: ZammadTicketSummary): Promise<ZammadTicketDetail> {
-  const articles = await getTicketArticles(ticket.id).catch(() => []);
-  return { ...ticket, articles };
+  const [expanded, articles] = await Promise.all([
+    getZammadTicket(ticket.id).catch(() => undefined),
+    getTicketArticles(ticket.id).catch(() => []),
+  ]);
+  return { ...ticket, expanded, articles };
+}
+
+export async function getZammadTicket(ticketId: number): Promise<ZammadExpandedTicket> {
+  return zammadFetch<ZammadExpandedTicket>(`/tickets/${ticketId}?expand=true`);
 }
 
 export async function listZammadTickets(limit = 500): Promise<ZammadExpandedTicket[]> {
