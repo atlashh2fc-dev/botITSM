@@ -4,6 +4,8 @@ import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational"
 import type { ITSMIntent, ITSMPriority, Ticket } from "@/lib/itsm/types";
 import { listTickets } from "@/services/tickets.repository";
 
+const SANTIAGO_TIME_ZONE = "America/Santiago";
+
 // ─── Tipos internos de Supabase ───────────────────────────────────────────────
 
 type RawSession = {
@@ -266,7 +268,7 @@ export async function getVolumeByDay(): Promise<ChartPoint[]> {
   const cases = await listOperationalCases(500);
   const buckets = new Map<string, number>();
   for (const item of cases) {
-    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: "UTC" }).format(
+    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: SANTIAGO_TIME_ZONE }).format(
       new Date(item.created_at),
     );
     buckets.set(label, (buckets.get(label) ?? 0) + 1);
@@ -294,7 +296,7 @@ export async function getHourlyHeatmap(): Promise<ChartPoint[]> {
   const hours = Array.from({ length: 12 }, (_, index) => 8 + index);
   return hours.map((hour) => ({
     label: `${String(hour).padStart(2, "0")}:00`,
-    value: cases.filter((item) => new Date(item.created_at).getUTCHours() === hour).length,
+    value: cases.filter((item) => getSantiagoHour(item.created_at) === hour).length,
   }));
 }
 
@@ -315,7 +317,7 @@ export async function getSlaBreachesByDay(): Promise<ChartPoint[]> {
   const buckets = new Map<string, number>();
   for (const item of cases) {
     if (item.duration_minutes <= item.sla_minutes) continue;
-    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: "UTC" }).format(
+    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: SANTIAGO_TIME_ZONE }).format(
       new Date(item.created_at),
     );
     buckets.set(label, (buckets.get(label) ?? 0) + 1);
@@ -324,6 +326,16 @@ export async function getSlaBreachesByDay(): Promise<ChartPoint[]> {
     .map(([label, value]) => ({ label, value }))
     .reverse()
     .slice(-10);
+}
+
+function getSantiagoHour(value: string) {
+  return Number(
+    new Intl.DateTimeFormat("es-CL", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: SANTIAGO_TIME_ZONE,
+    }).format(new Date(value)),
+  );
 }
 
 export async function getAgingBuckets(): Promise<ChartPoint[]> {

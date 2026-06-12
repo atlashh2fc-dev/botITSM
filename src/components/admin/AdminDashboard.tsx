@@ -57,6 +57,8 @@ const PBI = {
   p4:          "#107C10",
 };
 
+const SANTIAGO_TIME_ZONE = "America/Santiago";
+
 /* ─── Helpers de datos (sin cambios funcionales) ───────────────────── */
 export function AdminDashboard({ initialSection = "overview" }: { initialSection?: string }) {
   const [authenticated, setAuthenticated] = useState(false);
@@ -223,7 +225,7 @@ function buildAdminKpis(cases: OperationalCase[]): AdminKpi[] {
 function getVolumeByDay(cases: OperationalCase[]): ChartPoint[] {
   const buckets = new Map<string, number>();
   for (const item of cases) {
-    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: "UTC" }).format(new Date(item.created_at));
+    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: SANTIAGO_TIME_ZONE }).format(new Date(item.created_at));
     buckets.set(label, (buckets.get(label) ?? 0) + 1);
   }
   return Array.from(buckets.entries()).map(([label, value]) => ({ label, value })).reverse().slice(-10);
@@ -238,7 +240,7 @@ function groupByField<T extends keyof OperationalCase>(cases: OperationalCase[],
 function getHourlyHeatmap(cases: OperationalCase[]): ChartPoint[] {
   return Array.from({ length: 12 }, (_, i) => 8 + i).map(hour => ({
     label: `${String(hour).padStart(2, "0")}:00`,
-    value: cases.filter(item => new Date(item.created_at).getUTCHours() === hour).length,
+    value: cases.filter(item => getSantiagoHour(item.created_at) === hour).length,
   }));
 }
 
@@ -252,7 +254,7 @@ function getSlaBreachesByDay(cases: OperationalCase[]): ChartPoint[] {
   const buckets = new Map<string, number>();
   for (const item of cases) {
     if (item.duration_minutes <= item.sla_minutes) continue;
-    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: "UTC" }).format(new Date(item.created_at));
+    const label = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: SANTIAGO_TIME_ZONE }).format(new Date(item.created_at));
     buckets.set(label, (buckets.get(label) ?? 0) + 1);
   }
   return Array.from(buckets.entries()).map(([label, value]) => ({ label, value })).reverse().slice(-10);
@@ -1416,7 +1418,7 @@ function TicketStoryEventCard({ event, index }: { event: TicketStoryEvent; index
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es-CL", {
-    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC",
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: SANTIAGO_TIME_ZONE,
   }).format(new Date(value));
 }
 
@@ -1428,8 +1430,18 @@ function formatLongDate(value?: string | null) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "UTC",
+    timeZone: SANTIAGO_TIME_ZONE,
   }).format(new Date(value));
+}
+
+function getSantiagoHour(value: string) {
+  return Number(
+    new Intl.DateTimeFormat("es-CL", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: SANTIAGO_TIME_ZONE,
+    }).format(new Date(value)),
+  );
 }
 
 function buildTicketStory(ticket: TicketDetail): TicketStoryEvent[] {
