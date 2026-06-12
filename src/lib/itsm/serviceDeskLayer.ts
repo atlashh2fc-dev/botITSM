@@ -532,6 +532,27 @@ function resolveExternalMonitorTurn(params: {
     hasFact(previousDiagnostic, "powerOutletTested") ||
     hasFact(previousDiagnostic, "powerCableTested");
   const alreadyReadyToEscalate = previousDiagnostic?.stage === "prepare_escalation" || hasFact(previousDiagnostic, "escalationReady");
+  const physicalDamage = mentionsMonitorPhysicalDamage(current);
+
+  if (physicalDamage) {
+    return {
+      asset: "external_monitor",
+      qualifier: "external",
+      symptoms,
+      playbookId: playbook.id,
+      knowledgeArticleId: playbook.knowledgeArticleId,
+      stage: "prepare_escalation",
+      response: [
+        "Entendido: hay daño físico declarado en el monitor o su cable.",
+        "No corresponde seguir con descartes repetidos. Lo dejaré preparado como solicitud de revisión o reemplazo, incluyendo que el cable está cortado.",
+      ].join("\n\n"),
+      suggestedActions: [`Playbook ${playbook.id}: reemplazo/revisión por daño físico declarado`],
+      facts: {
+        physicalDamageDeclared: true,
+        replacementRequired: true,
+      },
+    };
+  }
 
   if (hasAnyText(current, ["hdmi", "displayport", "dp", "vga", "cable de video"])) {
     return {
@@ -647,6 +668,10 @@ function attachDiagnostic(
   if (turn.asset === "external_monitor") {
     facts.externalMonitorConfirmed = true;
     if (mentionsMonitorNoPower(allUserText)) facts.monitorPowerAbsent = true;
+    if (mentionsMonitorPhysicalDamage(allUserText)) {
+      facts.physicalDamageDeclared = true;
+      facts.replacementRequired = true;
+    }
     if (mentionsVideoCable(allUserText)) facts.videoCableMentioned = true;
     if (mentionsCableFirm(allUserText)) facts.cableFirm = true;
     if (mentionsPowerOutletTested(allUserText)) facts.powerOutletTested = true;
@@ -792,6 +817,50 @@ function mentionsPeripheralPhysicalDamage(text: string) {
     "cambiar mouse",
     "reemplazar teclado",
     "reemplazar mouse",
+  ]);
+}
+
+function mentionsMonitorPhysicalDamage(text: string) {
+  return hasAnyText(text, [
+    "cable roto",
+    "cable esta roto",
+    "cable está roto",
+    "cable cortado",
+    "cable esta cortado",
+    "cable está cortado",
+    "cable se corto",
+    "cable se cortó",
+    "cable partido",
+    "cable quebrado",
+    "cable pelado",
+    "cable danado",
+    "cable dañado",
+    "esta cortado",
+    "está cortado",
+    "esta cortada",
+    "está cortada",
+    "cortado",
+    "cortada",
+    "esta roto",
+    "está roto",
+    "esta rota",
+    "está rota",
+    "quebrado",
+    "quebrada",
+    "partido",
+    "partida",
+    "pantalla quebrada",
+    "monitor quebrado",
+    "monitor roto",
+    "daño fisico",
+    "daño físico",
+    "fisicamente danado",
+    "fisicamente dañado",
+    "requiere cambio",
+    "necesita cambio",
+    "necesita reemplazo",
+    "cambiar monitor",
+    "reemplazar monitor",
   ]);
 }
 

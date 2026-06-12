@@ -143,9 +143,10 @@ function buildOperationalMessage({
 
     if (serviceDeskTurn?.stage === "prepare_escalation") {
       if (serviceDeskTurn.diagnostic.facts.physicalDamageDeclared) {
+        const damagedAsset = serviceDeskTurn.asset === "external_monitor" ? "monitor o cable de video" : "activo afectado";
         return [
           "¡Listo! Caso registrado por daño físico declarado.",
-          "El equipo de soporte recibirá la solicitud de reemplazo del activo afectado. No tendrás que hacer más pruebas sobre ese periférico.",
+          `El equipo de soporte recibirá la solicitud de revisión o reemplazo del ${damagedAsset}. No tendrás que hacer más pruebas sobre ese equipo.`,
         ].join("\n\n");
       }
 
