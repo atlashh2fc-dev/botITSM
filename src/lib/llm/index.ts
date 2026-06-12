@@ -79,6 +79,15 @@ export async function generateITSMResponse(
   }
 
   // 1b. Confirmación de resolución → cierre del caso
+  // En identidad, respuestas como "listo" o "hecho" suelen significar
+  // "ya hice el reset", no que el acceso quedó recuperado.
+  if (isAccountAccessContinuation(input)) {
+    const accountContinuation = resolveContextualContinuation(input);
+    if (accountContinuation) {
+      return accountContinuation;
+    }
+  }
+
   if (isResolvedMessage(input.userMessage)) {
     return generateMockITSMResponse(input);
   }
@@ -166,6 +175,10 @@ function isHardwareTroubleshooting(input: ITSMResponseInput): boolean {
 /** Tier 1: el diagnóstico llegó al estado final antes de escalar. */
 function isReadyDiagnosticFollowUp(input: ITSMResponseInput): boolean {
   return input.sessionContext.diagnostic?.stage === "prepare_escalation";
+}
+
+function isAccountAccessContinuation(input: ITSMResponseInput): boolean {
+  return input.sessionContext.activeArticleId === "kb-account-locked";
 }
 
 /** Tier 1: saludo sin contenido operacional. */

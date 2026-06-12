@@ -72,6 +72,18 @@ export function resolveContextualContinuation(input: ITSMResponseInput): ITSMRes
     });
   }
 
+  if (activeArticle.id === "kb-account-locked") {
+    const accountFollowUp = resolveAccountAccessFollowUp(input.userMessage, assistantHistory, input.sessionContext);
+
+    return buildContinuationResponse({
+      input,
+      article: activeArticle,
+      message: accountFollowUp.message,
+      suggestedActions: accountFollowUp.suggestedActions,
+      shouldEscalate: accountFollowUp.shouldEscalate,
+    });
+  }
+
   const nextStep = resolveNextKnowledgeStep(activeArticle, input.sessionContext);
   if (!nextStep) {
     return undefined;
@@ -90,11 +102,13 @@ function buildContinuationResponse({
   article,
   message,
   suggestedActions,
+  shouldEscalate,
 }: {
   input: ITSMResponseInput;
   article: KnowledgeArticle;
   message: string;
   suggestedActions: string[];
+  shouldEscalate?: boolean;
 }): ITSMResponse {
   const context: SessionContext = {
     ...input.sessionContext,
@@ -115,9 +129,11 @@ function buildContinuationResponse({
     priority,
     requiredFields: getMissingFields(context, priority),
     suggestedActions,
-    operationalStatuses: ["Detectando intención", "Consultando base de conocimiento", "Ejecutando guía de descarte"],
+    operationalStatuses: shouldEscalate
+      ? ["Detectando intención", "Consultando base de conocimiento", "Preparando ticket"]
+      : ["Detectando intención", "Consultando base de conocimiento", "Ejecutando guía de descarte"],
     shouldCreateTicket: false,
-    shouldEscalate: false,
+    shouldEscalate: shouldEscalate ?? false,
     ticketDraft,
   };
 }
@@ -324,6 +340,107 @@ function resolveExternalMonitorFollowUp(message: string): string {
     "Avancemos con el monitor externo.",
     "Primero separo energía de video: ¿queda totalmente apagado o enciende pero muestra sin señal?",
   ].join("\n\n");
+}
+
+// ─── Cuenta bloqueada / contraseña expirada ─────────────────────────────────
+
+function resolveAccountAccessFollowUp(
+  message: string,
+  assistantHistory: string[],
+  context: SessionContext,
+): { message: string; suggestedActions: string[]; shouldEscalate?: boolean } {
+  const text = normalizeText(message);
+  const history = assistantHistory.join("\n");
+  const resetAlreadyRequested = history.includes("reset") || history.includes("desbloqueo") || history.includes("flujo autorizado");
+  const userAlreadyTriedReset = hasAny(text, [
+    "listo",
+    "lisot",
+    "hecho",
+    "ya lo hice",
+    "ya lo realice",
+    "ya lo realicé",
+    "ya cambie",
+    "ya cambié",
+    "realizado",
+  ]);
+  const blockedOrExpired = hasAny(text, [
+    "bloqueada",
+    "bloqueado",
+    "contrasena expirada",
+    "contraseña expirada",
+    "clave expirada",
+    "password expired",
+  ]);
+  const cannotAccess = hasAny(text, [
+    "no me deja",
+    "no puedo ingresar",
+    "no puedo entrar",
+    "no ingresa",
+    "no entra",
+    "error contrasena",
+    "error contraseña",
+    "credenciales incorrectas",
+    "clave incorrecta",
+    "contrasena incorrecta",
+    "contraseña incorrecta",
+    "sigue fallando",
+    "sigue igual",
+  ]);
+  const wantsTicket = hasAny(text, [
+    "ticket",
+    "caso",
+    "escalar",
+    "derivar",
+    "soporte",
+    "ayuda",
+  ]);
+  const hasRepeatedAccessFailure = countAssistantPrompts(history, ["portal de identidad", "desbloqueo", "reset"]) >= 2;
+
+  if ((cannotAccess && (resetAlreadyRequested || hasRepeatedAccessFailure || context.stepsExecuted.length >= 2)) || wantsTicket) {
+    return {
+      message: [
+        "Entendido. Ya no conviene repetir pruebas de contraseña.",
+        "Voy a dejar el caso preparado para Identidad con este contexto: cuenta bloqueada o contraseña expirada, reset/desbloqueo intentado y error de contraseña al volver a ingresar. No compartas tu clave por el chat.",
+      ].join("\n\n"),
+      suggestedActions: [
+        "Derivar a Identidad: reset/desbloqueo no permitió ingresar",
+        "Registrar error de contraseña posterior al cambio",
+      ],
+      shouldEscalate: true,
+    };
+  }
+
+  if (userAlreadyTriedReset) {
+    return {
+      message: [
+        "Perfecto, tomo el reset/desbloqueo como realizado.",
+        "Ahora valida una sola vez el ingreso en el portal de identidad. Si vuelve a mostrar error de contraseña o no te deja entrar, lo derivo a Identidad con el descarte completo.",
+      ].join("\n\n"),
+      suggestedActions: ["Validar acceso posterior a reset/desbloqueo"],
+    };
+  }
+
+  if (blockedOrExpired) {
+    return {
+      message: [
+        "Ese mensaje confirma que el problema es de identidad, no de correo.",
+        "Haz el reset o desbloqueo por el flujo autorizado del portal de identidad. Cuando termines, intenta entrar nuevamente. Si aparece error de contraseña después del cambio, lo escalamos sin seguir repitiendo pasos.",
+      ].join("\n\n"),
+      suggestedActions: ["Solicitar reset/desbloqueo por flujo autorizado de identidad"],
+    };
+  }
+
+  return {
+    message: [
+      "Sigamos con el acceso de identidad.",
+      "Dime el mensaje exacto que aparece en pantalla: cuenta bloqueada, contraseña expirada, credenciales incorrectas u otro texto. Con eso decido si resolvemos por autoservicio o lo derivo.",
+    ].join("\n\n"),
+    suggestedActions: ["Identificar mensaje exacto del portal de identidad"],
+  };
+}
+
+function countAssistantPrompts(history: string, terms: string[]) {
+  return terms.reduce((count, term) => count + (history.includes(normalizeText(term)) ? 1 : 0), 0);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

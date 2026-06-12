@@ -76,6 +76,12 @@ const HISTORY_TERMS = [
 ];
 
 const CREATE_CASE_TERMS = [
+  "abreme ticket",
+  "abreme un ticket",
+  "abre ticket",
+  "abre un ticket",
+  "abre caso",
+  "abre un caso",
   "crear caso",
   "crear un caso",
   "crear ticket",
@@ -96,6 +102,8 @@ const CREATE_CASE_TERMS = [
   "reportar falla",
   "nuevo caso",
   "nuevo ticket",
+  "quiero un ticket",
+  "necesito un ticket",
 ];
 
 export function isTicketQueryMessage(message: string): boolean {
@@ -109,11 +117,24 @@ export function isTicketQueryMessage(message: string): boolean {
   const mentionsHistory = hasAnyTerm(text, HISTORY_TERMS);
   const wantsNewCase = hasAnyTerm(text, CREATE_CASE_TERMS);
 
-  if (wantsNewCase && !mentionsLookupAction && !mentionsHistory) return false;
+  if (wantsNewCase && !mentionsHistory) return false;
   if (mentionsTicketEntity && (mentionsLookupAction || mentionsHistory)) return true;
+  if (mentionsTicketEntity && isTicketCreationMessage(text)) return false;
   if (mentionsTicketEntity && /\b(mis|mi|los|el|un|unos)\s+(ticket|tickets|caso|casos|solicitud|solicitudes|requerimiento|requerimientos)\b/.test(text)) return true;
 
   return mentionsLookupAction && mentionsHistory;
+}
+
+export function isTicketCreationMessage(message: string): boolean {
+  const text = normalizeText(message);
+  if (!text) return false;
+
+  if (hasAnyTerm(text, CREATE_CASE_TERMS)) return true;
+
+  return (
+    hasAnyTerm(text, TICKET_ENTITY_TERMS) &&
+    /\b(abre|abrir|crear|crea|levantar|levanta|registrar|registra|generar|genera|necesito|quiero)\b/.test(text)
+  );
 }
 
 export function extractTicketNumber(message: string): string | null {

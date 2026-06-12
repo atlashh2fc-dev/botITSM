@@ -6,7 +6,7 @@ import type { ChatMessage, SessionContext, TicketDraft } from "@/lib/itsm/types"
 import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
-import { isTicketQueryMessage, resolveTicketQuery } from "@/lib/itsm/ticketLookup";
+import { isTicketCreationMessage, isTicketQueryMessage, resolveTicketQuery } from "@/lib/itsm/ticketLookup";
 
 type ChatRequest = {
   userMessage: string;
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
   // ── Reconocimiento de usuario + Memoria Relacional ──────────────────────
   const emailInMessage = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0];
   const knownEmail = (body.userEmail ?? emailInMessage ?? sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
+  const wantsTicketCreation = isTicketCreationMessage(userMessage);
 
   if (knownEmail && sessionContextForEngine.userMemory?.email !== knownEmail) {
     const memory = await getUserMemory(knownEmail);
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
   }
 
   // ── Consulta de tickets (omnicanal, determinístico) ─────────────────────
-  if (isTicketQueryMessage(userMessage) && !sessionContext.awaitingCloseConfirmation) {
+  if (!wantsTicketCreation && isTicketQueryMessage(userMessage) && !sessionContext.awaitingCloseConfirmation) {
     const queryResult = await resolveTicketQuery(userMessage, knownEmail);
 
     if (queryResult.handled) {
@@ -222,13 +223,45 @@ export async function POST(request: Request) {
   const llmUserMessage = buildChannelAwareMessage(userMessage, body);
   const detectedIntent = detectTurnIntent(llmUserMessage, sessionContextForEngine);
   const knowledgeMatches = findKnowledgeMatches(llmUserMessage, detectedIntent);
-  const llmResponse = await generateITSMResponse({
+  const existingTicket = getExistingCreatedTicket(sessionContextForEngine.ticketDraft);
+  const rawLlmResponse = await generateITSMResponse({
     userMessage: llmUserMessage,
     sessionContext: sessionContextForEngine,
     detectedIntent,
     knowledgeMatches,
     ticketDraft: sessionContextForEngine.ticketDraft,
   });
+  const conversationTurns = sessionContextForEngine.messages.filter((m) => m.role === "user").length;
+  const shouldHonorTicketCreation = wantsTicketCreation && conversationTurns >= 1 && !existingTicket;
+  const llmResponse = wantsTicketCreation && existingTicket
+    ? {
+        ...rawLlmResponse,
+        assistantMessage: `Ya dejé este caso registrado como ${existingTicket.id}. Agregaré cualquier dato nuevo a la conversación para que soporte mantenga el contexto.`,
+        shouldEscalate: false,
+        shouldCreateTicket: false,
+        suggestedActions: ["Mantener contexto en ticket existente"],
+        ticketDraft: existingTicket,
+      }
+    : shouldHonorTicketCreation
+    ? {
+        ...rawLlmResponse,
+        assistantMessage: [
+          "Entendido. Abriré un ticket con el contexto de esta conversación.",
+          "Lo enviaré con las pruebas ya realizadas para que Identidad/Soporte no te vuelva a pedir los mismos descartes.",
+        ].join("\n\n"),
+        shouldEscalate: true,
+        operationalStatuses: ["Detectando intención", "Consultando base de conocimiento", "Preparando ticket"] as const,
+        suggestedActions: Array.from(new Set([
+          ...rawLlmResponse.suggestedActions,
+          "Crear ticket solicitado por el usuario",
+        ])),
+        ticketDraft: {
+          ...rawLlmResponse.ticketDraft,
+          status: "escalated" as const,
+          nextAction: rawLlmResponse.ticketDraft.nextAction || "Crear ticket solicitado por el usuario",
+        },
+      }
+    : rawLlmResponse;
 
   const assistantChatMessage: ChatMessage = {
     id: crypto.randomUUID(),
@@ -241,8 +274,16 @@ export async function POST(request: Request) {
     },
   };
   const diagnosticForTurn = llmResponse.diagnostic ?? sessionContextForEngine.diagnostic;
-  const conversationTurns = sessionContextForEngine.messages.filter((m) => m.role === "user").length;
-  const isResolved = isResolvedMessage(userMessage) && sessionContextForEngine.diagnostic?.stage !== "isolate_component";
+  const isAccessActionDone =
+    sessionContextForEngine.activeArticleId === "kb-account-locked" &&
+    /^(listo|hecho|realizado|ya lo hice|ya lo realice|ya lo realicé|ok|dale)[.!,\s]*$/i.test(
+      userMessage
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim(),
+    );
+  const isResolved = isResolvedMessage(userMessage) && sessionContextForEngine.diagnostic?.stage !== "isolate_component" && !isAccessActionDone;
 
   // ── Determinar si crear ticket ────────────────────────────────────────────
   // Además del flujo normal (shouldCreateTicket = true), registramos:
@@ -252,6 +293,7 @@ export async function POST(request: Request) {
   const shouldForceTicket =
     !llmResponse.shouldCreateTicket &&
     (isResolved ||
+      shouldHonorTicketCreation ||
       (llmResponse.shouldEscalate && conversationTurns >= 2));
 
   const draftForTicket = enrichRequesterDraft(
@@ -267,7 +309,7 @@ export async function POST(request: Request) {
 
   const fullTranscript = [...sessionContextForEngine.messages, assistantChatMessage];
 
-  const itsmResult = (llmResponse.shouldCreateTicket || shouldForceTicket)
+  const itsmResult = !existingTicket && (llmResponse.shouldCreateTicket || shouldForceTicket)
     ? await createTicketThroughITSM({
         draft: draftForTicket,
         sessionId: sessionContextForEngine.sessionId,
@@ -321,7 +363,7 @@ export async function POST(request: Request) {
     priority: llmResponse.priority,
     activeArticleId: resolveActiveArticleId(llmResponse.ticketDraft.description, knowledgeMatches, sessionContextForEngine),
     diagnostic: nextDiagnostic,
-    ticketDraft: itsmResult?.ticket ?? llmResponse.ticketDraft,
+    ticketDraft: itsmResult?.ticket ?? existingTicket ?? llmResponse.ticketDraft,
     stepsExecuted: Array.from(new Set([...sessionContextForEngine.stepsExecuted, ...llmResponse.suggestedActions])),
     awaitingResolutionConfirmation: !llmResponse.shouldCreateTicket && !isResolved,
     awaitingCloseConfirmation: isResolved ? true : undefined,
@@ -331,7 +373,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     response: llmResponse,
-    ticket: itsmResult?.ticket,
+    ticket: itsmResult?.ticket ?? (wantsTicketCreation ? existingTicket : undefined),
     itsm: itsmResult
       ? {
           provider: itsmResult.provider,
@@ -432,4 +474,9 @@ function normalizePendingValue(value?: string | null) {
     return undefined;
   }
   return value;
+}
+
+function getExistingCreatedTicket(ticket?: TicketDraft) {
+  if (!ticket?.id && !ticket?.externalId) return undefined;
+  return ticket;
 }

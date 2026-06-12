@@ -167,6 +167,13 @@ function buildOperationalMessage({
     return "Entendido: vamos con Excel/Office.\n\nPrimero confirma si falla solo Excel o también Word/Outlook; si es solo Excel, intenta abrirlo en modo seguro para descartar complementos.";
   }
 
+  if (article?.id === "kb-account-locked") {
+    return [
+      "Entendido. Revisemos el acceso desde identidad corporativa.",
+      "Intenta ingresar a https://identidad.geimser.cl y dime el mensaje exacto que aparece: cuenta bloqueada, contraseña expirada, credenciales incorrectas u otro aviso. Con eso decido si corresponde autoservicio o derivación.",
+    ].join("\n\n");
+  }
+
   if (intent === "SOFTWARE_REQUEST" && softwareEntitlement) {
     return buildSoftwareEntitlementMessage(softwareEntitlement, requiredFields);
   }
