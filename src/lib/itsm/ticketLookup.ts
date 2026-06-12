@@ -405,28 +405,29 @@ function formatTickets(tickets: ZammadTicketSummary[], customHeader?: string): s
 }
 
 function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): string {
+  const operationalNotes = extractOperationalNotes(ticket.articles);
+  const createdDate = ticket.createdAt.slice(0, 10);
+  const intro = customHeader
+    ? customHeader.replace(/:$/, ".")
+    : "Encontré este ticket a tu nombre.";
   const base = [
-    customHeader ?? "Encontré este ticket a tu nombre:",
-    `• #${ticket.number} — ${ticket.title}`,
-    `• Estado: ${ticket.state}`,
-    `• Prioridad: ${ticket.priority}`,
-    `• Creado: ${ticket.createdAt.slice(0, 10)}`,
+    `${intro} Es el #${ticket.number}, creado el ${createdDate}, y actualmente está ${ticket.state}.`,
+    `Prioridad: ${ticket.priority}.`,
   ];
 
-  const operationalNotes = extractOperationalNotes(ticket.articles);
-  if (operationalNotes.schedule) {
-    base.push(`• Última gestión: ${operationalNotes.schedule}`);
-  } else if (operationalNotes.latestUpdate) {
-    base.push(`• Última actualización: ${operationalNotes.latestUpdate}`);
+  if (operationalNotes.userFacingUpdate) {
+    base.push(`Soporte dejó esta gestión: ${operationalNotes.userFacingUpdate}.`);
   }
 
-  if (operationalNotes.needsPhone) {
-    base.push("Necesito que me confirmes tu número de teléfono para actualizar el ticket.");
+  if (operationalNotes.requestedFields.length) {
+    base.push(`Para avanzar necesitan que me confirmes ${formatRequestedFields(operationalNotes.requestedFields)}.`);
+  } else if (operationalNotes.schedule) {
+    base.push("Si necesitas ajustar esa coordinación, dime qué cambio quieres agregar al ticket.");
   } else {
-    base.push("¿Quieres que revise otro ticket o necesitas agregar algo a este caso?");
+    base.push("¿Quieres que agregue alguna información nueva a este caso?");
   }
 
-  return base.join("\n");
+  return base.join("\n\n");
 }
 
 export function extractTicketQueryTopics(message: string, fallbackTopics: string[] = []): string[] {
@@ -535,12 +536,56 @@ function extractOperationalNotes(articles: ZammadTicketArticle[]) {
     .map((article) => cleanArticleBody(article.body))
     .filter((body) => body && isUsefulOperationalNote(body));
   const combined = bodies.join("\n");
+  const schedule = extractSchedule(combined);
+  const requestedFields = extractRequestedFields(combined);
+  const latestUpdate = bodies[0] ? cleanOperationalSentence(bodies[0].slice(0, 260)) : undefined;
 
   return {
-    schedule: extractSchedule(combined),
-    latestUpdate: bodies[0]?.slice(0, 260),
-    needsPhone: /\b(telefono|teléfono|fono|celular|numero de telefono|número de teléfono)\b/i.test(combined),
+    schedule,
+    latestUpdate,
+    requestedFields,
+    userFacingUpdate: buildUserFacingUpdate({ schedule, latestUpdate, requestedFields }),
   };
+}
+
+function buildUserFacingUpdate(input: { schedule?: string; latestUpdate?: string; requestedFields: string[] }) {
+  const parts: string[] = [];
+
+  if (input.schedule) {
+    parts.push(input.schedule);
+  } else if (input.latestUpdate) {
+    parts.push(normalizeLatestUpdate(input.latestUpdate));
+  }
+
+  if (input.requestedFields.length) {
+    parts.push(`también piden actualizar ${formatRequestedFields(input.requestedFields)}`);
+  }
+
+  return parts.join("; ") || undefined;
+}
+
+function normalizeLatestUpdate(update: string) {
+  const text = normalizeText(update);
+  if (/^resuelto\b/.test(text)) return "soporte marcó el caso como resuelto";
+  return update;
+}
+
+function extractRequestedFields(text: string): string[] {
+  const normalized = normalizeText(text);
+  const fields = [
+    [/\b(mail|correo|email)\b/, "tu correo"],
+    [/\b(telefono|fono|celular|numero de telefono|número de teléfono)\b/, "tu teléfono"],
+  ] as const;
+
+  return fields
+    .filter(([pattern]) => pattern.test(normalized))
+    .map(([, label]) => label);
+}
+
+function formatRequestedFields(fields: string[]) {
+  const unique = [...new Set(fields)];
+  if (unique.length === 1) return unique[0];
+  return `${unique.slice(0, -1).join(", ")} y ${unique.at(-1)}`;
 }
 
 function isUsefulOperationalNote(body: string): boolean {
@@ -570,7 +615,14 @@ function extractSchedule(text: string): string | undefined {
     /(\b\d{1,2}[./-]\d{1,2}\b|\b\d{1,2}:\d{2}\b|\b(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b)/i.test(sentence),
   );
 
-  return scheduleSentence ? cleanOperationalSentence(scheduleSentence) : undefined;
+  if (!scheduleSentence) return undefined;
+
+  const agendaMatch = scheduleSentence.match(/\b(?:agenda|visita|coordinaci[oó]n)\s+(?:queda\s+)?(?:programada|programado|agendada|agendado)\s+para\s+(.+)/i);
+  if (agendaMatch?.[1]) {
+    return cleanOperationalSentence(`coordinación programada para ${agendaMatch[1]}`);
+  }
+
+  return cleanOperationalSentence(scheduleSentence);
 }
 
 function cleanArticleBody(value: string, options: { preserveLines?: boolean } = {}): string {
@@ -596,7 +648,12 @@ function cleanArticleBody(value: string, options: { preserveLines?: boolean } = 
 
 function cleanOperationalSentence(value: string): string {
   return value
+    .replace(/\bpor favor\s+si el usuario se contacta nuevamente,?\s*/gi, "")
     .replace(/\bsi el usuario pregunta por el ticket\b.*$/i, "")
+    .replace(/\bsu agenda queda programada\b/gi, "agenda programada")
+    .replace(/\bsolicitar\b/gi, "actualizar")
+    .replace(/\btelefono\b/gi, "teléfono")
+    .replace(/\bmail\b/gi, "correo")
     .replace(/[,\s]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
