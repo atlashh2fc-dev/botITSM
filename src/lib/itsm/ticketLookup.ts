@@ -10,7 +10,9 @@ import { findTicketByNumber, hasZammadConfig, searchTicketsByCustomer, type Zamm
 const QUERY_PATTERNS = [
   /\b(mis|los)\s+tickets?\b/i,
   /\b(estado|estatus|status|avance|c[oó]mo va|que pas[oó]|en qu[eé] va)\b.*\bticket\b/i,
+  /\b(estado|estatus|status|avance|c[oó]mo va|que pas[oó]|en qu[eé] va)\b.*\b(mi|mis|el|los)?\s*(caso|solicitud|requerimiento)s?\b/i,
   /\bticket\b.*\b(estado|estatus|status|avance|abierto|pendiente|cerrado)\b/i,
+  /\b(mi|mis|el|los)?\s*(caso|solicitud|requerimiento)s?\b.*\b(estado|estatus|status|avance|c[oó]mo va|que pas[oó]|en qu[eé] va|abierto|pendiente|cerrado)\b/i,
   /\bconsultar?\b.*\b(ticket|caso|solicitud)\b/i,
   /\bseguimiento\b.*\b(ticket|caso)\b/i,
   /\btengo\s+(alg[uú]n|alg[uú]nos|un)?\s*(ticket|caso)s?\s+(abierto|pendiente|activo)/i,
