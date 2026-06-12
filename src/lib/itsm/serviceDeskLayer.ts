@@ -581,6 +581,22 @@ function resolveExternalMonitorTurn(params: {
     };
   }
 
+  if (askedPowerAndCable && (mentionsCableConnected(current) || mentionsMonitorPowered(current) || mentionsVideoSignal(current))) {
+    return {
+      asset: "external_monitor",
+      qualifier: "external",
+      symptoms,
+      playbookId: playbook.id,
+      knowledgeArticleId: playbook.knowledgeArticleId,
+      stage: "isolate_component",
+      response: [
+        "Perfecto, dejamos confirmado el cable físico.",
+        "Ahora valida la entrada de video: selecciona HDMI o DisplayPort correcto en el monitor y reconecta el cable al notebook. ¿Aparece imagen o queda sin señal?",
+      ].join("\n\n"),
+      suggestedActions: [`Playbook ${playbook.id}: avanzar a entrada de video tras cable confirmado`],
+    };
+  }
+
   if (askedPowerLight && hasAnyText(current, ["enciende", "luz", "sin señal", "no signal", "entrada", "input"])) {
     return {
       asset: "external_monitor",
@@ -813,6 +829,41 @@ function mentionsVideoCable(text: string) {
 
 function mentionsCableFirm(text: string) {
   return hasAnyText(text, ["esta firme", "está firme", "cable firme", "enchufe firme"]);
+}
+
+function mentionsCableConnected(text: string) {
+  return hasAnyText(text, [
+    "cable conectado",
+    "esta conectado",
+    "está conectado",
+    "queda conectado",
+    "lo conecte",
+    "lo conecté",
+    "conectado al equipo",
+    "conectado al notebook",
+    "cable firme",
+    "esta firme",
+    "está firme",
+    "ya revise el cable",
+    "ya revisé el cable",
+  ]);
+}
+
+function mentionsMonitorPowered(text: string) {
+  return hasAnyText(text, [
+    "si enciende",
+    "sí enciende",
+    "enciende",
+    "tiene luz",
+    "luz encendida",
+    "prende",
+    "si prende",
+    "sí prende",
+  ]);
+}
+
+function mentionsVideoSignal(text: string) {
+  return hasAnyText(text, ["sin señal", "no signal", "entrada", "input", "hdmi", "displayport", "dp", "vga"]);
 }
 
 function mentionsRepeatedInstruction(text: string) {
