@@ -68,6 +68,13 @@ const playbooks: ServiceDeskPlaybook[] = [
     firstQuestion: () =>
       "Entendido: notebook o equipo con lentitud o congelamiento.\n\nPara realizar un diagnóstico efectivo L2, confírmame: ¿la lentitud afecta a todo el equipo o principalmente al abrir/usar una aplicación en específico (como Chrome o Office)?",
   },
+  {
+    id: "workplace-notebook-power",
+    assets: ["notebook"],
+    knowledgeArticleId: "kb-hardware-basic",
+    firstQuestion: () =>
+      "Qué detecté: tu equipo no enciende o queda totalmente apagado.\n\nSiguiente paso: revisa si alguna luz del cargador o del equipo se ilumina. Prueba otro enchufe y confirma que el cargador esté firme en ambos extremos.\n\nNecesito confirmar: ¿se enciende alguna luz del cargador o del equipo?",
+  },
 ];
 
 export function resolveServiceDeskTurn(message: string, context: SessionContext | ChatMessage[]): ServiceDeskTurn | undefined {
@@ -85,7 +92,7 @@ export function resolveServiceDeskTurn(message: string, context: SessionContext 
 
   const qualifier = resolveQualifier(allUserText, asset);
   const symptoms = resolveSymptoms(allUserText);
-  const playbook = resolvePlaybook(asset);
+  const playbook = resolvePlaybook(asset, symptoms, allUserText);
 
   if (!playbook) {
     return undefined;
@@ -100,7 +107,9 @@ export function resolveServiceDeskTurn(message: string, context: SessionContext 
   } else if (asset === "mouse" || asset === "keyboard") {
     turn = resolvePeripheralTurn({ asset, qualifier, current, previousDiagnostic, assistantHistory, playbook, symptoms });
   } else if (asset === "notebook") {
-    turn = resolveNotebookSlownessTurn({ current, allUserText, previousDiagnostic, assistantHistory, playbook, symptoms, history });
+    turn = hasNotebookPowerIssue(current) || hasNotebookPowerIssue(allUserText) || previousDiagnostic?.playbookId === "workplace-notebook-power"
+      ? resolveNotebookPowerTurn({ current, allUserText, previousDiagnostic, playbook, symptoms })
+      : resolveNotebookSlownessTurn({ current, allUserText, previousDiagnostic, assistantHistory, playbook, symptoms, history });
   } else if (asset === "printer") {
     turn = resolvePrinterTurn({ current, previousDiagnostic, playbook, symptoms });
   } else {
@@ -467,7 +476,7 @@ function resolveNotebookDisplayTurn(params: {
       stage: "prepare_escalation", // El siguiente paso recolecta datos para escalar
       response: [
         "Con ese resultado, aislaremos si la falla es de la pantalla física o del chip gráfico (GPU).",
-        "Por favor, conecta un **monitor externo** (por HDMI o USB-C) al notebook. ¿El monitor externo sí da imagen o se queda en negro también?",
+        "Por favor, conecta un monitor externo (por HDMI o USB-C) al notebook. ¿El monitor externo sí da imagen o se queda en negro también?",
       ].join("\n\n"),
       suggestedActions: [`Playbook ${playbook.id}: aislar pantalla interna vs monitor externo`],
     };
@@ -727,7 +736,7 @@ function resolveAsset(current: string, allUserText: string): ServiceDeskAsset | 
   if (allUserText.includes("mouse") || allUserText.includes("moouse") || allUserText.includes("mause") || allUserText.includes("mouuse") || allUserText.includes("raton")) return "mouse";
   if (allUserText.includes("teclado")) return "keyboard";
   if (allUserText.includes("impresora") || allUserText.includes("implresora") || allUserText.includes("inpresora") || allUserText.includes("imprimir") || allUserText.includes("imprimit") || allUserText.includes("improimit") || allUserText.includes("printer")) return "printer";
-  if (current.includes("notebook") || current.includes("note") || current.includes("laptop")) return "notebook";
+  if (hasAnyText(current, ["notebook", "note", "laptop", "equipo", "pc", "computador"]) || hasNotebookPowerIssue(current)) return "notebook";
   return undefined;
 }
 
@@ -742,7 +751,7 @@ function resolveQualifier(text: string, asset: ServiceDeskAsset): ServiceDeskQua
 function resolveSymptoms(text: string): ServiceDeskSymptom[] {
   const symptoms = new Set<ServiceDeskSymptom>();
   if (hasAnyText(text, ["no funciona", "falla", "problema"])) symptoms.add("not_working");
-  if (hasAnyText(text, ["no enciende", "no prende", "sin energia"])) symptoms.add("no_power");
+  if (hasAnyText(text, ["no enciende", "no prende", "sin energia", "sin energía", "sin luz", "todo apagado", "nada enciende"]) || hasNotebookPowerIssue(text)) symptoms.add("no_power");
   if (hasAnyText(text, ["negra", "sin imagen", "no da imagen"])) symptoms.add("no_image");
   if (hasAnyText(text, ["parpadea", "intermitente"])) symptoms.add("flicker");
   if (hasAnyText(text, ["brillo", "oscura", "poco brillo"])) symptoms.add("dim");
@@ -750,7 +759,11 @@ function resolveSymptoms(text: string): ServiceDeskSymptom[] {
   return Array.from(symptoms);
 }
 
-function resolvePlaybook(asset: ServiceDeskAsset) {
+function resolvePlaybook(asset: ServiceDeskAsset, symptoms?: ServiceDeskSymptom[], text = "") {
+  if (asset === "notebook" && (symptoms?.includes("no_power") || hasNotebookPowerIssue(text))) {
+    return playbooks.find((playbook) => playbook.id === "workplace-notebook-power");
+  }
+
   return playbooks.find((playbook) => playbook.assets.includes(asset));
 }
 
@@ -769,6 +782,52 @@ function assetLabel(asset: ServiceDeskAsset) {
 
 function mentionsNoDetection(text: string) {
   return hasAnyText(text, ["no enciende", "no enciuende", "no prende", "no detecta", "no aparece", "nada", "sigue igual", "no funciona", "no fuicna"]);
+}
+
+function hasNotebookPowerIssue(text: string) {
+  return hasAnyText(text, [
+    "pc no enciende",
+    "pc no prende",
+    "equipo no enciende",
+    "equipo no prende",
+    "computador no enciende",
+    "computador no prende",
+    "notebook no enciende",
+    "notebook no prende",
+    "laptop no enciende",
+    "laptop no prende",
+    "no enciende mi pc",
+    "no prende mi pc",
+    "no enciende mi equipo",
+    "no prende mi equipo",
+    "no enciende el equipo",
+    "no prende el equipo",
+    "no enciende",
+    "no prende",
+    "sin energia",
+    "sin energía",
+    "todo apagado",
+    "nada enciende",
+    "no prende nada",
+    "sin luz",
+  ]);
+}
+
+function mentionsNotebookNoPower(text: string) {
+  return hasAnyText(text, [
+    "nada enciende",
+    "nada prende",
+    "todo apagado",
+    "sin luz",
+    "sin energia",
+    "sin energía",
+    "no enciende nada",
+    "no prende nada",
+    "no hay luces",
+    "ninguna luz",
+    "todo sigue apagado",
+    "sigue apagado",
+  ]);
 }
 
 function mentionsReplacementWorks(text: string) {
@@ -1025,6 +1084,77 @@ function isPositiveResponse(text: string): boolean {
   );
 }
 
+function resolveNotebookPowerTurn(params: {
+  current: string;
+  allUserText: string;
+  previousDiagnostic?: DiagnosticContext;
+  playbook: ServiceDeskPlaybook;
+  symptoms: ServiceDeskSymptom[];
+}): ServiceDeskTurnCore {
+  const { current, allUserText, previousDiagnostic, playbook, symptoms } = params;
+  const currentStage = previousDiagnostic?.stage ?? "identify_asset";
+  const confirmsNoPower = mentionsNotebookNoPower(current) || mentionsNotebookNoPower(allUserText);
+  const powerBasicsAlreadyAsked =
+    hasFact(previousDiagnostic, "notebookPowerBasicsAsked") ||
+    currentStage === "run_first_check" ||
+    currentStage === "isolate_component";
+
+  if (!powerBasicsAlreadyAsked) {
+    return {
+      asset: "notebook",
+      symptoms,
+      playbookId: playbook.id,
+      knowledgeArticleId: playbook.knowledgeArticleId,
+      stage: "run_first_check",
+      response: playbook.firstQuestion("notebook"),
+      suggestedActions: [`Playbook ${playbook.id}: validar energía básica del equipo`],
+      facts: {
+        notebookPowerIssue: true,
+        notebookPowerBasicsAsked: true,
+      },
+    };
+  }
+
+  if (confirmsNoPower || isNegativeResponse(current)) {
+    return {
+      asset: "notebook",
+      symptoms,
+      playbookId: playbook.id,
+      knowledgeArticleId: playbook.knowledgeArticleId,
+      stage: "prepare_escalation",
+      response: [
+        "Qué detecté: el equipo sigue completamente apagado, sin luces ni señales de energía.",
+        "Siguiente paso: no corresponde seguir probando USB, aplicaciones ni periféricos. Esto requiere revisión física de cargador, batería, placa o puerto de carga.",
+        "Necesito confirmar: ¿me compartes tu nombre completo, correo y área para registrar el ticket con este contexto?",
+      ].join("\n\n"),
+      suggestedActions: [`Playbook ${playbook.id}: derivar equipo sin energía tras descarte básico`],
+      facts: {
+        notebookPowerIssue: true,
+        notebookPowerAbsent: true,
+        escalationReady: true,
+      },
+    };
+  }
+
+  return {
+    asset: "notebook",
+    symptoms,
+    playbookId: playbook.id,
+    knowledgeArticleId: playbook.knowledgeArticleId,
+    stage: "isolate_component",
+    response: [
+      "Avance: si aparece alguna luz, el equipo sí está recibiendo energía parcial.",
+      "Siguiente paso: mantén presionado el botón de encendido por 15 segundos, espera 10 segundos y vuelve a encenderlo con el cargador conectado.",
+      "Necesito confirmar: ¿aparece logo, sonido de ventilador o alguna luz después de ese reinicio eléctrico?",
+    ].join("\n\n"),
+    suggestedActions: [`Playbook ${playbook.id}: reinicio eléctrico de notebook`],
+    facts: {
+      notebookPowerIssue: true,
+      notebookPowerBasicsAsked: true,
+    },
+  };
+}
+
 function resolveNotebookSlownessTurn(params: {
   current: string;
   allUserText: string;
@@ -1068,8 +1198,8 @@ function resolveNotebookSlownessTurn(params: {
       stage: "run_first_check",
       response: [
         `Perfecto, enfocado en descartes para ${appName}.`,
-        "Siguiente descarte L2: abre el **Administrador de Tareas** (en Windows: `Ctrl + Shift + Esc`, en Mac: `Command + Espacio` y escribe 'Monitor de Actividad').",
-        "Por favor, revisa si ves algún proceso con uso alto o **haz clic en el icono de clip aquí abajo para adjuntar una captura de pantalla** del rendimiento o del Administrador de Tareas para que lo analice por ti.",
+        "Siguiente descarte L2: abre el Administrador de Tareas (en Windows: `Ctrl + Shift + Esc`, en Mac: `Command + Espacio` y escribe 'Monitor de Actividad').",
+        "Por favor, revisa si ves algún proceso con uso alto o haz clic en el icono de clip aquí abajo para adjuntar una captura de pantalla del rendimiento o del Administrador de Tareas para que lo analice por ti.",
       ].join("\n\n"),
       suggestedActions: [`Playbook ${playbook.id}: solicitar evidencia o captura de rendimiento`],
     };
@@ -1094,8 +1224,8 @@ function resolveNotebookSlownessTurn(params: {
         
         responseMessage = [
           `He analizado la captura del Administrador de Tareas que adjuntaste (${attachmentName}).`,
-          "🔍 **Resultado del Análisis Técnico L2:**\n* **Proceso crítico:** `Google Chrome` está consumiendo un **98% de CPU**.\n* **Uso de RAM:** **92% de saturación**.",
-          "Esto confirma que el navegador está acaparando todo el procesador. **Prueba el siguiente descarte:** cierra las pestañas inactivas en Chrome, borra la caché del navegador (Ctrl+Shift+Del) y deshabilita complementos pesados.",
+          "Resultado del análisis técnico L2:\n- Proceso crítico: `Google Chrome` está consumiendo un 98% de CPU.\n- Uso de RAM: 92% de saturación.",
+          "Esto confirma que el navegador está acaparando todo el procesador. Siguiente descarte: cierra las pestañas inactivas en Chrome, borra la caché del navegador (Ctrl+Shift+Del) y deshabilita complementos pesados.",
           "¿Mejoró el rendimiento del equipo o la lentitud persiste?"
         ].join("\n\n");
       } else if (nameLower.includes("disco") || nameLower.includes("space") || nameLower.includes("disk") || nameLower.includes("lleno")) {
@@ -1106,9 +1236,9 @@ function resolveNotebookSlownessTurn(params: {
         
         responseMessage = [
           `He analizado la captura que compartiste (${attachmentName}).`,
-          "🔍 **Resultado del Análisis Técnico L2:**\n* **Alerta Crítica:** La unidad principal `C:\\` tiene **menos de 2 GB de espacio disponible** (marcada en rojo).",
+          "Resultado del análisis técnico L2:\n- Alerta crítica: La unidad principal `C:\\` tiene menos de 2 GB de espacio disponible (marcada en rojo).",
           "La falta de espacio impide que el sistema cree memoria virtual de paginación, causando lentitud extrema y congelamientos.",
-          "**Siguiente descarte:** ejecuta el Liberador de Espacio en Disco (`cleanmgr`), vacía la Papelera de Reciclaje y elimina archivos pesados en Descargas. ¿Lograste liberar espacio y mejoró la respuesta del equipo?"
+          "Siguiente descarte: ejecuta el Liberador de Espacio en Disco (`cleanmgr`), vacía la Papelera de Reciclaje y elimina archivos pesados en Descargas. ¿Lograste liberar espacio y mejoró la respuesta del equipo?"
         ].join("\n\n");
       } else if (nameLower.includes("azul") || nameLower.includes("bsod") || nameLower.includes("pantalla")) {
         // Pantallazo azul = BSOD crítico -> Involucrar soporte técnico inmediato (P2)
@@ -1120,9 +1250,9 @@ function resolveNotebookSlownessTurn(params: {
         
         responseMessage = [
           `He analizado la captura de error que adjuntaste (${attachmentName}).`,
-          "🚨 **Diagnóstico Crítico de Hardware/Kernel (BSOD):**\n* **Evento:** Pantalla Azul de la Muerte (Blue Screen of Death).\n* **Código de error detectado:** `STOP: 0x000000D1 (DRIVER_IRQL_NOT_LESS_OR_EQUAL)` en el controlador `tcpip.sys`.",
+          "Diagnóstico crítico de hardware/kernel (BSOD):\n- Evento: Pantalla Azul de la Muerte (Blue Screen of Death).\n- Código de error detectado: `STOP: 0x000000D1 (DRIVER_IRQL_NOT_LESS_OR_EQUAL)` en el controlador `tcpip.sys`.",
           "Este es un fallo crítico del driver de red o de la memoria del equipo. Al ser un problema de kernel, no puede resolverse con descartes básicos de usuario.",
-          "**Debemos derivar el caso inmediatamente al grupo de Soporte Crítico en Terreno con prioridad Alta.**",
+          "Debemos derivar el caso inmediatamente al grupo de Soporte Crítico en Terreno con prioridad Alta.",
           "Para dejar el caso registrado y derivarlo de inmediato con esta evidencia, ¿podrías darme tu nombre completo, correo y área?"
         ].join("\n\n");
 
@@ -1179,7 +1309,7 @@ function resolveNotebookSlownessTurn(params: {
         stage: "isolate_component",
         response: [
           "Entendido, no lograste ver procesos saturados o no tienes la captura.",
-          "Probemos el siguiente paso manual: abre el navegador (ej: Chrome) en **modo incógnito** o con complementos deshabilitados, o cierra procesos en segundo plano. ¿Notas alguna mejoría al navegar en modo incógnito?"
+          "Probemos el siguiente paso manual: abre el navegador (ej: Chrome) en modo incógnito o con complementos deshabilitados, o cierra procesos en segundo plano. ¿Notas alguna mejoría al navegar en modo incógnito?"
         ].join("\n\n"),
         suggestedActions: [`Playbook ${playbook.id}: probar navegador en modo incógnito / sin extensiones`],
       };
@@ -1206,7 +1336,7 @@ function resolveNotebookSlownessTurn(params: {
         stage: "isolate_component",
         response: [
           "Para aislar la causa de raíz, cuéntame si notas la lentitud en todo el equipo (ej: al abrir carpetas) o solo al navegar.",
-          "También puedes **adjuntar una captura de pantalla** haciendo clic en el clip para identificar con precisión qué está ocurriendo."
+          "También puedes adjuntar una captura de pantalla haciendo clic en el clip para identificar con precisión qué está ocurriendo."
         ].join("\n\n"),
         suggestedActions: [`Playbook ${playbook.id}: aislar lentitud sistema vs navegador`],
       };
@@ -1253,7 +1383,7 @@ function resolveNotebookSlownessTurn(params: {
         stage: "prepare_escalation",
         response: [
           finalMessage,
-          `Registraremos el ticket con la evidencia completa recopilada y lo derivaremos al equipo de **${team}**.`,
+          `Registraremos el ticket con la evidencia completa recopilada y lo derivaremos al equipo de ${team}.`,
           "Para completar la derivación sin retrasos, ¿me confirmas tu nombre completo, correo y área?"
         ].join("\n\n"),
         suggestedActions: [`Playbook ${playbook.id}: derivar caso persistente a soporte L2`],
@@ -1367,7 +1497,7 @@ function resolvePrinterTurn(params: {
         knowledgeArticleId: playbook.knowledgeArticleId,
         stage: "isolate_component",
         response: [
-          "Entendido. Si el panel de la impresora reporta que está **sin papel**, por favor realiza lo siguiente:",
+          "Entendido. Si el panel de la impresora reporta que está sin papel, por favor realiza lo siguiente:",
           "1. Retira la bandeja principal de papel por completo.\n2. Carga hojas blancas limpias, asegurándote de no sobrepasar el límite máximo indicado y ajustando las guías laterales para que queden firmes contra el papel.\n3. Vuelve a introducir la bandeja con firmeza hasta que encaje.",
           "Una vez realizado esto, ¿la impresora tomó el papel y logró imprimir tu documento?"
         ].join("\n\n"),
@@ -1384,7 +1514,7 @@ function resolvePrinterTurn(params: {
         knowledgeArticleId: playbook.knowledgeArticleId,
         stage: "isolate_component",
         response: [
-          "Entendido. Si hay un **atasco de papel**, por favor sigue estos pasos con cuidado:",
+          "Entendido. Si hay un atasco de papel, por favor sigue estos pasos con cuidado:",
           "1. Apaga la impresora y abre la cubierta delantera.\n2. Retira suavemente el conjunto de unidad de tambor y cartucho de tóner.\n3. Sujeta el papel atascado con ambas manos y retíralo despacio hacia afuera para no romperlo.\n4. Vuelve a colocar el tambor/tóner firmemente y cierra la cubierta.",
           "Una vez liberado el atasco y encendida la impresora, ¿se eliminó el error del panel y logró imprimir?"
         ].join("\n\n"),
@@ -1401,7 +1531,7 @@ function resolvePrinterTurn(params: {
         knowledgeArticleId: playbook.knowledgeArticleId,
         stage: "isolate_component",
         response: [
-          "Entendido. Si la impresora reporta **falta de tóner o tinta**, probemos un descarte rápido antes de cambiarlo:",
+          "Entendido. Si la impresora reporta falta de tóner o tinta, probemos un descarte rápido antes de cambiarlo:",
           "1. Abre la cubierta delantera y retira el cartucho de tóner.\n2. Sujeta el cartucho con ambas manos y agítalo suavemente de lado a lado (horizontalmente) 5 a 6 veces para redistribuir el tóner restante.\n3. Vuelve a instalar el cartucho y cierra la cubierta.",
           "¿Esto permitió que la impresora vuelva a estar lista e imprima, o el panel sigue mostrando el aviso de cambiar tóner?"
         ].join("\n\n"),

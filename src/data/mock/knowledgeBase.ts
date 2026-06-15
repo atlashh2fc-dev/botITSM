@@ -871,6 +871,13 @@ function resolvePreferredArticleId(normalizedMessage: string) {
   }
 
   if (
+    hasAnySearchText(normalizedMessage, ["no enciende", "no prende", "sin energia", "sin energía", "todo apagado", "nada enciende", "no carga"]) &&
+    hasAnySearchText(normalizedMessage, ["pc", "equipo", "computador", "notebook", "laptop", "cargador"])
+  ) {
+    return "kb-laptop-no-power";
+  }
+
+  if (
     hasAnySearchText(normalizedMessage, ["lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "quedo pegado", "queda pegado"])
   ) {
     return "kb-slow-notebook";

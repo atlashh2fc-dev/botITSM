@@ -84,6 +84,18 @@ export function resolveContextualContinuation(input: ITSMResponseInput): ITSMRes
     });
   }
 
+  if (activeArticle.id === "kb-laptop-no-power") {
+    const powerFollowUp = resolveLaptopNoPowerFollowUp(input.userMessage, assistantHistory);
+
+    return buildContinuationResponse({
+      input,
+      article: activeArticle,
+      message: powerFollowUp.message,
+      suggestedActions: powerFollowUp.suggestedActions,
+      shouldEscalate: powerFollowUp.shouldEscalate,
+    });
+  }
+
   const nextStep = resolveNextKnowledgeStep(activeArticle, input.sessionContext);
   if (!nextStep) {
     return undefined;
@@ -135,6 +147,71 @@ function buildContinuationResponse({
     shouldCreateTicket: false,
     shouldEscalate: shouldEscalate ?? false,
     ticketDraft,
+  };
+}
+
+function resolveLaptopNoPowerFollowUp(message: string, assistantHistory: string[]) {
+  const text = normalizeText(message);
+  const alreadyAskedPower = assistantHistory.some((content) =>
+    content.includes("luz del cargador") ||
+    content.includes("luz del equipo") ||
+    content.includes("alguna luz") ||
+    content.includes("senal de energia") ||
+    content.includes("señal de energia") ||
+    content.includes("señal de energía"),
+  );
+  const noPowerConfirmed = hasAny(text, [
+    "nada",
+    "nada enciende",
+    "nada prende",
+    "todo apagado",
+    "todo esta apagado",
+    "todo está apagado",
+    "sin luz",
+    "sin luces",
+    "no hay luz",
+    "no hay luces",
+    "ninguna luz",
+    "no enciende",
+    "no prende",
+    "no enciende nada",
+    "no prende nada",
+    "sin energia",
+    "sin energía",
+  ]);
+
+  if (alreadyAskedPower && noPowerConfirmed) {
+    return {
+      message: [
+        "Qué detecté: el equipo sigue completamente apagado, sin luces ni señal de energía.",
+        "Siguiente paso: no corresponde probar USB, aplicaciones ni periféricos. Esto requiere revisión física de cargador, batería, placa o puerto de carga.",
+        "Necesito confirmar: ¿me compartes tu nombre completo, correo y área para registrar el ticket con este contexto?",
+      ].join("\n\n"),
+      suggestedActions: ["Derivar equipo sin energía tras descarte básico"],
+      shouldEscalate: true,
+    };
+  }
+
+  if (hasAny(text, ["si", "sí", "luz", "enciende luz", "parpadea", "cargador prende", "tiene luz"])) {
+    return {
+      message: [
+        "Avance: si aparece alguna luz, el equipo recibe energía parcial.",
+        "Siguiente paso: mantén presionado el botón de encendido por 15 segundos, espera 10 segundos y vuelve a encenderlo con el cargador conectado.",
+        "Necesito confirmar: ¿aparece logo, sonido de ventilador o alguna luz después de ese reinicio eléctrico?",
+      ].join("\n\n"),
+      suggestedActions: ["Realizar reinicio eléctrico de notebook"],
+      shouldEscalate: false,
+    };
+  }
+
+  return {
+    message: [
+      "Qué detecté: seguimos validando energía del equipo.",
+      "Siguiente paso: revisa si alguna luz del cargador o del equipo se ilumina. Prueba otro enchufe y confirma que el cargador esté firme en ambos extremos.",
+      "Necesito confirmar: ¿se enciende alguna luz del cargador o del equipo?",
+    ].join("\n\n"),
+    suggestedActions: ["Validar energía básica del equipo"],
+    shouldEscalate: false,
   };
 }
 

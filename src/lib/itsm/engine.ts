@@ -66,7 +66,7 @@ export function detectIntent(message: string): ITSMIntent {
     return "SOFTWARE_REQUEST";
   }
 
-  if (hasAny(text, ["notebook", "equipo", "lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "se queda pegado", "congelada", "congeladas", "pantalla", "batería", "bateria", "hardware", "mouse", "moouse", "mause", "mouuse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
+  if (hasAny(text, ["notebook", "equipo", "pc", "computador", "laptop", "no enciende", "no prende", "sin energia", "sin energía", "todo apagado", "nada enciende", "lento", "lentitud", "se pega", "pegado", "congelado", "colapsa", "no responde", "se queda pegado", "congelada", "congeladas", "pantalla", "batería", "bateria", "hardware", "mouse", "moouse", "mause", "mouuse", "raton", "ratón", "teclado", "monitor", "hdmi", "displayport", "vga", "pantalla externa", "segunda pantalla", "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "periferico", "periférico", "camara", "cámara", "microfono", "micrófono", "cargador"])) {
     return "HARDWARE_ISSUE";
   }
 
@@ -94,7 +94,7 @@ export function detectTurnIntent(message: string, context?: SessionContext): ITS
   // Si el mensaje es una declaración de problema explícita, usar el detectado de inmediato
   const isProblem = hasAny(text, [
     "no funciona", "no sirve", "falla", "error", "problema", "problrma", "malo", 
-    "no responde", "no abre", "no conecta", "se cayo", "caida", "se pega", 
+    "no responde", "no abre", "no conecta", "no enciende", "no prende", "sin energia", "sin energía", "todo apagado", "nada enciende", "se cayo", "caida", "se pega", 
     "pegado", "congelado", "lento", "lentitud", "moouse", "mouse", "mause", "mouuse",
     "teclado", "raton", "ratón",
     "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "imprime"
