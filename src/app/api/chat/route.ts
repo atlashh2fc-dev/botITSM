@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findKnowledgeMatches, knowledgeBase } from "@/data/mock/knowledgeBase";
 import { createSessionContext, detectTurnIntent, extractFields, isResolvedMessage } from "@/lib/itsm/engine";
 import { createTicketThroughITSM } from "@/lib/itsm/itsmGateway";
-import type { ChatMessage, SessionContext, TicketDraft } from "@/lib/itsm/types";
+import type { ChatMessage, SessionContext, Ticket, TicketDraft } from "@/lib/itsm/types";
 import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
@@ -270,7 +270,7 @@ export async function POST(request: Request) {
       const assistantChatMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Perfecto. Procedo a registrar la solución y dar por cerrado este caso de manera autónoma en el sistema de soporte de SONDA. ¡Muchas gracias por tu confirmación y que tengas un excelente día!",
+        content: "**Caso cerrado.**\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte SONDA.",
         createdAt: new Date().toISOString(),
         metadata: {
           intent: resolvedDraft.type,
@@ -288,12 +288,15 @@ export async function POST(request: Request) {
         diagnostic: sessionContextForEngine.diagnostic,
         source: channel,
       });
+      const resolvedTicket = itsmResult?.ticket ?? resolvedDraft;
+      assistantChatMessage.content = appendTicketConfirmation(assistantChatMessage.content, resolvedTicket);
+      const updatedTranscript = [...sessionContextForEngine.messages, assistantChatMessage];
 
       const nextContext: SessionContext = {
         ...sessionContextForEngine,
-        messages: fullTranscript,
+        messages: updatedTranscript,
         awaitingCloseConfirmation: false,
-        ticketDraft: itsmResult?.ticket ?? resolvedDraft,
+        ticketDraft: resolvedTicket,
       };
 
       const closeEmail = (sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
@@ -319,7 +322,7 @@ export async function POST(request: Request) {
           shouldEscalate: false,
           ticketDraft: resolvedDraft,
         },
-        ticket: itsmResult?.ticket ?? resolvedDraft,
+        ticket: resolvedTicket,
         itsm: itsmResult,
         sessionContext: nextContext,
       });
@@ -486,7 +489,7 @@ export async function POST(request: Request) {
   const assistantChatMessage: ChatMessage = {
     id: crypto.randomUUID(),
     role: "assistant",
-    content: llmResponse.assistantMessage,
+    content: formatAssistantMessage(llmResponse.assistantMessage),
     createdAt: new Date().toISOString(),
     metadata: {
       intent: llmResponse.classification,
@@ -540,6 +543,7 @@ export async function POST(request: Request) {
     : undefined;
 
   if (itsmResult) {
+    assistantChatMessage.content = appendTicketConfirmation(assistantChatMessage.content, itsmResult.ticket);
     assistantChatMessage.metadata = {
       ...assistantChatMessage.metadata,
       ticketId: itsmResult.ticket.id,
@@ -555,6 +559,7 @@ export async function POST(request: Request) {
       if (updatedMemory) sessionContextForEngine.userMemory = updatedMemory;
     }
   }
+  const updatedTranscript = [...sessionContextForEngine.messages, assistantChatMessage];
   const nextDiagnostic = itsmResult && diagnosticForTurn
     ? {
         ...diagnosticForTurn,
@@ -578,7 +583,7 @@ export async function POST(request: Request) {
   const nextContext: SessionContext = {
     ...sessionContextForEngine,
     collectedFields: extractFields(userMessage, sessionContextForEngine),
-    messages: fullTranscript,
+    messages: updatedTranscript,
     detectedIntent: llmResponse.classification,
     priority: llmResponse.priority,
     activeArticleId: resolveActiveArticleId(llmResponse.ticketDraft.description, knowledgeMatches, sessionContextForEngine),
@@ -592,7 +597,10 @@ export async function POST(request: Request) {
   await persistChatTurn(nextContext, [userChatMessage, assistantChatMessage], sessionOutcome, channel);
 
   return NextResponse.json({
-    response: llmResponse,
+    response: {
+      ...llmResponse,
+      assistantMessage: assistantChatMessage.content,
+    },
     ticket: itsmResult?.ticket ?? (wantsTicketCreation ? existingTicket : undefined),
     itsm: itsmResult
       ? {
@@ -605,6 +613,31 @@ export async function POST(request: Request) {
     sessionContext: nextContext,
     knowledgeMatches,
   });
+}
+
+function appendTicketConfirmation(content: string, ticket: Pick<Ticket, "id">) {
+  if (content.includes(ticket.id)) return content;
+
+  return [
+    content.trim(),
+    "**Ticket generado.**",
+    `Tu número de ticket es **${ticket.id}**. Guárdalo para futuras consultas o seguimiento del caso.`,
+  ].join("\n\n");
+}
+
+function formatAssistantMessage(content: string) {
+  const trimmed = content.trim();
+  if (!trimmed || trimmed.includes("**") || /^[-*]\s+/m.test(trimmed)) return trimmed;
+
+  const blocks = trimmed.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  if (blocks.length > 1) return blocks.join("\n\n");
+
+  const sentences = trimmed.match(/[^.!?]+[.!?]+/g)?.map((sentence) => sentence.trim()) ?? [trimmed];
+  if (sentences.length <= 1) return `**Siguiente paso:** ${trimmed}`;
+
+  const first = sentences[0];
+  const rest = sentences.slice(1).join(" ");
+  return [`**Qué detecté:** ${first}`, `**Siguiente paso:** ${rest}`].join("\n\n");
 }
 
 function buildChannelAwareMessage(userMessage: string, body: ChatRequest) {

@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Ticket } from "@/lib/itsm/types";
+import { FormattedMessage } from "@/components/shared/FormattedMessage";
 import { SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
 
 type ChatApiResponse = {
@@ -187,7 +188,7 @@ const initialMessage: ChatMessage = {
   id: "sonda-welcome",
   role: "assistant",
   createdAt: new Date().toISOString(),
-  content: "Hola. Escríbeme qué falla y te guío con el siguiente paso.",
+  content: "**Hola.**\n\nEscríbeme qué falla y te guío con el siguiente paso.",
 };
 
 const statusLabels: Partial<Record<OperationalStatus, string>> = {
@@ -448,8 +449,8 @@ export function SondaAssistant() {
         role: "assistant",
         createdAt: new Date().toISOString(),
         content: selectedUserName
-          ? `Listo, sigo conectado con ITSM como ${selectedUserName} (${email}).\n\nCuéntame qué necesitas revisar.`
-          : `Perfecto, trabajaré con el correo ${email}.\n\nSi ya tienes usuario en ITSM, consultaré tus tickets a tu nombre. Si no existe todavía, lo crearé automáticamente al registrar el primer caso.`,
+          ? `**Sesión ITSM activa.**\n\nSigo conectado como **${selectedUserName}** (${email}).\n\n**Cuéntame:** ¿qué necesitas revisar?`
+          : `**Correo registrado.**\n\nTrabajaré con **${email}**. Si ya tienes usuario en ITSM, consultaré tus tickets a tu nombre.\n\n**Cuéntame:** ¿qué necesitas revisar?`,
       };
 
       setContext(newContext);
@@ -968,7 +969,7 @@ function Bubble({ message, onReply }: { message: ChatMessage; onReply?: (message
           color: "#E5E7EB",
         }}
       >
-        <p className="whitespace-pre-line">{message.content}</p>
+        <FormattedMessage content={message.content} />
       </div>
     );
   }
@@ -1016,7 +1017,11 @@ function Bubble({ message, onReply }: { message: ChatMessage; onReply?: (message
           </div>
         ) : null}
         {message.content ? (
-          <p className="text-[13px] leading-[1.55] whitespace-pre-line">{message.content}</p>
+          isUser ? (
+            <p className="text-[13px] leading-[1.55] whitespace-pre-line">{message.content}</p>
+          ) : (
+            <FormattedMessage content={message.content} className="text-[13px] leading-[1.6]" />
+          )
         ) : null}
         {!isUser && message.suggestedReplies?.length ? (
           <div className="grid gap-1.5 pt-1">

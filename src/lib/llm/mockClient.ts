@@ -52,8 +52,8 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
     const userName = mergedContext.collectedFields.nombre;
     const userArea = mergedContext.collectedFields.area;
     const greeting = userName
-      ? `¡Hola ${userName}! Soy el asistente de soporte TI de SONDA. Veo que estás registrado en el área de ${userArea || "Operaciones"}. ¿Qué inconveniente estás teniendo hoy?`
-      : "¡Hola! Soy el asistente de soporte TI de SONDA. Cuéntame qué está pasando y lo resolvemos juntos.";
+      ? `**Hola ${userName}.**\n\nSoy el asistente de soporte TI de SONDA. Veo que estás registrado en el área de **${userArea || "Operaciones"}**.\n\n**Cuéntame:** ¿qué inconveniente estás teniendo hoy?`
+      : "**Hola.**\n\nSoy el asistente de soporte TI de SONDA.\n\n**Cuéntame:** ¿qué está pasando?";
 
     return {
       assistantMessage: greeting,
@@ -72,7 +72,7 @@ export async function generateMockITSMResponse(input: ITSMResponseInput): Promis
   if (isResolvedMessage(input.userMessage) && input.sessionContext.diagnostic?.stage !== "isolate_component") {
     return {
       assistantMessage:
-        "¡Excelente! Qué bueno saber que se solucionó el inconveniente con el descarte realizado. ¿Necesitas ayuda con algún otro requerimiento o podemos dar por cerrado este caso aquí?",
+        "**Excelente.**\n\nQué bueno saber que se solucionó con el descarte realizado.\n\n**Necesito confirmar:** ¿podemos dar por cerrado este caso aquí?",
       classification: detectedIntent,
       priority,
       requiredFields: [],
@@ -151,21 +151,22 @@ function buildOperationalMessage({
       }
 
       return [
-        "¡Listo! Caso registrado con todos los descartes realizados.",
-        "El equipo de soporte recibirá el síntoma, las pruebas ya ejecutadas y el activo afectado — no tendrás que repetir nada. Te contactarán a la brevedad.",
+        "**Caso listo para derivar.**",
+        "Registré los descartes realizados, el síntoma principal y el activo afectado.",
+        "**Siguiente paso:** soporte recibirá el contexto completo para que no tengas que repetir la información.",
       ].join("\n\n");
     }
 
     const firstStep = article?.resolutionSteps[0] ? formatStepForUser(article.resolutionSteps[0]) : undefined;
 
     return [
-      firstStep ? `Entendido. ${firstStep}` : "Entendido. Lo dejo listo para derivar con el contexto actual.",
-      requiredFields.length ? `Confírmame solo esto: ${requiredFields.join(", ")}.` : "Te aviso el siguiente paso apenas quede registrado.",
+      firstStep ? `**Siguiente paso:** ${firstStep}` : "**Siguiente paso:** lo dejaré listo para derivar con el contexto actual.",
+      requiredFields.length ? `**Necesito confirmar:** ${requiredFields.join(", ")}.` : "**Estado:** te aviso apenas quede registrado.",
     ].join("\n\n");
   }
 
   if (article?.id === "kb-excel-wont-open") {
-    return "Entendido: vamos con Excel/Office.\n\nPrimero confirma si falla solo Excel o también Word/Outlook; si es solo Excel, intenta abrirlo en modo seguro para descartar complementos.";
+    return "**Qué detecté:** problema al abrir Excel/Office.\n\n**Siguiente paso:** intenta abrir Excel en modo seguro para descartar complementos.\n\n**Necesito confirmar:** ¿falla solo Excel o también Word/Outlook?";
   }
 
   if (article?.id === "kb-account-locked") {
@@ -185,8 +186,8 @@ function buildOperationalMessage({
 
   if (article?.resolutionSteps.length) {
     return [
-      "Entendido. Probemos el primer descarte.",
-      formatStepForUser(article.resolutionSteps[0]),
+      "**Qué detecté:** tengo una guía de descarte para este caso.",
+      `**Siguiente paso:** ${formatStepForUser(article.resolutionSteps[0])}`,
     ].join("\n\n");
   }
 
@@ -213,8 +214,8 @@ function buildOperationalMessage({
   };
 
   return [
-    introByIntent[intent],
-    questionsByIntent[intent],
+    `**Qué detecté:** ${introByIntent[intent]}`,
+    `**Necesito confirmar:** ${questionsByIntent[intent]}`,
   ]
     .filter(Boolean)
     .join("\n\n");

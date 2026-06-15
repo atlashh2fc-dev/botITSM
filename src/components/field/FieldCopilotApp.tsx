@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { SondaIcon } from "@/components/shared/BrandMark";
 import type { ITSMResponse, SessionContext, Ticket } from "@/lib/itsm/types";
+import { FormattedMessage } from "@/components/shared/FormattedMessage";
 
 type TechnicianRole = "tecnico terreno" | "residente" | "supervisor" | "admin";
 
@@ -700,7 +701,7 @@ function DiagnosticTurn({ turn }: { turn: FieldTurn }) {
         ) : null}
       </div>
       <div className="max-w-[94%] rounded-2xl border border-[#D8E1EA] bg-white px-4 py-3">
-        <p className="whitespace-pre-line text-sm font-medium leading-6 text-[#243B53]">{turn.assistantText}</p>
+        <FormattedMessage content={turn.assistantText} className="text-sm font-medium leading-6 text-[#243B53]" />
         {turn.ticket ? (
           <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2">
             <p className="text-xs font-bold text-emerald-700">Ticket registrado: {turn.ticket.id}</p>
