@@ -188,7 +188,7 @@ const initialMessage: ChatMessage = {
   id: "sonda-welcome",
   role: "assistant",
   createdAt: new Date().toISOString(),
-  content: "**Hola.**\n\nEscríbeme qué falla y te guío con el siguiente paso.",
+  content: "Hola:\n\nEscríbeme qué falla y te guío con el siguiente paso.",
 };
 
 const statusLabels: Partial<Record<OperationalStatus, string>> = {
@@ -449,8 +449,8 @@ export function SondaAssistant() {
         role: "assistant",
         createdAt: new Date().toISOString(),
         content: selectedUserName
-          ? `**Sesión ITSM activa.**\n\nSigo conectado como **${selectedUserName}** (${email}).\n\n**Cuéntame:** ¿qué necesitas revisar?`
-          : `**Correo registrado.**\n\nTrabajaré con **${email}**. Si ya tienes usuario en ITSM, consultaré tus tickets a tu nombre.\n\n**Cuéntame:** ¿qué necesitas revisar?`,
+          ? `Sesión ITSM activa:\n\nSigo conectado como ${selectedUserName} (${email}).\n\nCuéntame: ¿qué necesitas revisar?`
+          : `Correo registrado:\n\nTrabajaré con ${email}. Si ya tienes usuario en ITSM, consultaré tus tickets a tu nombre.\n\nCuéntame: ¿qué necesitas revisar?`,
       };
 
       setContext(newContext);

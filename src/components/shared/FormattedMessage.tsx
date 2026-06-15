@@ -77,6 +77,14 @@ function parseBlocks(content: string) {
 
 function renderInline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  const label = text.match(/^([^:]{2,42}:)(\s+.+)$/);
+
+  if (label && isReadableLabel(label[1])) {
+    return [
+      <strong key="label">{label[1]}</strong>,
+      label[2],
+    ];
+  }
 
   return parts.map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
@@ -93,4 +101,23 @@ function renderInline(text: string): ReactNode[] {
 
     return part;
   });
+}
+
+function isReadableLabel(label: string) {
+  return [
+    "Avance:",
+    "Caso cerrado:",
+    "Caso listo para derivar:",
+    "Correo registrado:",
+    "Cuéntame:",
+    "Estado:",
+    "Hola:",
+    "Necesito confirmar:",
+    "Qué detecté:",
+    "Sesión ITSM activa:",
+    "Siguiente paso:",
+    "Solicitud recibida:",
+    "Ticket generado:",
+    "Tu número de ticket:",
+  ].includes(label);
 }

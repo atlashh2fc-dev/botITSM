@@ -270,7 +270,7 @@ export async function POST(request: Request) {
       const assistantChatMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "**Caso cerrado.**\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte SONDA.",
+        content: "Caso cerrado:\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte SONDA.",
         createdAt: new Date().toISOString(),
         metadata: {
           intent: resolvedDraft.type,
@@ -620,24 +620,28 @@ function appendTicketConfirmation(content: string, ticket: Pick<Ticket, "id">) {
 
   return [
     content.trim(),
-    "**Ticket generado.**",
-    `Tu número de ticket es **${ticket.id}**. Guárdalo para futuras consultas o seguimiento del caso.`,
+    "Ticket generado:",
+    `Tu número de ticket: ${ticket.id}. Guárdalo para futuras consultas o seguimiento del caso.`,
   ].join("\n\n");
 }
 
 function formatAssistantMessage(content: string) {
-  const trimmed = content.trim();
-  if (!trimmed || trimmed.includes("**") || /^[-*]\s+/m.test(trimmed)) return trimmed;
+  const trimmed = stripMarkdownBold(content.trim());
+  if (!trimmed || /^[-*]\s+/m.test(trimmed)) return trimmed;
 
   const blocks = trimmed.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
   if (blocks.length > 1) return blocks.join("\n\n");
 
   const sentences = trimmed.match(/[^.!?]+[.!?]+/g)?.map((sentence) => sentence.trim()) ?? [trimmed];
-  if (sentences.length <= 1) return `**Siguiente paso:** ${trimmed}`;
+  if (sentences.length <= 1) return `Siguiente paso: ${trimmed}`;
 
   const first = sentences[0];
   const rest = sentences.slice(1).join(" ");
-  return [`**Qué detecté:** ${first}`, `**Siguiente paso:** ${rest}`].join("\n\n");
+  return [`Qué detecté: ${first}`, `Siguiente paso: ${rest}`].join("\n\n");
+}
+
+function stripMarkdownBold(content: string) {
+  return content.replace(/\*\*([^*]+)\*\*/g, "$1");
 }
 
 function buildChannelAwareMessage(userMessage: string, body: ChatRequest) {
