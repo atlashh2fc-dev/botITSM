@@ -113,8 +113,11 @@ const CLASSIFY_TOOL: Anthropic.Tool = {
           "NETWORK_ISSUE",
           "SECURITY_INCIDENT",
           "HUMAN_ESCALATION",
+          "DATABASE_REQUEST",
+          "ENHANCEMENT_REQUEST",
         ],
-        description: "Tipo ITIL del caso según la última interacción",
+        description:
+          "Tipo ITIL del caso según la última interacción. DATABASE_REQUEST: el cliente pide extracción/envío de base de datos. ENHANCEMENT_REQUEST: el cliente pide un ajuste o mejora evolutiva a un desarrollo/sistema ya existente (no es una falla).",
       },
       priority: {
         type: "string",

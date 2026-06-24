@@ -6,7 +6,9 @@ export type ITSMIntent =
   | "HARDWARE_ISSUE"
   | "NETWORK_ISSUE"
   | "SECURITY_INCIDENT"
-  | "HUMAN_ESCALATION";
+  | "HUMAN_ESCALATION"
+  | "DATABASE_REQUEST"
+  | "ENHANCEMENT_REQUEST";
 
 export type ITSMPriority = "P1" | "P2" | "P3" | "P4";
 

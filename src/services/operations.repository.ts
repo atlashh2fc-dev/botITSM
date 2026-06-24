@@ -94,6 +94,8 @@ function sessionToCase(session: RawSession): OperationalCase {
     NETWORK_ISSUE: "Red / Conectividad",
     SECURITY_INCIDENT: "Seguridad",
     HUMAN_ESCALATION: "Escalación humana",
+    DATABASE_REQUEST: "Solicitud de BDD",
+    ENHANCEMENT_REQUEST: "Mejora evolutiva",
   };
 
   return {

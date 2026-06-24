@@ -38,6 +38,14 @@ export function detectIntent(message: string): ITSMIntent {
     return "SECURITY_INCIDENT";
   }
 
+  if (hasAny(text, ["extracto de base de datos", "extracto de bdd", "extracto bdd", "base de datos", "bdd", "extraccion de datos", "extracción de datos", "exportar datos", "dump de datos", "reporte de base de datos", "consulta sql", "envio de datos al cliente", "envío de datos al cliente"])) {
+    return "DATABASE_REQUEST";
+  }
+
+  if (hasAny(text, ["mejora evolutiva", "evolutivo", "evolutiva", "ajuste al sistema", "ajuste al desarrollo", "ajuste en el sistema", "nueva funcionalidad", "cambio en el sistema", "modificar el desarrollo", "mejora al sistema", "mejora en el sistema", "requerimiento evolutivo", "ajuste funcional", "cambio funcional"])) {
+    return "ENHANCEMENT_REQUEST";
+  }
+
   if (hasAny(text, ["se cayó", "caida", "caída", "critica", "crítica", "indisponible", "producción"])) {
     return "INCIDENT";
   }
@@ -367,6 +375,8 @@ export function intentLabel(intent: ITSMIntent) {
     NETWORK_ISSUE: "Incidente de red",
     SECURITY_INCIDENT: "Incidente de seguridad",
     HUMAN_ESCALATION: "Escalamiento humano",
+    DATABASE_REQUEST: "Solicitud de BDD",
+    ENHANCEMENT_REQUEST: "Mejora evolutiva",
   };
 
   return labels[intent];
@@ -445,6 +455,8 @@ function categoryByIntent(intent: ITSMIntent) {
     NETWORK_ISSUE: "Redes y conectividad",
     SECURITY_INCIDENT: "Seguridad de la información",
     HUMAN_ESCALATION: "Mesa de ayuda",
+    DATABASE_REQUEST: "Solicitud de BDD",
+    ENHANCEMENT_REQUEST: "Mejora evolutiva / Desarrollo",
   };
 
   return categories[intent];
@@ -461,9 +473,34 @@ function teamByIntent(intent: ITSMIntent, priority: ITSMPriority) {
     NETWORK_ISSUE: "Mesa N2 - Redes",
     SECURITY_INCIDENT: "CSIRT / Seguridad TI",
     HUMAN_ESCALATION: "Mesa N1 - Coordinación",
+    DATABASE_REQUEST: "Equipo de Datos - BDD",
+    ENHANCEMENT_REQUEST: "Equipo de Desarrollo - Evolutivos",
   };
 
   return teams[intent];
+}
+
+/**
+ * Grupo resolutor real de Zammad al que debe caer el ticket según la
+ * casuística. Modelo de contact center: 4 grupos resolutores.
+ * - HUMAN_ESCALATION y SERVICE_REQUEST se pliegan en Mesa de Ayuda SW
+ *   (triage genérico) salvo que el negocio decida separarlos más adelante.
+ */
+export function resolverGroupByIntent(intent: ITSMIntent): string {
+  const groups: Record<ITSMIntent, string> = {
+    INCIDENT: "Mesa de Ayuda SW",
+    SERVICE_REQUEST: "Mesa de Ayuda SW",
+    ACCESS_REQUEST: "Mesa de Ayuda SW",
+    SOFTWARE_REQUEST: "Mesa de Ayuda SW",
+    SECURITY_INCIDENT: "Mesa de Ayuda SW",
+    HUMAN_ESCALATION: "Mesa de Ayuda SW",
+    HARDWARE_ISSUE: "Mesa de Ayuda HW",
+    NETWORK_ISSUE: "Mesa de Ayuda HW",
+    DATABASE_REQUEST: "Datos y BDD",
+    ENHANCEMENT_REQUEST: "Desarrollo y Evolutivos",
+  };
+
+  return groups[intent];
 }
 
 function slaByPriority(priority: ITSMPriority) {

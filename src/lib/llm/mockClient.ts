@@ -200,6 +200,8 @@ function buildOperationalMessage({
     NETWORK_ISSUE: "Te ayudo con la conectividad.",
     SECURITY_INCIDENT: "Lo tomo con prioridad. Evita hacer cambios por ahora.",
     HUMAN_ESCALATION: "Puedo derivarlo con contexto.",
+    DATABASE_REQUEST: "Te ayudo con la solicitud de datos.",
+    ENHANCEMENT_REQUEST: "Te ayudo a formalizar el ajuste/mejora.",
   };
 
   const questionsByIntent: Record<ITSMIntent, string> = {
@@ -211,6 +213,8 @@ function buildOperationalMessage({
     NETWORK_ISSUE: "¿Estás por VPN, Wi-Fi o cable, y qué error aparece?",
     SECURITY_INCIDENT: "¿Qué viste y qué servicio está afectado?",
     HUMAN_ESCALATION: "¿Qué debe revisar soporte y qué tan urgente es?",
+    DATABASE_REQUEST: "¿Qué base de datos o extracto necesitas y para qué cliente/uso?",
+    ENHANCEMENT_REQUEST: "¿Qué sistema necesita el ajuste y qué cambio puntual esperas ver?",
   };
 
   return [

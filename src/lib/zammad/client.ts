@@ -172,7 +172,16 @@ export type CreateZammadTicketInput = {
   customerEmail: string;
   customerName?: string;
   priority: string; // P1..P4
+  /** "resolved" → el bot ya solucionó el caso en línea; cualquier otro valor → escala a grupo resolutor. */
+  status?: "draft" | "created" | "resolved" | "escalated";
+  /** Grupo resolutor real de Zammad (debe existir ya creado ahí). Si no se informa, cae a ZAMMAD_GROUP/"Users". */
+  group?: string;
 };
+
+/** Caso resuelto en línea por el bot → ticket cerrado (4). Cualquier otro caso (escalado a grupo resolutor) → abierto (2). */
+export function mapStatusToZammadState(status?: string): number {
+  return status === "resolved" ? 4 : 2;
+}
 
 export async function createZammadTicket(input: CreateZammadTicketInput): Promise<ZammadTicket> {
   const customer = await ensureCustomer(input.customerEmail, input.customerName);
@@ -181,9 +190,10 @@ export async function createZammadTicket(input: CreateZammadTicketInput): Promis
     method: "POST",
     body: JSON.stringify({
       title: input.title.slice(0, 200),
-      group: process.env.ZAMMAD_GROUP?.trim() || "Users",
+      group: input.group?.trim() || process.env.ZAMMAD_GROUP?.trim() || "Users",
       customer_id: customer.id,
       priority_id: mapPriorityToZammad(input.priority),
+      state_id: mapStatusToZammadState(input.status),
       article: {
         subject: input.title.slice(0, 200),
         body: input.body,
