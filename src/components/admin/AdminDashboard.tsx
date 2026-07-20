@@ -98,7 +98,7 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
   if (identity) return <AdminWorkspace initialSection={initialSection} />;
 
   return (
-    <main style={{ minHeight: "100vh", background: PBI.pageBg, display: "grid", placeItems: "center", fontFamily: "'Kumbh Sans', sans-serif" }}>
+    <main style={{ minHeight: "100vh", background: PBI.pageBg, display: "grid", placeItems: "center", fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
       <section style={{ width: 400, background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", padding: 32, textAlign: "center" }}>
         <AtlasHexLogo size={36} />
         <p style={{ fontWeight: 700, fontSize: 16, color: PBI.text1, margin: "14px 0 6px" }}>Verificando sesión ITSM</p>
@@ -446,7 +446,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Kumbh Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
 
       {/* ══ SIDEBAR — Power BI style ══ */}
       <aside style={{

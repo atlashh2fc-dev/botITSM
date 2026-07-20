@@ -131,7 +131,7 @@ export function BrandMark({
           letterSpacing: "0.06em",
           textTransform: "uppercase",
           color: isDark ? "#8DA0C4" : "#605E5C",
-          fontFamily: "'Kumbh Sans', 'Segoe UI', sans-serif",
+          fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif",
         }}>
           Mesa de Ayuda ITSM
         </p>
