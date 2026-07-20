@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -35,7 +35,7 @@ import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational"
 
 /* ─── Colores Power BI / SONDA ─────────────────────────────────────── */
 const PBI = {
-  sidebarBg:   "#201F1E",   // Microsoft Power BI sidebar
+  sidebarBg:   "#0a0e16",   // Panel lateral Atlas
   sidebarHov:  "#2D2C2C",
   sidebarAct:  "#F59E0B",   // acento ámbar SONDA
   pageBg:      "#F3F2F1",   // fondo lienzo Power BI
@@ -59,95 +59,52 @@ const PBI = {
 
 const SANTIAGO_TIME_ZONE = "America/Santiago";
 
+const itsmBaseUrl = (process.env.NEXT_PUBLIC_ITSM_BASE_URL ?? "https://itsm.geimser.cl").replace(/\/$/, "");
+
+type ITSMIdentity = {
+  email?: string;
+  name?: string;
+  firstname?: string;
+  lastname?: string;
+  login?: string;
+};
+
 /* ─── Helpers de datos (sin cambios funcionales) ───────────────────── */
 export function AdminDashboard({ initialSection = "overview" }: { initialSection?: string }) {
-  const [authenticated, setAuthenticated] = useState(false);
-  if (!authenticated) return <AdminLogin onSuccess={() => setAuthenticated(true)} />;
-  return <AdminWorkspace initialSection={initialSection} />;
-}
+  const [identity, setIdentity] = useState<ITSMIdentity | null>(null);
+  const [accessError, setAccessError] = useState("");
 
-/* ═══════════════════════ LOGIN ═══════════════════════════════════════ */
-function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
-  const [user, setUser] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const demoUser = "admin";
-  const demoPassword = "sonda2026demo";
+  useEffect(() => {
+    let active = true;
 
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (user.trim().toLowerCase() === demoUser && (password === demoPassword || password === "demo")) {
-      setError(""); onSuccess();
-    } else {
-      setError("Credenciales no válidas para el panel.");
+    async function loadIdentity() {
+      try {
+        const response = await fetch(`${itsmBaseUrl}/geimser/bot/session`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity };
+        if (!response.ok || !payload.authenticated || !payload.user?.email) throw new Error("Sesión ITSM no disponible.");
+        if (active) setIdentity(payload.user);
+      } catch {
+        if (active) setAccessError("No encontramos una sesión ITSM válida. Abre este panel desde el ITSM.");
+      }
     }
-  }
 
-  function enterDemo() { setUser(demoUser); setPassword(demoPassword); setError(""); onSuccess(); }
+    void loadIdentity();
+    return () => { active = false; };
+  }, []);
+
+  if (identity) return <AdminWorkspace initialSection={initialSection} />;
 
   return (
     <main style={{ minHeight: "100vh", background: PBI.pageBg, display: "grid", placeItems: "center", fontFamily: "'Kumbh Sans', sans-serif" }}>
-      <section style={{
-        width: 400, background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`,
-        borderRadius: 4, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", padding: 32,
-      }}>
-        {/* Header marca */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, paddingBottom: 20, borderBottom: `1px solid ${PBI.cardBorder}` }}>
-          <AtlasHexLogo size={36} />
-          <div>
-            <p style={{ fontWeight: 700, fontSize: 16, color: PBI.text1, margin: 0 }}>Atlas — Panel ITSM</p>
-            <p style={{ fontSize: 12, color: PBI.text2, margin: 0 }}>SONDA · Centro de Operaciones</p>
-          </div>
-        </div>
-
-        <p style={{ fontWeight: 600, fontSize: 14, color: PBI.text1, marginBottom: 4 }}>Iniciar sesión</p>
-        <p style={{ fontSize: 12, color: PBI.text2, marginBottom: 20 }}>Acceso restringido a personal autorizado SONDA.</p>
-
-        {/* Credenciales demo */}
-        <div style={{ background: "#FFF8E6", border: `1px solid #F0C45A`, borderRadius: 3, padding: "10px 12px", marginBottom: 20 }}>
-          <p style={{ fontWeight: 600, fontSize: 11, color: PBI.amber, margin: "0 0 6px 0" }}>CREDENCIALES DE DEMOSTRACIÓN</p>
-          <div style={{ display: "flex", gap: 16 }}>
-            <span style={{ fontSize: 11, color: PBI.text2 }}>Usuario: <strong style={{ color: PBI.text1 }}>{demoUser}</strong></span>
-            <span style={{ fontSize: 11, color: PBI.text2 }}>Clave: <strong style={{ color: PBI.text1 }}>{demoPassword}</strong></span>
-          </div>
-          <button onClick={enterDemo} style={{
-            marginTop: 8, width: "100%", height: 30, background: PBI.sidebarBg, color: "#fff",
-            border: "none", borderRadius: 2, fontSize: 12, fontWeight: 600, cursor: "pointer",
-          }}>
-            Entrar con cuenta demo →
-          </button>
-        </div>
-
-        <form onSubmit={submit}>
-          <PbiInput label="Usuario" id="admin-user" value={user} onChange={setUser} autoComplete="username" />
-          <PbiInput label="Contraseña" id="admin-pw" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
-          {error && <p style={{ fontSize: 12, color: PBI.red, marginBottom: 12 }}>{error}</p>}
-          <button type="submit" style={{
-            width: "100%", height: 36, background: PBI.blue, color: "#fff",
-            border: "none", borderRadius: 2, fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}>
-            Iniciar sesión
-          </button>
-        </form>
+      <section style={{ width: 400, background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", padding: 32, textAlign: "center" }}>
+        <AtlasHexLogo size={36} />
+        <p style={{ fontWeight: 700, fontSize: 16, color: PBI.text1, margin: "14px 0 6px" }}>Verificando sesión ITSM</p>
+        <p style={{ fontSize: 13, color: PBI.text2, margin: 0 }}>{accessError || "Conectando con tu sesión activa…"}</p>
       </section>
     </main>
-  );
-}
-
-function PbiInput({ label, id, type = "text", value, onChange, autoComplete }: {
-  label: string; id: string; type?: string; value: string;
-  onChange: (v: string) => void; autoComplete?: string;
-}) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <label htmlFor={id} style={{ display: "block", fontSize: 12, fontWeight: 600, color: PBI.text1, marginBottom: 4 }}>{label}</label>
-      <input id={id} type={type} value={value} onChange={e => onChange(e.target.value)} autoComplete={autoComplete}
-        style={{
-          width: "100%", height: 32, border: `1px solid #8A8886`, borderRadius: 2,
-          padding: "0 8px", fontSize: 13, color: PBI.text1, outline: "none", boxSizing: "border-box",
-        }}
-      />
-    </div>
   );
 }
 
@@ -503,7 +460,6 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
             <AtlasHexLogo size={30} />
             <div>
               <p style={{ color: "#fff", fontWeight: 700, fontSize: 13, margin: 0, lineHeight: 1.2 }}>Atlas ITSM</p>
-              <p style={{ color: "#A19F9D", fontSize: 10, margin: 0 }}>SONDA · Operaciones</p>
             </div>
           </div>
         </div>
