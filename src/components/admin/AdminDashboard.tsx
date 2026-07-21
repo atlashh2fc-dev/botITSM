@@ -26,9 +26,6 @@ import {
   UsersRound,
 } from "lucide-react";
 import { AtlasHexLogo } from "@/components/shared/BrandMark";
-import {
-  listOperationalCasesSync as listOperationalCases,
-} from "@/services/operations.repository";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
 import type { TicketDetail } from "@/services/tickets.repository";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
@@ -133,13 +130,6 @@ function ticketToOperationalCase(ticket: ITSMDemoTicket): OperationalCase {
     duration_minutes: duration,
     knowledge_article: extractKnowledgeArticle(ticket.description),
   };
-}
-
-function mergeOperationalCases(real: OperationalCase[], mock: OperationalCase[]) {
-  const seen = new Set(real.map(i => i.id));
-  return [...real, ...mock.filter(i => !seen.has(i.id))]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 100);
 }
 
 function ticketStatusToCaseStatus(s: ITSMDemoTicket["status"]): OperationalCase["status"] {
@@ -350,15 +340,13 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
-  const [showOnlyReal, setShowOnlyReal] = useState(true);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [ticketDetail, setTicketDetail] = useState<TicketDetail | null>(null);
   const [ticketDetailLoading, setTicketDetailLoading] = useState(false);
   const [ticketDetailError, setTicketDetailError] = useState("");
 
-  const mockCases = useMemo(() => listOperationalCases(100), []);
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
-  const cases = useMemo(() => showOnlyReal ? realCases : mergeOperationalCases(realCases, mockCases), [realCases, mockCases, showOnlyReal]);
+  const cases = useMemo(() => realCases, [realCases]);
   const kpis = useMemo(() => buildAdminKpis(cases), [cases]);
   const byDay = useMemo(() => getVolumeByDay(cases), [cases]);
   const byType = useMemo(() => groupByField(cases, "category", 7), [cases]);
@@ -509,24 +497,6 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
           })}
         </nav>
 
-        {/* Toggle solo reales */}
-        <div style={{ padding: "10px 12px", borderTop: "1px solid #3A3836" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <div
-              onClick={() => setShowOnlyReal(v => !v)}
-              style={{
-                width: 32, height: 16, borderRadius: 8, position: "relative", cursor: "pointer", flexShrink: 0,
-                background: showOnlyReal ? PBI.sidebarAct : "#605E5C", transition: "background 0.2s",
-              }}
-            >
-              <span style={{
-                position: "absolute", top: 2, left: showOnlyReal ? 16 : 2,
-                width: 12, height: 12, borderRadius: "50%", background: "#fff", transition: "left 0.2s",
-              }} />
-            </div>
-            <span style={{ fontSize: 11, color: "#A19F9D" }}>Solo datos reales</span>
-          </label>
-        </div>
       </aside>
 
       {/* ══ CONTENIDO PRINCIPAL ══ */}
@@ -560,7 +530,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
 
         {/* ── Cuerpo ── */}
         <main style={{ flex: 1, padding: 16, overflowY: "auto" }}>
-          {showOnlyReal && cases.length === 0 ? (
+          {cases.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
               <Ticket size={40} color={PBI.text3} />
               <p style={{ fontWeight: 600, fontSize: 14, color: PBI.text1, margin: 0 }}>Sin tickets reales en ITSM</p>
