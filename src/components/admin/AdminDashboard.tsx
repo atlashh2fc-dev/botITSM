@@ -32,9 +32,9 @@ import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational"
 
 /* ─── Colores Power BI / SONDA ─────────────────────────────────────── */
 const PBI = {
-  sidebarBg:   "#0a0e16",   // Panel lateral Atlas
-  sidebarHov:  "#2D2C2C",
-  sidebarAct:  "#F59E0B",   // acento ámbar SONDA
+  sidebarBg:   "#0A0E16",   // Fondo azul marino del menú ITSM
+  sidebarHov:  "#16243A",
+  sidebarAct:  "#1F344B",   // estado activo del menú ITSM
   pageBg:      "#F3F2F1",   // fondo lienzo Power BI
   cardBg:      "#FFFFFF",
   cardBorder:  "#E1DFDD",
@@ -443,7 +443,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
         position: "sticky", top: 0, height: "100vh", overflowY: "auto",
       }}>
         {/* Logo */}
-        <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #3A3836" }}>
+        <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #1B1F26" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <AtlasHexLogo size={30} />
             <div>
@@ -453,14 +453,14 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
         </div>
 
         {/* Estado BD */}
-        <div style={{ padding: "8px 12px", borderBottom: "1px solid #3A3836" }}>
+        <div style={{ padding: "8px 12px", borderBottom: "1px solid #1B1F26" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{
               width: 7, height: 7, borderRadius: "50%",
               background: ticketSource === "zammad" || ticketSource === "supabase" ? "#6FCF97" : ticketSource === "cargando" ? "#F59E0B" : "#A19F9D",
               flexShrink: 0,
             }} />
-            <span style={{ fontSize: 11, color: "#C8C6C4" }}>
+            <span style={{ fontSize: 11, color: "#CFDBED" }}>
               {ticketSource === "cargando" ? "Conectando..." : ticketSource === "zammad" ? `${realTickets.length} tickets ITSM` : ticketSource === "supabase" ? `${realTickets.length} tickets en BD` : "Modo demo"}
             </span>
           </div>
@@ -479,16 +479,17 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   width: "100%", padding: "8px 16px",
-                  background: active ? "rgba(245,158,11,0.15)" : "transparent",
+                  background: active ? PBI.sidebarAct : "transparent",
                   border: "none",
-                  borderLeft: active ? `3px solid ${PBI.sidebarAct}` : "3px solid transparent",
-                  color: active ? "#FCD34D" : "#C8C6C4",
+                  borderLeft: "3px solid transparent",
+                  borderRadius: active ? "0 6px 6px 0" : 0,
+                  color: active ? "#FFFFFF" : "#CFDBED",
                   fontSize: 12, fontWeight: active ? 600 : 400,
                   cursor: "pointer", textAlign: "left",
                   transition: "all 0.12s",
                 }}
-                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = PBI.sidebarHov; (e.currentTarget as HTMLElement).style.color = "#fff"; } }}
-                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#C8C6C4"; } }}
+                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = PBI.sidebarHov; (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; } }}
+                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#CFDBED"; } }}
               >
                 <Icon size={14} style={{ flexShrink: 0 }} />
                 <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
