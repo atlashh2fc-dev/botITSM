@@ -10,11 +10,14 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock3,
+  Database,
   ExternalLink,
   FileText,
   Gauge,
   LockKeyhole,
   MessageSquareText,
+  Monitor,
+  PackageSearch,
   RadioTower,
   RefreshCw,
   Smartphone,
@@ -28,6 +31,7 @@ import {
 import { AtlasHexLogo } from "@/components/shared/BrandMark";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
 import type { TicketDetail } from "@/services/tickets.repository";
+import type { UserAsset } from "@/services/assets.repository";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
 
 /* ─── Colores Power BI / SONDA ─────────────────────────────────────── */
@@ -92,7 +96,7 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
     return () => { active = false; };
   }, []);
 
-  if (identity) return <AdminWorkspace initialSection={initialSection} />;
+  if (identity) return <AdminWorkspace initialSection={initialSection} userEmail={identity.email ?? ""} />;
 
   return (
     <main style={{ minHeight: "100vh", background: PBI.pageBg, display: "grid", placeItems: "center", fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
@@ -336,7 +340,7 @@ function averageDuration(items: OperationalCase[]) {
 }
 
 /* ═══════════════════════ WORKSPACE ══════════════════════════════════ */
-function AdminWorkspace({ initialSection }: { initialSection: string }) {
+function AdminWorkspace({ initialSection, userEmail }: { initialSection: string; userEmail: string }) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
@@ -344,6 +348,10 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
   const [ticketDetail, setTicketDetail] = useState<TicketDetail | null>(null);
   const [ticketDetailLoading, setTicketDetailLoading] = useState(false);
   const [ticketDetailError, setTicketDetailError] = useState("");
+  const [assets, setAssets] = useState<UserAsset[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(true);
+  const [assetsError, setAssetsError] = useState("");
+  const [assetQuery, setAssetQuery] = useState("");
 
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
   const cases = useMemo(() => realCases, [realCases]);
@@ -364,6 +372,12 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
   const incidentCases = useMemo(() => cases.filter(i => ["INCIDENT", "NETWORK_ISSUE", "HARDWARE_ISSUE", "SECURITY_INCIDENT"].includes(i.issue_type)), [cases]);
   const requestCases = useMemo(() => cases.filter(i => ["SERVICE_REQUEST", "SOFTWARE_REQUEST"].includes(i.issue_type)), [cases]);
   const accessCases = useMemo(() => cases.filter(i => i.issue_type === "ACCESS_REQUEST"), [cases]);
+  const visibleAssets = useMemo(() => {
+    const query = assetQuery.trim().toLowerCase();
+    if (!query) return assets;
+    return assets.filter(asset => [asset.asset_name, asset.asset_tag, asset.asset_type, asset.status, ...Object.values(asset.details).map(String)]
+      .join(" ").toLowerCase().includes(query));
+  }, [assets, assetQuery]);
 
   useEffect(() => {
     let active = true;
@@ -381,6 +395,24 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
     const iv = window.setInterval(load, 15000);
     return () => { active = false; window.clearInterval(iv); };
   }, []);
+
+  async function loadAssets() {
+    if (!userEmail) return;
+    setAssetsLoading(true);
+    setAssetsError("");
+    try {
+      const res = await fetch(`/api/assets?email=${encodeURIComponent(userEmail)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("No se pudo obtener el inventario.");
+      const payload = (await res.json()) as { assets?: UserAsset[] };
+      setAssets(payload.assets ?? []);
+    } catch {
+      setAssetsError("No fue posible cargar el inventario asignado desde ITSM.");
+    } finally {
+      setAssetsLoading(false);
+    }
+  }
+
+  useEffect(() => { void loadAssets(); }, [userEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openTicketDetail(ticketId: string) {
     setSelectedTicketId(ticketId);
@@ -413,6 +445,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
     { id: "incidents",      label: "Gestión Incidentes",        icon: ShieldAlert },
     { id: "requests",       label: "Gestión Requerimientos",    icon: BarChart3 },
     { id: "access",         label: "Gestión de Accesos",        icon: UsersRound },
+    { id: "inventory",      label: "Inventario",                 icon: PackageSearch },
     { id: "knowledge",      label: "Base de Conocimiento",      icon: BookOpen },
     { id: "analytics",      label: "Analítica Avanzada",        icon: TrendingUp },
     { id: "field",          label: "Field Copilot",              icon: Smartphone },
@@ -426,6 +459,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
     incidents:     "Gestión de Incidentes",
     requests:      "Gestión de Requerimientos",
     access:        "Gestión de Accesos",
+    inventory:     "Inventario",
     knowledge:     "Base de Conocimiento",
     analytics:     "Analítica Avanzada",
     field:         "Field Copilot",
@@ -531,7 +565,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
 
         {/* ── Cuerpo ── */}
         <main style={{ flex: 1, padding: 16, overflowY: "auto" }}>
-          {cases.length === 0 ? (
+          {activeSection !== "inventory" && cases.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
               <Ticket size={40} color={PBI.text3} />
               <p style={{ fontWeight: 600, fontSize: 14, color: PBI.text1, margin: 0 }}>Sin tickets reales en ITSM</p>
@@ -631,6 +665,18 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
                   </div>
                   <OperationalTable cases={accessCases} onOpenTicket={openTicketDetail} />
                 </div>
+              )}
+
+              {activeSection === "inventory" && (
+                <InventoryWorkspace
+                  assets={visibleAssets}
+                  totalAssets={assets.length}
+                  loading={assetsLoading}
+                  error={assetsError}
+                  query={assetQuery}
+                  onQueryChange={setAssetQuery}
+                  onRefresh={() => { void loadAssets(); }}
+                />
               )}
 
               {activeSection === "knowledge" && (
@@ -764,6 +810,85 @@ function AdminWorkspace({ initialSection }: { initialSection: string }) {
 }
 
 /* ═══════════════════════ COMPONENTES UI PBI ══════════════════════════ */
+
+function InventoryWorkspace({
+  assets,
+  totalAssets,
+  loading,
+  error,
+  query,
+  onQueryChange,
+  onRefresh,
+}: {
+  assets: UserAsset[];
+  totalAssets: number;
+  loading: boolean;
+  error: string;
+  query: string;
+  onQueryChange: (value: string) => void;
+  onRefresh: () => void;
+}) {
+  const active = assets.filter(asset => asset.status === "active").length;
+  const attention = assets.filter(asset => asset.status === "warning" || asset.status === "error").length;
+  const types = new Set(assets.map(asset => asset.asset_type)).size;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <SectionHeader title="Inventario" subtitle="Activos TI asignados, su estado y los datos técnicos necesarios para soporte." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+        <KpiCard kpi={{ label: "Activos asignados", value: totalAssets.toString(), meta: "en tu inventario", tone: "neutral" }} />
+        <KpiCard kpi={{ label: "Operativos", value: active.toString(), meta: "sin alertas", tone: "positive" }} />
+        <KpiCard kpi={{ label: "Requieren atención", value: attention.toString(), meta: "revisar estado", tone: attention ? "warning" : "positive" }} />
+        <KpiCard kpi={{ label: "Tipos de activo", value: types.toString(), meta: "equipos y periféricos", tone: "neutral" }} />
+      </div>
+
+      <PbiPanel title="Consulta rápida de inventario" icon={Database}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input
+            value={query}
+            onChange={event => onQueryChange(event.target.value)}
+            placeholder="Buscar por activo, etiqueta, tipo o detalle técnico"
+            style={{ flex: 1, minWidth: 0, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: "8px 10px", fontFamily: "inherit", fontSize: 12, color: PBI.text1 }}
+          />
+          <button type="button" onClick={onRefresh} style={{ border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, padding: "0 12px", fontFamily: "inherit", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
+            Actualizar
+          </button>
+        </div>
+
+        {loading ? (
+          <p style={{ margin: "24px 0", color: PBI.text2, fontSize: 12 }}>Cargando inventario asignado…</p>
+        ) : error ? (
+          <p style={{ margin: "24px 0", color: PBI.red, fontSize: 12 }}>{error}</p>
+        ) : assets.length === 0 ? (
+          <div style={{ padding: "28px 0", textAlign: "center", color: PBI.text2 }}>
+            <Monitor size={28} color={PBI.text3} />
+            <p style={{ margin: "8px 0 0", fontWeight: 600, fontSize: 13 }}>No se encontraron activos con esa búsqueda.</p>
+            <p style={{ margin: "4px 0 0", fontSize: 12 }}>Cuando el ITSM asigne equipos a tu usuario, aparecerán aquí.</p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {assets.map(asset => {
+              const status = asset.status === "active" ? { label: "Operativo", color: PBI.green } : asset.status === "warning" ? { label: "Atención", color: PBI.amber } : { label: "Con alerta", color: PBI.red };
+              return (
+                <article key={asset.id} style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1.2fr) minmax(130px, 0.6fr) minmax(120px, 0.45fr) 2fr", gap: 12, alignItems: "center", padding: 12, background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}>
+                  <div>
+                    <p style={{ margin: 0, color: PBI.text1, fontWeight: 700, fontSize: 13 }}>{asset.asset_name}</p>
+                    <p style={{ margin: "3px 0 0", color: PBI.text2, fontSize: 11 }}>{asset.asset_tag}</p>
+                  </div>
+                  <span style={{ color: PBI.text2, fontSize: 12, textTransform: "capitalize" }}>{asset.asset_type}</span>
+                  <span style={{ justifySelf: "start", color: status.color, background: `${status.color}14`, borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>{status.label}</span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                    {Object.entries(asset.details).map(([key, value]) => <span key={key} style={{ background: "#fff", border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, color: PBI.text2, padding: "3px 6px", fontSize: 10 }}>{key.replaceAll("_", " ")}: {String(value)}</span>)}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </PbiPanel>
+    </div>
+  );
+}
 
 function PbiBadge({ color, children }: { color: string; children: ReactNode }) {
   return (
