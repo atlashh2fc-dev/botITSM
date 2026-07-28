@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -340,7 +340,7 @@ function averageDuration(items: OperationalCase[]) {
 }
 
 /* ═══════════════════════ WORKSPACE ══════════════════════════════════ */
-function AdminWorkspace({ initialSection, userEmail }: { initialSection: string; userEmail: string }) {
+function AdminWorkspace({ initialSection }: { initialSection: string; userEmail: string }) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
@@ -396,23 +396,25 @@ function AdminWorkspace({ initialSection, userEmail }: { initialSection: string;
     return () => { active = false; window.clearInterval(iv); };
   }, []);
 
-  async function loadAssets() {
-    if (!userEmail) return;
+  const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
     setAssetsError("");
     try {
-      const res = await fetch(`/api/assets?email=${encodeURIComponent(userEmail)}`, { cache: "no-store" });
+      const res = await fetch("/api/assets", { cache: "no-store" });
       if (!res.ok) throw new Error("No se pudo obtener el inventario.");
       const payload = (await res.json()) as { assets?: UserAsset[] };
       setAssets(payload.assets ?? []);
     } catch {
-      setAssetsError("No fue posible cargar el inventario asignado desde ITSM.");
+      setAssetsError("No fue posible cargar el inventario desde ITSM.");
     } finally {
       setAssetsLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void loadAssets(); }, [userEmail]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void loadAssets(); }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadAssets]);
 
   async function openTicketDetail(ticketId: string) {
     setSelectedTicketId(ticketId);
@@ -834,20 +836,20 @@ function InventoryWorkspace({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <SectionHeader title="Inventario" subtitle="Activos TI asignados, su estado y los datos técnicos necesarios para soporte." />
+      <SectionHeader title="Inventario" subtitle="Equipos registrados en el ITSM, su estado y datos tecnicos para soporte." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-        <KpiCard kpi={{ label: "Activos asignados", value: totalAssets.toString(), meta: "en tu inventario", tone: "neutral" }} />
+        <KpiCard kpi={{ label: "Equipos registrados", value: totalAssets.toString(), meta: "en inventario ITSM", tone: "neutral" }} />
         <KpiCard kpi={{ label: "Operativos", value: active.toString(), meta: "sin alertas", tone: "positive" }} />
-        <KpiCard kpi={{ label: "Requieren atención", value: attention.toString(), meta: "revisar estado", tone: attention ? "warning" : "positive" }} />
-        <KpiCard kpi={{ label: "Tipos de activo", value: types.toString(), meta: "equipos y periféricos", tone: "neutral" }} />
+        <KpiCard kpi={{ label: "Requieren atencion", value: attention.toString(), meta: "revisar estado", tone: attention ? "warning" : "positive" }} />
+        <KpiCard kpi={{ label: "Tipos de activo", value: types.toString(), meta: "equipos y perifericos", tone: "neutral" }} />
       </div>
 
-      <PbiPanel title="Consulta rápida de inventario" icon={Database}>
+      <PbiPanel title="Consulta rapida de inventario" icon={Database}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input
             value={query}
             onChange={event => onQueryChange(event.target.value)}
-            placeholder="Buscar por activo, etiqueta, tipo o detalle técnico"
+            placeholder="Buscar por equipo, usuario, grupo, IP, etiqueta o sistema"
             style={{ flex: 1, minWidth: 0, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: "8px 10px", fontFamily: "inherit", fontSize: 12, color: PBI.text1 }}
           />
           <button type="button" onClick={onRefresh} style={{ border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, padding: "0 12px", fontFamily: "inherit", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
@@ -856,19 +858,19 @@ function InventoryWorkspace({
         </div>
 
         {loading ? (
-          <p style={{ margin: "24px 0", color: PBI.text2, fontSize: 12 }}>Cargando inventario asignado…</p>
+          <p style={{ margin: "24px 0", color: PBI.text2, fontSize: 12 }}>Cargando inventario ITSM...</p>
         ) : error ? (
           <p style={{ margin: "24px 0", color: PBI.red, fontSize: 12 }}>{error}</p>
         ) : assets.length === 0 ? (
           <div style={{ padding: "28px 0", textAlign: "center", color: PBI.text2 }}>
             <Monitor size={28} color={PBI.text3} />
-            <p style={{ margin: "8px 0 0", fontWeight: 600, fontSize: 13 }}>No se encontraron activos con esa búsqueda.</p>
-            <p style={{ margin: "4px 0 0", fontSize: 12 }}>Cuando el ITSM asigne equipos a tu usuario, aparecerán aquí.</p>
+            <p style={{ margin: "8px 0 0", fontWeight: 600, fontSize: 13 }}>No se encontraron equipos con esa busqueda.</p>
+            <p style={{ margin: "4px 0 0", fontSize: 12 }}>Si no hay filtro activo, revisa la sincronizacion de MeshCentral/CMDB en el ITSM.</p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {assets.map(asset => {
-              const status = asset.status === "active" ? { label: "Operativo", color: PBI.green } : asset.status === "warning" ? { label: "Atención", color: PBI.amber } : { label: "Con alerta", color: PBI.red };
+              const status = asset.status === "active" ? { label: "Operativo", color: PBI.green } : asset.status === "warning" ? { label: "Atencion", color: PBI.amber } : { label: "Con alerta", color: PBI.red };
               return (
                 <article key={asset.id} style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1.2fr) minmax(130px, 0.6fr) minmax(120px, 0.45fr) 2fr", gap: 12, alignItems: "center", padding: 12, background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}>
                   <div>

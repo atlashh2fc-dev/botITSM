@@ -10,6 +10,24 @@ export type UserAsset = {
   details: Record<string, unknown>;
 };
 
+type ITSMInventoryAsset = {
+  id: number | string;
+  node_id?: string;
+  name?: string;
+  hostname?: string;
+  group?: string;
+  os?: string;
+  ip?: string;
+  status?: string;
+  raw_status?: string;
+  occupant?: string;
+  session_url?: string;
+  brand?: string;
+  model?: string;
+  last_seen_at?: string;
+  updated_at?: string;
+};
+
 const MOCK_ASSETS: UserAsset[] = [
   {
     id: "asset-1",
@@ -69,4 +87,113 @@ export async function getUserAssets(email: string): Promise<UserAsset[]> {
 
   // Fallback seguro a los datos de la POC en memoria
   return MOCK_ASSETS.filter((asset) => asset.user_email.toLowerCase() === email.toLowerCase());
+}
+
+export async function getAllITSMAssets(): Promise<UserAsset[]> {
+  const zammadAssets = await getZammadInventoryAssets();
+  if (zammadAssets.length > 0) return zammadAssets;
+
+  const supabase = getSupabaseServerClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("user_assets")
+        .select("*")
+        .order("asset_name", { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data as UserAsset[];
+      }
+    } catch (err) {
+      console.warn("[AssetsRepository] Error al consultar user_assets en Supabase:", err);
+    }
+  }
+
+  return [];
+}
+
+async function getZammadInventoryAssets(): Promise<UserAsset[]> {
+  const baseUrl = process.env.ZAMMAD_BASE_URL?.replace(/\/+$/, "");
+  if (!baseUrl) return [];
+
+  const cmdbAssets = await getCmdbInventoryAssets(baseUrl);
+  if (cmdbAssets.length > 0) return cmdbAssets;
+
+  const zammadToken = process.env.ZAMMAD_API_TOKEN;
+  if (!zammadToken) return [];
+
+  try {
+    const response = await fetch(`${baseUrl}/api/inventory-map/options`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Token token=${zammadToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.warn(`[AssetsRepository] ITSM inventory respondió ${response.status}: ${body.slice(0, 180)}`);
+      return [];
+    }
+
+    const payload = (await response.json()) as { assets?: ITSMInventoryAsset[] };
+    return (payload.assets ?? []).map(normalizeITSMAsset);
+  } catch (err) {
+    console.warn("[AssetsRepository] Error al consultar inventario ITSM:", err);
+    return [];
+  }
+}
+
+async function getCmdbInventoryAssets(baseUrl: string): Promise<UserAsset[]> {
+  const cmdbToken = process.env.GEIMSER_CMDB_TOKEN;
+  if (!cmdbToken) return [];
+
+  try {
+    const response = await fetch(`${baseUrl}/geimser/cmdb/assets`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${cmdbToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.warn(`[AssetsRepository] CMDB inventory respondio ${response.status}: ${body.slice(0, 180)}`);
+      return [];
+    }
+
+    const payload = (await response.json()) as { assets?: ITSMInventoryAsset[] };
+    return (payload.assets ?? []).map(normalizeITSMAsset);
+  } catch (err) {
+    console.warn("[AssetsRepository] Error al consultar inventario CMDB:", err);
+    return [];
+  }
+}
+
+function normalizeITSMAsset(asset: ITSMInventoryAsset): UserAsset {
+  const hostname = asset.name || asset.hostname || asset.node_id || `Equipo ${asset.id}`;
+  const rawStatus = (asset.raw_status || asset.status || "").toLowerCase();
+  const online = rawStatus === "online" || rawStatus === "activo";
+
+  return {
+    id: String(asset.id),
+    user_email: asset.occupant ? `${asset.occupant}@equipo.local` : "",
+    asset_name: hostname,
+    asset_type: "pc",
+    asset_tag: asset.hostname || asset.node_id || String(asset.id),
+    status: online ? "active" : "warning",
+    details: {
+      grupo: asset.group || "Sin grupo",
+      usuario: asset.occupant || "Sin usuario informado",
+      ip: asset.ip || "Sin IP",
+      sistema: asset.os || "Sin sistema informado",
+      fabricante: asset.brand || "Sin fabricante",
+      modelo: asset.model || "Sin modelo",
+      ultimo_contacto: asset.last_seen_at || "Sin contacto",
+      actualizado: asset.updated_at || "Sin dato",
+      remoto: asset.session_url || "",
+    },
+  };
 }
