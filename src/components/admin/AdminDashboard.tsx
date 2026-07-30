@@ -871,16 +871,36 @@ function InventoryWorkspace({
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {assets.map(asset => {
               const status = asset.status === "active" ? { label: "Operativo", color: PBI.green } : asset.status === "warning" ? { label: "Atencion", color: PBI.amber } : { label: "Con alerta", color: PBI.red };
+              const detailEntries = getInventoryDetailEntries(asset);
               return (
-                <article key={asset.id} style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1.2fr) minmax(130px, 0.6fr) minmax(120px, 0.45fr) 2fr", gap: 12, alignItems: "center", padding: 12, background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}>
-                  <div>
-                    <p style={{ margin: 0, color: PBI.text1, fontWeight: 700, fontSize: 13 }}>{asset.asset_name}</p>
-                    <p style={{ margin: "3px 0 0", color: PBI.text2, fontSize: 11 }}>{asset.asset_tag}</p>
+                <article key={asset.id} style={{ padding: 12, background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto", gap: 12, alignItems: "start", minWidth: 0 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, color: PBI.text1, fontWeight: 700, fontSize: 13, overflowWrap: "anywhere" }}>{asset.asset_name}</p>
+                      <p style={{ margin: "3px 0 0", color: PBI.text2, fontSize: 11, overflowWrap: "anywhere" }}>{asset.asset_tag}</p>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, minWidth: 0 }}>
+                      <span style={{ color: PBI.text2, background: "#fff", border: `1px solid ${PBI.cardBorder}`, borderRadius: 999, padding: "3px 8px", fontSize: 11, textTransform: "capitalize" }}>{asset.asset_type}</span>
+                      <span style={{ color: status.color, background: `${status.color}14`, borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>{status.label}</span>
+                    </div>
                   </div>
-                  <span style={{ color: PBI.text2, fontSize: 12, textTransform: "capitalize" }}>{asset.asset_type}</span>
-                  <span style={{ justifySelf: "start", color: status.color, background: `${status.color}14`, borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>{status.label}</span>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {Object.entries(asset.details).map(([key, value]) => <span key={key} style={{ background: "#fff", border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, color: PBI.text2, padding: "3px 6px", fontSize: 10 }}>{key.replaceAll("_", " ")}: {String(value)}</span>)}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, marginTop: 10, minWidth: 0 }}>
+                    {detailEntries.map(([key, value]) => {
+                      const remoteUrl = key === "remoto" ? getInventoryRemoteUrl(value) : "";
+                      return (
+                        <div key={key} style={{ background: "#fff", border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: "7px 8px", minWidth: 0 }}>
+                          <p style={{ margin: "0 0 3px", color: PBI.text3, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>{formatInventoryDetailLabel(key)}</p>
+                          {remoteUrl ? (
+                            <a href={remoteUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: PBI.blue, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+                              Abrir remoto <ExternalLink size={12} />
+                            </a>
+                          ) : (
+                            <p style={{ margin: 0, color: PBI.text1, fontSize: 12, lineHeight: 1.35, overflowWrap: "anywhere", whiteSpace: "normal" }}>{formatInventoryDetailValue(key, value)}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </article>
               );
@@ -890,6 +910,57 @@ function InventoryWorkspace({
       </PbiPanel>
     </div>
   );
+}
+
+const INVENTORY_DETAIL_LABELS: Record<string, string> = {
+  grupo: "Grupo",
+  usuario: "Usuario",
+  ip: "IP",
+  sistema: "Sistema",
+  fabricante: "Fabricante",
+  modelo: "Modelo",
+  ultimo_contacto: "Ultimo contacto",
+  actualizado: "Actualizado",
+  remoto: "Acceso remoto",
+};
+
+function getInventoryDetailEntries(asset: UserAsset) {
+  return Object.entries(asset.details ?? {}).filter(([key, value]) => {
+    if (value === null || value === undefined) return false;
+    if (key === "remoto") return getInventoryRemoteUrl(value).length > 0;
+    return String(value).trim().length > 0;
+  });
+}
+
+function getInventoryRemoteUrl(value: unknown) {
+  if (typeof value !== "string") return "";
+  const remoteUrl = value.trim();
+  if (!remoteUrl) return "";
+  if (remoteUrl.startsWith("http://") || remoteUrl.startsWith("https://")) return remoteUrl;
+  if (remoteUrl.startsWith("/")) return `${itsmBaseUrl}${remoteUrl}`;
+  return "";
+}
+
+function formatInventoryDetailLabel(key: string) {
+  return INVENTORY_DETAIL_LABELS[key] ?? key.replaceAll("_", " ");
+}
+
+function formatInventoryDetailValue(key: string, value: unknown) {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return "Sin dato";
+
+  if (key === "ultimo_contacto" || key === "actualizado") {
+    const date = new Date(rawValue);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString("es-CL", {
+        dateStyle: "short",
+        timeStyle: "short",
+        timeZone: SANTIAGO_TIME_ZONE,
+      });
+    }
+  }
+
+  return rawValue;
 }
 
 function PbiBadge({ color, children }: { color: string; children: ReactNode }) {
