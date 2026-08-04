@@ -118,7 +118,7 @@ export function hasZammadConfig(tenant?: Tenant): boolean {
 
 function baseUrl(tenant?: Tenant): string {
   const active = tenant ?? currentTenant();
-  return (active ? active.zammadBaseUrl : process.env.ZAMMAD_BASE_URL ?? "").replace(/\/+$/, "");
+  return (active ? active.zammadBaseUrl ?? "" : process.env.ZAMMAD_BASE_URL ?? "").replace(/\/+$/, "");
 }
 
 export function zammadTicketUrl(ticketId: number, tenant?: Tenant): string {
