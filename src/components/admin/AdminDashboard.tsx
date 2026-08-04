@@ -60,7 +60,15 @@ const PBI = {
 
 const SANTIAGO_TIME_ZONE = "America/Santiago";
 
-const itsmBaseUrl = (process.env.NEXT_PUBLIC_ITSM_BASE_URL ?? "https://itsm.geimser.cl").replace(/\/$/, "");
+function currentItsmBaseUrl() {
+  const tenantItsmOrigins: Record<string, string> = {
+    "iabot.geimser.cl": "https://itsm.geimser.cl",
+    "iabot.atlasitsm.geimser.cl": "https://atlasitsm.geimser.cl",
+  };
+
+  const botHost = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
+  return (tenantItsmOrigins[botHost] ?? process.env.NEXT_PUBLIC_ITSM_BASE_URL ?? "https://itsm.geimser.cl").replace(/\/$/, "");
+}
 
 type ITSMIdentity = {
   email?: string;
@@ -80,6 +88,7 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
 
     async function loadIdentity() {
       try {
+        const itsmBaseUrl = currentItsmBaseUrl();
         const response = await fetch(`${itsmBaseUrl}/geimser/bot/session`, {
           credentials: "include",
           cache: "no-store",
@@ -937,7 +946,7 @@ function getInventoryRemoteUrl(value: unknown) {
   const remoteUrl = value.trim();
   if (!remoteUrl) return "";
   if (remoteUrl.startsWith("http://") || remoteUrl.startsWith("https://")) return remoteUrl;
-  if (remoteUrl.startsWith("/")) return `${itsmBaseUrl}${remoteUrl}`;
+  if (remoteUrl.startsWith("/")) return `${currentItsmBaseUrl()}${remoteUrl}`;
   return "";
 }
 
