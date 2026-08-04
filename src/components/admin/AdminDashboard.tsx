@@ -1247,7 +1247,7 @@ function OperationalTable({ cases, onOpenTicket }: { cases: OperationalCase[]; o
               return (
                 <tr key={item.id} style={{ background: i % 2 === 0 ? "#fff" : "#F8FAFB", borderBottom: `1px solid ${PBI.pageBg}` }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#EFF6FC"}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? "#fff" : "#FAFAF9"}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? "#fff" : "#F8FAFB"}
                 >
                   <td style={{ padding: "7px 12px" }}>
                     <TicketIdButton id={item.id} onOpenTicket={onOpenTicket} />
