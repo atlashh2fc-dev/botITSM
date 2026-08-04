@@ -1,6 +1,7 @@
 import { fallbackTickets } from "@/data/mock/fallbackTickets";
 import type { Ticket, TicketDraft } from "@/lib/itsm/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { currentTenant } from "@/lib/tenant/context";
 import {
   getZammadUserDetail,
   findTicketByNumber,
@@ -49,6 +50,11 @@ export async function listTickets(): Promise<Ticket[]> {
     const zammadTickets = await listTicketsFromZammad().catch(() => null);
     if (zammadTickets) return zammadTickets;
   }
+
+  // Supabase legacy is shared by the original Geimser POC. It must never be
+  // used as a fallback for a tenant-scoped request while its tenant migration
+  // is pending, otherwise Forum could see Geimser's historical records.
+  if (currentTenant()) return [];
 
   const supabase = getSupabaseServerClient();
 

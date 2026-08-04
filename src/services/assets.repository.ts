@@ -1,4 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { currentTenant } from "@/lib/tenant/context";
+import type { Tenant } from "@/lib/tenant/server";
 
 export type UserAsset = {
   id: string;
@@ -68,6 +70,12 @@ const MOCK_ASSETS: UserAsset[] = [
 ];
 
 export async function getUserAssets(email: string): Promise<UserAsset[]> {
+  const tenant = currentTenant();
+  if (tenant) {
+    const assets = await getZammadInventoryAssets(tenant);
+    return assets.filter((asset) => asset.user_email.toLowerCase() === email.toLowerCase());
+  }
+
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
@@ -90,7 +98,9 @@ export async function getUserAssets(email: string): Promise<UserAsset[]> {
 }
 
 export async function getAllITSMAssets(): Promise<UserAsset[]> {
-  const zammadAssets = await getZammadInventoryAssets();
+  const tenant = currentTenant();
+  const zammadAssets = await getZammadInventoryAssets(tenant);
+  if (tenant) return zammadAssets;
   if (zammadAssets.length > 0) return zammadAssets;
 
   const supabase = getSupabaseServerClient();
@@ -112,14 +122,14 @@ export async function getAllITSMAssets(): Promise<UserAsset[]> {
   return [];
 }
 
-async function getZammadInventoryAssets(): Promise<UserAsset[]> {
-  const baseUrl = process.env.ZAMMAD_BASE_URL?.replace(/\/+$/, "");
+async function getZammadInventoryAssets(tenant?: Tenant): Promise<UserAsset[]> {
+  const baseUrl = (tenant?.zammadBaseUrl ?? process.env.ZAMMAD_BASE_URL)?.replace(/\/+$/, "");
   if (!baseUrl) return [];
 
-  const cmdbAssets = await getCmdbInventoryAssets(baseUrl);
+  const cmdbAssets = await getCmdbInventoryAssets(baseUrl, tenant);
   if (cmdbAssets.length > 0) return cmdbAssets;
 
-  const zammadToken = process.env.ZAMMAD_API_TOKEN;
+  const zammadToken = tenant?.zammadApiToken ?? process.env.ZAMMAD_API_TOKEN;
   if (!zammadToken) return [];
 
   try {
@@ -145,8 +155,8 @@ async function getZammadInventoryAssets(): Promise<UserAsset[]> {
   }
 }
 
-async function getCmdbInventoryAssets(baseUrl: string): Promise<UserAsset[]> {
-  const cmdbToken = process.env.GEIMSER_CMDB_TOKEN;
+async function getCmdbInventoryAssets(baseUrl: string, tenant?: Tenant): Promise<UserAsset[]> {
+  const cmdbToken = tenant?.cmdbToken ?? process.env.GEIMSER_CMDB_TOKEN;
   if (!cmdbToken) return [];
 
   try {
