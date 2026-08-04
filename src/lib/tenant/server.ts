@@ -16,9 +16,12 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
   geimser: {
     id: "geimser",
     name: "Geimser",
-    zammadBaseUrl: process.env.ZAMMAD_GEIMSER_BASE_URL,
-    zammadApiToken: process.env.ZAMMAD_GEIMSER_API_TOKEN,
-    zammadGroup: process.env.ZAMMAD_GEIMSER_GROUP || "Users",
+    // The existing Geimser deployment used these names before multitenancy.
+    // This compatibility path is deliberately Geimser-only: Forum must never
+    // fall back to shared credentials or it could expose the wrong ITSM data.
+    zammadBaseUrl: process.env.ZAMMAD_GEIMSER_BASE_URL ?? process.env.ZAMMAD_BASE_URL,
+    zammadApiToken: process.env.ZAMMAD_GEIMSER_API_TOKEN ?? process.env.ZAMMAD_API_TOKEN,
+    zammadGroup: process.env.ZAMMAD_GEIMSER_GROUP ?? process.env.ZAMMAD_GROUP ?? "Users",
     cmdbToken: process.env.GEIMSER_CMDB_TOKEN,
   },
   forum: {
