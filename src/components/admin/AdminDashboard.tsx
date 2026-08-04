@@ -34,28 +34,28 @@ import type { TicketDetail } from "@/services/tickets.repository";
 import type { UserAsset } from "@/services/assets.repository";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
 
-/* ─── Colores Power BI / SONDA ─────────────────────────────────────── */
+/* ─── Paleta Forum ITSM ─────────────────────────────────────────────── */
 const PBI = {
-  sidebarBg:   "#0A0E16",   // Fondo azul marino del menú ITSM
-  sidebarHov:  "#16243A",
-  sidebarAct:  "#1F344B",   // estado activo del menú ITSM
-  pageBg:      "#F3F2F1",   // fondo lienzo Power BI
+  sidebarBg:   "#072146",   // azul marino Forum
+  sidebarHov:  "#0C3262",
+  sidebarAct:  "#004481",   // azul corporativo Forum
+  pageBg:      "#F4F7F8",
   cardBg:      "#FFFFFF",
-  cardBorder:  "#E1DFDD",
+  cardBorder:  "#D5E1E8",
   headerBg:    "#FFFFFF",
-  headerBor:   "#EDEBE9",
-  text1:       "#201F1E",   // texto principal
-  text2:       "#605E5C",   // texto secundario
-  text3:       "#A19F9D",   // texto muted
-  blue:        "#0078D4",   // Power BI azul Microsoft
-  green:       "#107C10",
-  amber:       "#D97706",
-  red:         "#C50F1F",
-  purple:      "#7719AA",
-  p1:          "#C50F1F",
-  p2:          "#D97706",
-  p3:          "#0078D4",
-  p4:          "#107C10",
+  headerBor:   "#D5E1E8",
+  text1:       "#0F172A",
+  text2:       "#334155",
+  text3:       "#64748B",
+  blue:        "#004481",
+  green:       "#1F7A4D",
+  amber:       "#B86E00",
+  red:         "#B42318",
+  purple:      "#5C5AA8",
+  p1:          "#B42318",
+  p2:          "#B86E00",
+  p3:          "#004481",
+  p4:          "#1F7A4D",
 };
 
 const SANTIAGO_TIME_ZONE = "America/Santiago";
@@ -502,7 +502,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{
               width: 7, height: 7, borderRadius: "50%",
-              background: ticketSource === "zammad" || ticketSource === "supabase" ? "#6FCF97" : ticketSource === "cargando" ? "#F59E0B" : "#A19F9D",
+              background: ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : ticketSource === "cargando" ? PBI.amber : PBI.text3,
               flexShrink: 0,
             }} />
             <span style={{ fontSize: 11, color: "#CFDBED" }}>
@@ -1188,9 +1188,9 @@ function RealtimeActivity({ cases, onOpenTicket }: { cases: OperationalCase[]; o
       <div style={{ display: "flex", flexDirection: "column" }}>
         {cases.map((item) => {
           const pColor = P_COLOR[item.priority] ?? PBI.text2;
-          const sColor = S_COLOR[item.status] ?? { bg: "#F3F2F1", text: PBI.text2 };
+          const sColor = S_COLOR[item.status] ?? { bg: PBI.pageBg, text: PBI.text2 };
           return (
-            <div key={item.id} style={{ display: "grid", gridTemplateColumns: "96px 1fr 160px 88px", gap: 10, alignItems: "center", padding: "9px 14px", borderBottom: "1px solid #F3F2F1" }}>
+            <div key={item.id} style={{ display: "grid", gridTemplateColumns: "96px 1fr 160px 88px", gap: 10, alignItems: "center", padding: "9px 14px", borderBottom: `1px solid ${PBI.pageBg}` }}>
               <TicketIdButton id={item.id} onOpenTicket={onOpenTicket} />
               <div style={{ minWidth: 0 }}>
                 <p style={{ margin: 0, color: PBI.text1, fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</p>
@@ -1210,11 +1210,11 @@ function RealtimeActivity({ cases, onOpenTicket }: { cases: OperationalCase[]; o
 }
 
 /* ─── Tabla operacional ──────────────────────────────────────────── */
-const P_COLOR: Record<string, string> = { P1: "#C50F1F", P2: "#D97706", P3: "#0078D4", P4: "#107C10" };
+const P_COLOR: Record<string, string> = { P1: "#B42318", P2: "#B86E00", P3: "#004481", P4: "#1F7A4D" };
 const S_COLOR: Record<string, { bg: string; text: string }> = {
-  "Resuelto":      { bg: "#DFF6DD", text: "#107C10" },
-  "Escalado":      { bg: "#EDE7F6", text: "#7719AA" },
-  "En diagnóstico":{ bg: "#DEECF9", text: "#0078D4" },
+  "Resuelto":      { bg: "#E6F7EE", text: "#1F7A4D" },
+  "Escalado":      { bg: "#EEEAFB", text: "#5C5AA8" },
+  "En diagnóstico":{ bg: "#D5EDFB", text: "#004481" },
 };
 
 function OperationalTable({ cases, onOpenTicket }: { cases: OperationalCase[]; onOpenTicket: (ticketId: string) => void }) {
@@ -1241,11 +1241,11 @@ function OperationalTable({ cases, onOpenTicket }: { cases: OperationalCase[]; o
           </thead>
           <tbody>
             {cases.map((item, i) => {
-              const sColor = S_COLOR[item.status] ?? { bg: "#F3F2F1", text: PBI.text2 };
+              const sColor = S_COLOR[item.status] ?? { bg: PBI.pageBg, text: PBI.text2 };
               const pColor = P_COLOR[item.priority] ?? PBI.text2;
               const slaOk = item.duration_minutes <= item.sla_minutes;
               return (
-                <tr key={item.id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAF9", borderBottom: `1px solid #F3F2F1` }}
+                <tr key={item.id} style={{ background: i % 2 === 0 ? "#fff" : "#F8FAFB", borderBottom: `1px solid ${PBI.pageBg}` }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#EFF6FC"}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? "#fff" : "#FAFAF9"}
                 >
@@ -1317,7 +1317,7 @@ function TicketDetailModal({ ticketId, ticket, loading, error, onClose }: {
   error: string;
   onClose: () => void;
 }) {
-  const statusColor = ticket ? S_COLOR[ticket.status === "resolved" ? "Resuelto" : ticket.status === "escalated" ? "Escalado" : "En diagnóstico"] ?? { bg: "#F3F2F1", text: PBI.text2 } : { bg: "#F3F2F1", text: PBI.text2 };
+  const statusColor = ticket ? S_COLOR[ticket.status === "resolved" ? "Resuelto" : ticket.status === "escalated" ? "Escalado" : "En diagnóstico"] ?? { bg: PBI.pageBg, text: PBI.text2 } : { bg: PBI.pageBg, text: PBI.text2 };
   const priorityColor = ticket ? P_COLOR[ticket.priority] ?? PBI.text2 : PBI.text2;
 
   return (
