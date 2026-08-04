@@ -8,6 +8,7 @@ import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.rep
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
 import { extractTicketNumber, isTicketCreationMessage, isTicketLookupAlternativeMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
 import { addTicketNote, findTicketByNumber } from "@/lib/zammad/client";
+import { withTenant } from "@/lib/tenant/context";
 
 type ChatRequest = {
   userMessage: string;
@@ -25,6 +26,7 @@ type ChatRequest = {
 };
 
 export async function POST(request: Request) {
+  return withTenant(request, async () => {
   const body = (await request.json()) as ChatRequest;
   const userMessage = body.userMessage?.trim();
 
@@ -612,6 +614,7 @@ export async function POST(request: Request) {
       : undefined,
     sessionContext: nextContext,
     knowledgeMatches,
+  });
   });
 }
 

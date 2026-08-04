@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getTicketFullDetail } from "@/services/tickets.repository";
+import { withTenant } from "@/lib/tenant/context";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  return withTenant(request, async () => {
   const { id } = await context.params;
   const ticket = await getTicketFullDetail(decodeURIComponent(id));
 
@@ -14,4 +16,5 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   return NextResponse.json({ ticket });
+  });
 }

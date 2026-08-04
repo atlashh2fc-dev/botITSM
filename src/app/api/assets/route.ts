@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllITSMAssets, getUserAssets } from "@/services/assets.repository";
+import { withTenant } from "@/lib/tenant/context";
 
 export async function GET(request: NextRequest) {
+  return withTenant(request, async () => {
   const email = request.nextUrl.searchParams.get("email")?.trim().toLowerCase();
 
   try {
@@ -13,4 +15,5 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "No fue posible consultar el inventario." }, { status: 500 });
   }
+  });
 }

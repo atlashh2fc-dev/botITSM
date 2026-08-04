@@ -10,6 +10,8 @@
  *  ZAMMAD_API_TOKEN token personal
  *  ZAMMAD_GROUP     grupo destino de tickets (default: Users)
  */
+import type { Tenant } from "@/lib/tenant/server";
+import { currentTenant } from "@/lib/tenant/context";
 
 export type ZammadUser = {
   id: number;
@@ -108,24 +110,26 @@ export function mapPriorityToZammad(priority: string): number {
   return 2;
 }
 
-export function hasZammadConfig(): boolean {
-  return Boolean(process.env.ZAMMAD_BASE_URL && process.env.ZAMMAD_API_TOKEN);
+export function hasZammadConfig(tenant?: Tenant): boolean {
+  const active = tenant ?? currentTenant();
+  return Boolean(active?.zammadBaseUrl ?? process.env.ZAMMAD_BASE_URL) && Boolean(active?.zammadApiToken ?? process.env.ZAMMAD_API_TOKEN);
 }
 
-function baseUrl(): string {
-  return (process.env.ZAMMAD_BASE_URL ?? "").replace(/\/+$/, "");
+function baseUrl(tenant?: Tenant): string {
+  const active = tenant ?? currentTenant();
+  return (active?.zammadBaseUrl ?? process.env.ZAMMAD_BASE_URL ?? "").replace(/\/+$/, "");
 }
 
-export function zammadTicketUrl(ticketId: number): string {
-  return `${baseUrl()}/#ticket/zoom/${ticketId}`;
+export function zammadTicketUrl(ticketId: number, tenant?: Tenant): string {
+  return baseUrl(tenant) + "/#ticket/zoom/" + ticketId;
 }
 
-async function zammadFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${baseUrl()}/api/v1${path}`, {
+async function zammadFetch<T>(tenant: Tenant | undefined, path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(baseUrl(tenant) + "/api/v1" + path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Token token=${process.env.ZAMMAD_API_TOKEN}`,
+      Authorization: "Token token=" + ((tenant ?? currentTenant())?.zammadApiToken ?? process.env.ZAMMAD_API_TOKEN),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -140,11 +144,11 @@ async function zammadFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /** Busca un usuario por email exacto. */
-export async function findUserByEmail(email: string): Promise<ZammadUser | null> {
+export async function findUserByEmail(email: string, tenant?: Tenant): Promise<ZammadUser | null> {
   const safe = email.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
   if (!safe) return null;
 
-  const results = await zammadFetch<ZammadUser[]>(
+  const results = await zammadFetch<ZammadUser[]>(tenant,
     `/users/search?query=${encodeURIComponent(`email:${safe}`)}&limit=3`,
   );
 
@@ -152,15 +156,15 @@ export async function findUserByEmail(email: string): Promise<ZammadUser | null>
 }
 
 /** Devuelve el usuario Zammad para el email; lo crea como customer si no existe. */
-export async function ensureCustomer(email: string, fullName?: string): Promise<ZammadUser> {
-  const existing = await findUserByEmail(email);
+export async function ensureCustomer(email: string, fullName?: string, tenant?: Tenant): Promise<ZammadUser> {
+  const existing = await findUserByEmail(email, tenant);
   if (existing) return existing;
 
   const nameParts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
   const firstname = nameParts[0] ?? email.split("@")[0];
   const lastname = nameParts.slice(1).join(" ") || "-";
 
-  return zammadFetch<ZammadUser>("/users", {
+  return zammadFetch<ZammadUser>(tenant, "/users", {
     method: "POST",
     body: JSON.stringify({ email: email.trim().toLowerCase(), firstname, lastname, roles: ["Customer"] }),
   });
@@ -183,14 +187,14 @@ export function mapStatusToZammadState(status?: string): number {
   return status === "resolved" ? 4 : 2;
 }
 
-export async function createZammadTicket(input: CreateZammadTicketInput): Promise<ZammadTicket> {
-  const customer = await ensureCustomer(input.customerEmail, input.customerName);
+export async function createZammadTicket(input: CreateZammadTicketInput, tenant?: Tenant): Promise<ZammadTicket> {
+  const customer = await ensureCustomer(input.customerEmail, input.customerName, tenant);
 
-  return zammadFetch<ZammadTicket>("/tickets", {
+  return zammadFetch<ZammadTicket>(tenant, "/tickets", {
     method: "POST",
     body: JSON.stringify({
       title: input.title.slice(0, 200),
-      group: input.group?.trim() || process.env.ZAMMAD_GROUP?.trim() || "Users",
+      group: input.group?.trim() || (tenant ?? currentTenant())?.zammadGroup || process.env.ZAMMAD_GROUP?.trim() || "Users",
       customer_id: customer.id,
       priority_id: mapPriorityToZammad(input.priority),
       state_id: mapStatusToZammadState(input.status),
@@ -219,18 +223,18 @@ function normalizeSearchResult(result: TicketSearchResponse): ZammadTicket[] {
 }
 
 /** Tickets del cliente (por email), más recientes primero. */
-export async function searchTicketsByCustomer(email: string, limit = 5): Promise<ZammadTicketSummary[]> {
-  const user = await findUserByEmail(email);
+export async function searchTicketsByCustomer(email: string, limit = 5, tenant?: Tenant): Promise<ZammadTicketSummary[]> {
+  const user = await findUserByEmail(email, tenant);
   const safeEmail = email.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
   if (!safeEmail) return [];
 
   const searches: Promise<TicketSearchResponse>[] = [];
 
   if (user) {
-    searches.push(searchTicketsByQuery(`customer_id:${user.id}`, limit));
+    searches.push(searchTicketsByQuery(`customer_id:${user.id}`, limit, tenant));
   }
 
-  searches.push(searchTicketsByQuery(safeEmail, limit));
+  searches.push(searchTicketsByQuery(safeEmail, limit, tenant));
 
   const results = await Promise.all(searches.map((search) => search.catch(() => [] as ZammadTicket[])));
   const unique = new Map<number, ZammadTicket>();
@@ -242,35 +246,35 @@ export async function searchTicketsByCustomer(email: string, limit = 5): Promise
   return [...unique.values()]
     .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime())
     .slice(0, limit)
-    .map(toSummary);
+    .map((ticket) => toSummary(ticket, tenant));
 }
 
-function searchTicketsByQuery(query: string, limit: number) {
-  return zammadFetch<TicketSearchResponse>(
+function searchTicketsByQuery(query: string, limit: number, tenant?: Tenant) {
+  return zammadFetch<TicketSearchResponse>(tenant,
     `/tickets/search?query=${encodeURIComponent(query)}&limit=${limit}&sort_by=created_at&order_by=desc`,
   );
 }
 
 /** Busca un ticket por número visible (ej. 87008). */
-export async function findTicketByNumber(number: string): Promise<ZammadTicketSummary | null> {
+export async function findTicketByNumber(number: string, tenant?: Tenant): Promise<ZammadTicketSummary | null> {
   const safe = number.replace(/[^0-9]/g, "");
   if (!safe) return null;
 
-  const result = await zammadFetch<TicketSearchResponse>(
+  const result = await zammadFetch<TicketSearchResponse>(tenant,
     `/tickets/search?query=${encodeURIComponent(`number:${safe}`)}&limit=1`,
   );
 
   const ticket = normalizeSearchResult(result)[0];
-  return ticket ? toSummary(ticket) : null;
+  return ticket ? toSummary(ticket, tenant) : null;
 }
 
 /** Artículos/comentarios del ticket, incluyendo notas internas para entender la última gestión operativa. */
-export async function getTicketArticles(ticketId: number): Promise<ZammadTicketArticle[]> {
-  return zammadFetch<ZammadTicketArticle[]>(`/ticket_articles/by_ticket/${ticketId}`);
+export async function getTicketArticles(ticketId: number, tenant?: Tenant): Promise<ZammadTicketArticle[]> {
+  return zammadFetch<ZammadTicketArticle[]>(tenant, "/ticket_articles/by_ticket/" + ticketId);
 }
 
-export async function addTicketNote(ticketId: number, body: string): Promise<ZammadTicketArticle> {
-  return zammadFetch<ZammadTicketArticle>("/ticket_articles", {
+export async function addTicketNote(ticketId: number, body: string, tenant?: Tenant): Promise<ZammadTicketArticle> {
+  return zammadFetch<ZammadTicketArticle>(tenant, "/ticket_articles", {
     method: "POST",
     body: JSON.stringify({
       ticket_id: ticketId,
@@ -283,25 +287,25 @@ export async function addTicketNote(ticketId: number, body: string): Promise<Zam
   });
 }
 
-export async function getTicketDetail(ticket: ZammadTicketSummary): Promise<ZammadTicketDetail> {
+export async function getTicketDetail(ticket: ZammadTicketSummary, tenant?: Tenant): Promise<ZammadTicketDetail> {
   const [expanded, articles] = await Promise.all([
-    getZammadTicket(ticket.id).catch(() => undefined),
-    getTicketArticles(ticket.id).catch(() => []),
+    getZammadTicket(ticket.id, tenant).catch(() => undefined),
+    getTicketArticles(ticket.id, tenant).catch(() => []),
   ]);
   return { ...ticket, expanded, articles };
 }
 
-export async function getZammadTicket(ticketId: number): Promise<ZammadExpandedTicket> {
-  return zammadFetch<ZammadExpandedTicket>(`/tickets/${ticketId}?expand=true`);
+export async function getZammadTicket(ticketId: number, tenant?: Tenant): Promise<ZammadExpandedTicket> {
+  return zammadFetch<ZammadExpandedTicket>(tenant, "/tickets/" + ticketId + "?expand=true");
 }
 
-export async function listZammadTickets(limit = 500): Promise<ZammadExpandedTicket[]> {
+export async function listZammadTickets(limit = 500, tenant?: Tenant): Promise<ZammadExpandedTicket[]> {
   const perPage = Math.min(Math.max(limit, 1), 100);
   const pages = Math.ceil(limit / perPage);
   const tickets: ZammadExpandedTicket[] = [];
 
   for (let page = 1; page <= pages; page += 1) {
-    const batch = await zammadFetch<ZammadExpandedTicket[]>(
+    const batch = await zammadFetch<ZammadExpandedTicket[]>(tenant,
       `/tickets?per_page=${perPage}&page=${page}&expand=true`,
     );
     tickets.push(...batch);
@@ -313,16 +317,16 @@ export async function listZammadTickets(limit = 500): Promise<ZammadExpandedTick
     .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime());
 }
 
-export async function getZammadUserDetail(userId: number): Promise<ZammadUserDetail | null> {
+export async function getZammadUserDetail(userId: number, tenant?: Tenant): Promise<ZammadUserDetail | null> {
   if (!userId) return null;
-  return zammadFetch<ZammadUserDetail>(`/users/${userId}`).catch(() => null);
+  return zammadFetch<ZammadUserDetail>(tenant, "/users/" + userId).catch(() => null);
 }
 
-export async function listZammadOrganizations(): Promise<ZammadOrganization[]> {
-  return zammadFetch<ZammadOrganization[]>("/organizations").catch(() => []);
+export async function listZammadOrganizations(tenant?: Tenant): Promise<ZammadOrganization[]> {
+  return zammadFetch<ZammadOrganization[]>(tenant, "/organizations").catch(() => []);
 }
 
-function toSummary(ticket: ZammadTicket): ZammadTicketSummary {
+function toSummary(ticket: ZammadTicket, tenant?: Tenant): ZammadTicketSummary {
   return {
     id: ticket.id,
     number: ticket.number,
@@ -331,6 +335,6 @@ function toSummary(ticket: ZammadTicket): ZammadTicketSummary {
     priority: PRIORITY_LABELS[ticket.priority_id] ?? "normal",
     createdAt: ticket.created_at,
     updatedAt: ticket.updated_at,
-    url: zammadTicketUrl(ticket.id),
+    url: zammadTicketUrl(ticket.id, tenant),
   };
 }

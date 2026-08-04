@@ -7,8 +7,10 @@ import {
   groupByField,
   listOperationalCases,
 } from "@/services/operations.repository";
+import { withTenant } from "@/lib/tenant/context";
 
-export async function GET() {
+export async function GET(request: Request) {
+  return withTenant(request, async () => {
   const [kpis, volumeByDay, incidentsByType, priorities, heatmap, topIntents, technicians, knowledge, recentCases] =
     await Promise.all([
       getAdminKpis(),
@@ -32,5 +34,6 @@ export async function GET() {
     technicians,
     knowledge,
     recentCases,
+  });
   });
 }
