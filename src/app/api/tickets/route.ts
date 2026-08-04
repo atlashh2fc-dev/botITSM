@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import type { TicketDraft } from "@/lib/itsm/types";
 import { hasSupabaseServerEnv } from "@/lib/supabase/server";
 import { createTicket, listTickets } from "@/services/tickets.repository";
-import { withTenant } from "@/lib/tenant/context";
+import { currentTenant, withTenant } from "@/lib/tenant/context";
 
 export async function GET(request: Request) {
   return withTenant(request, async () => {
   const tickets = await listTickets();
   const source = tickets.some((ticket) => ticket.provider === "zammad")
     ? "zammad"
+    : currentTenant()
+      ? "zammad"
     : hasSupabaseServerEnv()
       ? "supabase"
       : "memory";
