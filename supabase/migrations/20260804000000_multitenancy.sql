@@ -5,14 +5,15 @@
 -- primary keys or unique constraints. Deploy the application code that filters
 -- by tenant_id first. Do the NOT NULL/compound-key phase only after auditing the
 -- live schema and confirming there are no legacy writers.
-create table if not exists public.tenants (
+-- Keep this registry separate from the pre-existing CRM `public.tenants` table.
+create table if not exists public.itsm_tenants (
   id text primary key,
   name text not null,
   primary_host text not null unique,
   created_at timestamptz not null default now()
 );
 
-insert into public.tenants (id, name, primary_host)
+insert into public.itsm_tenants (id, name, primary_host)
 values
   ('geimser', 'Geimser', 'iabot.geimser.cl'),
   ('forum', 'Forum', 'iabot.atlasitsm.geimser.cl')
@@ -30,7 +31,7 @@ begin
   loop
     if to_regclass('public.' || table_name) is not null then
       execute format(
-        'alter table public.%I add column if not exists tenant_id text default ''geimser'' references public.tenants(id)',
+        'alter table public.%I add column if not exists tenant_id text default ''geimser'' references public.itsm_tenants(id)',
         table_name
       );
       -- All pre-tenant records belong to the existing Geimser service.
@@ -47,6 +48,26 @@ begin
   end loop;
 end $$;
 
+-- Enforce the tenant invariant after backfilling. The default keeps legacy
+-- Geimser writers safe during the application rollout.
+alter table public.chat_sessions alter column tenant_id set not null;
+alter table public.chat_messages alter column tenant_id set not null;
+alter table public.tickets alter column tenant_id set not null;
+alter table public.ticket_events alter column tenant_id set not null;
+alter table public.knowledge_articles alter column tenant_id set not null;
+alter table public.sla_rules alter column tenant_id set not null;
+alter table public.bot_user_memory alter column tenant_id set not null;
+alter table public.demo_users alter column tenant_id set not null;
+
+-- Values that are meaningful only inside one tenant may be reused by Forum.
+alter table public.bot_user_memory drop constraint if exists bot_user_memory_pkey;
+alter table public.bot_user_memory add primary key (tenant_id, email);
+alter table public.demo_users drop constraint if exists demo_users_email_key;
+create unique index if not exists demo_users_tenant_email_idx on public.demo_users (tenant_id, email);
+alter table public.sla_rules drop constraint if exists sla_rules_priority_key;
+create unique index if not exists sla_rules_tenant_priority_idx on public.sla_rules (tenant_id, priority);
+create unique index if not exists tickets_tenant_external_id_idx on public.tickets (tenant_id, external_id) where external_id is not null;
+
 -- Query-path indexes used by the application after the tenant rollout.
 create index if not exists chat_sessions_tenant_created_idx on public.chat_sessions (tenant_id, created_at desc);
 create index if not exists chat_messages_tenant_session_idx on public.chat_messages (tenant_id, session_id);
@@ -54,5 +75,6 @@ create index if not exists tickets_tenant_created_idx on public.tickets (tenant_
 
 -- The application uses service_role on server-only routes. Browser roles remain
 -- denied by RLS; never grant anon/authenticated broad table access here.
-alter table public.tenants enable row level security;
-grant select, insert, update, delete on public.tenants to service_role;
+alter table public.itsm_tenants enable row level security;
+revoke all on public.itsm_tenants from anon, authenticated;
+grant select, insert, update, delete on public.itsm_tenants to service_role;

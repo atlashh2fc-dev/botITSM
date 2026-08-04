@@ -11,11 +11,13 @@ import { createZammadTicket, hasZammadConfig, zammadTicketUrl } from "@/lib/zamm
 import { intentLabel, resolverGroupByIntent } from "@/lib/itsm/engine";
 import type { ITSMAdapter, ITSMCreateTicketInput, ITSMCreateTicketResult } from "@/lib/itsm/adapters/types";
 import { demoITSMAdapter } from "@/lib/itsm/adapters/demoAdapter";
+import { requireCurrentTenant } from "@/lib/tenant/context";
 
 export const zammadITSMAdapter: ITSMAdapter = {
   provider: "zammad",
   mode: "live",
   async createTicket(input: ITSMCreateTicketInput): Promise<ITSMCreateTicketResult> {
+    const tenant = requireCurrentTenant();
     if (!hasZammadConfig()) {
       // Sin credenciales configuradas: degradar a demo para no romper el flujo.
       return demoITSMAdapter.createTicket(input);
@@ -39,7 +41,7 @@ export const zammadITSMAdapter: ITSMAdapter = {
     // Copia local (Supabase) para el dashboard del bot, referenciando el ticket real.
     const localTicket = await createTicket({
       ...draft,
-      id: `ZAM-${zammadTicket.number}`,
+      id: `ZAM-${tenant.id.toUpperCase()}-${zammadTicket.number}`,
       provider: "zammad",
       externalId: zammadTicket.number,
       externalUrl,
@@ -53,7 +55,7 @@ export const zammadITSMAdapter: ITSMAdapter = {
     return {
       provider: "zammad",
       mode: "live",
-      ticket: { ...localTicket, id: `ZAM-${zammadTicket.number}` },
+      ticket: { ...localTicket, id: `ZAM-${tenant.id.toUpperCase()}-${zammadTicket.number}` },
       externalId: zammadTicket.number,
       externalUrl,
     };
