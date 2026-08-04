@@ -123,13 +123,13 @@ export async function getAllITSMAssets(): Promise<UserAsset[]> {
 }
 
 async function getZammadInventoryAssets(tenant?: Tenant): Promise<UserAsset[]> {
-  const baseUrl = (tenant?.zammadBaseUrl ?? process.env.ZAMMAD_BASE_URL)?.replace(/\/+$/, "");
+  const baseUrl = (tenant ? tenant.zammadBaseUrl : process.env.ZAMMAD_BASE_URL)?.replace(/\/+$/, "");
   if (!baseUrl) return [];
 
   const cmdbAssets = await getCmdbInventoryAssets(baseUrl, tenant);
   if (cmdbAssets.length > 0) return cmdbAssets;
 
-  const zammadToken = tenant?.zammadApiToken ?? process.env.ZAMMAD_API_TOKEN;
+  const zammadToken = tenant ? tenant.zammadApiToken : process.env.ZAMMAD_API_TOKEN;
   if (!zammadToken) return [];
 
   try {
@@ -156,7 +156,7 @@ async function getZammadInventoryAssets(tenant?: Tenant): Promise<UserAsset[]> {
 }
 
 async function getCmdbInventoryAssets(baseUrl: string, tenant?: Tenant): Promise<UserAsset[]> {
-  const cmdbToken = tenant?.cmdbToken ?? process.env.GEIMSER_CMDB_TOKEN;
+  const cmdbToken = tenant ? tenant.cmdbToken : process.env.GEIMSER_CMDB_TOKEN;
   if (!cmdbToken) return [];
 
   try {

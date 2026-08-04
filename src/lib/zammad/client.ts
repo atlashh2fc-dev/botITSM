@@ -112,12 +112,13 @@ export function mapPriorityToZammad(priority: string): number {
 
 export function hasZammadConfig(tenant?: Tenant): boolean {
   const active = tenant ?? currentTenant();
-  return Boolean(active?.zammadBaseUrl ?? process.env.ZAMMAD_BASE_URL) && Boolean(active?.zammadApiToken ?? process.env.ZAMMAD_API_TOKEN);
+  if (active) return Boolean(active.zammadBaseUrl && active.zammadApiToken);
+  return Boolean(process.env.ZAMMAD_BASE_URL && process.env.ZAMMAD_API_TOKEN);
 }
 
 function baseUrl(tenant?: Tenant): string {
   const active = tenant ?? currentTenant();
-  return (active?.zammadBaseUrl ?? process.env.ZAMMAD_BASE_URL ?? "").replace(/\/+$/, "");
+  return (active ? active.zammadBaseUrl : process.env.ZAMMAD_BASE_URL ?? "").replace(/\/+$/, "");
 }
 
 export function zammadTicketUrl(ticketId: number, tenant?: Tenant): string {
@@ -125,11 +126,12 @@ export function zammadTicketUrl(ticketId: number, tenant?: Tenant): string {
 }
 
 async function zammadFetch<T>(tenant: Tenant | undefined, path: string, init?: RequestInit): Promise<T> {
+  const active = tenant ?? currentTenant();
   const response = await fetch(baseUrl(tenant) + "/api/v1" + path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Token token=" + ((tenant ?? currentTenant())?.zammadApiToken ?? process.env.ZAMMAD_API_TOKEN),
+      Authorization: "Token token=" + (active ? active.zammadApiToken ?? "" : process.env.ZAMMAD_API_TOKEN ?? ""),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
