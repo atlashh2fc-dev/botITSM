@@ -5,6 +5,7 @@ export type Database = {
     Tables: {
       bot_user_memory: {
         Row: {
+          tenant_id: string | null;
           email: string;
           name: string | null;
           area: string | null;
@@ -18,6 +19,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           email: string;
           name?: string | null;
           area?: string | null;
@@ -35,6 +37,7 @@ export type Database = {
       };
       demo_users: {
         Row: {
+          tenant_id: string | null;
           id: string;
           name: string;
           email: string;
@@ -42,6 +45,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           id?: string;
           name: string;
           email: string;
@@ -53,6 +57,7 @@ export type Database = {
       };
       chat_sessions: {
         Row: {
+          tenant_id: string | null;
           id: string;
           channel: string;
           status: string;
@@ -66,6 +71,7 @@ export type Database = {
           closed_at: string | null;
         };
         Insert: {
+          tenant_id?: string | null;
           id?: string;
           channel?: string;
           status?: string;
@@ -83,6 +89,7 @@ export type Database = {
       };
       chat_messages: {
         Row: {
+          tenant_id: string | null;
           id: string;
           session_id: string;
           role: string;
@@ -91,6 +98,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           id?: string;
           session_id: string;
           role: string;
@@ -103,6 +111,7 @@ export type Database = {
       };
       tickets: {
         Row: {
+          tenant_id: string | null;
           id: string;
           type: string;
           priority: string;
@@ -116,6 +125,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           id?: string;
           type: string;
           priority: string;
@@ -133,6 +143,7 @@ export type Database = {
       };
       ticket_events: {
         Row: {
+          tenant_id: string | null;
           id: string;
           ticket_id: string;
           event_type: string;
@@ -140,6 +151,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           id?: string;
           ticket_id: string;
           event_type: string;
@@ -151,6 +163,7 @@ export type Database = {
       };
       knowledge_articles: {
         Row: {
+          tenant_id: string | null;
           id: string;
           title: string;
           category: string;
@@ -159,6 +172,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           id: string;
           title: string;
           category: string;
@@ -171,6 +185,7 @@ export type Database = {
       };
       sla_rules: {
         Row: {
+          tenant_id: string | null;
           id: string;
           priority: string;
           response_minutes: number;
@@ -178,6 +193,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          tenant_id?: string | null;
           id?: string;
           priority: string;
           response_minutes: number;

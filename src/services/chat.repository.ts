@@ -1,5 +1,6 @@
 import type { ChatMessage, SessionContext } from "@/lib/itsm/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireCurrentTenant } from "@/lib/tenant/context";
 import type { Json } from "@/types/database";
 
 const inMemoryMessages = new Map<string, ChatMessage[]>();
@@ -13,6 +14,7 @@ export async function persistChatTurn(
   outcome: SessionOutcome = "active",
   channel = "portal-web",
 ) {
+  const tenant = requireCurrentTenant();
   const supabase = getSupabaseServerClient();
   const isClosed = outcome === "resolved" || outcome === "escalated";
   const now = new Date().toISOString();
@@ -20,6 +22,7 @@ export async function persistChatTurn(
   if (supabase) {
     const richSession = await supabase.from("chat_sessions").upsert({
       id: context.sessionId,
+      tenant_id: tenant.id,
       channel,
       status: outcome,
       context: context as unknown as Json,
@@ -34,13 +37,14 @@ export async function persistChatTurn(
     if (richSession.error) {
       const basicSession = await supabase.from("chat_sessions").upsert({
         id: context.sessionId,
+        tenant_id: tenant.id,
         channel,
         status: outcome,
         ...(isClosed ? { closed_at: now } : {}),
       });
 
       if (basicSession.error) {
-        persistInMemory(context, messages);
+        persistInMemory(tenant.id, context, messages);
         return;
       }
     }
@@ -48,31 +52,34 @@ export async function persistChatTurn(
     const insertedMessages = await supabase.from("chat_messages").insert(
       [...messages.map((message) => ({
         id: message.id,
+        tenant_id: tenant.id,
         session_id: context.sessionId,
         role: message.role,
         content: message.content,
         metadata: message.metadata ?? null,
         created_at: message.createdAt,
-      })), buildContextSnapshotMessage(context)],
+      })), buildContextSnapshotMessage(tenant.id, context)],
     );
 
     if (insertedMessages.error) {
-      persistInMemory(context, messages);
+      persistInMemory(tenant.id, context, messages);
     }
 
     return;
   }
 
-  persistInMemory(context, messages);
+  persistInMemory(tenant.id, context, messages);
 }
 
 export async function listSessionMessages(sessionId: string) {
+  const tenant = requireCurrentTenant();
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
     const { data } = await supabase
       .from("chat_messages")
       .select("id, role, content, metadata, created_at")
+      .eq("tenant_id", tenant.id)
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true });
 
@@ -87,16 +94,18 @@ export async function listSessionMessages(sessionId: string) {
     );
   }
 
-  return inMemoryMessages.get(sessionId) ?? [];
+  return inMemoryMessages.get(memoryKey(tenant.id, sessionId)) ?? [];
 }
 
 export async function getPersistedSessionContext(sessionId: string) {
+  const tenant = requireCurrentTenant();
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
     const { data } = await supabase
       .from("chat_sessions")
       .select("context")
+      .eq("tenant_id", tenant.id)
       .eq("id", sessionId)
       .maybeSingle();
 
@@ -107,6 +116,7 @@ export async function getPersistedSessionContext(sessionId: string) {
     const { data: snapshot } = await supabase
       .from("chat_messages")
       .select("metadata")
+      .eq("tenant_id", tenant.id)
       .eq("session_id", sessionId)
       .eq("role", "system")
       .eq("content", "__SESSION_CONTEXT__")
@@ -120,18 +130,24 @@ export async function getPersistedSessionContext(sessionId: string) {
     }
   }
 
-  return inMemoryContexts.get(sessionId);
+  return inMemoryContexts.get(memoryKey(tenant.id, sessionId));
 }
 
-function persistInMemory(context: SessionContext, messages: ChatMessage[]) {
-  const current = inMemoryMessages.get(context.sessionId) ?? [];
-  inMemoryMessages.set(context.sessionId, [...current, ...messages]);
-  inMemoryContexts.set(context.sessionId, context);
+function persistInMemory(tenantId: string, context: SessionContext, messages: ChatMessage[]) {
+  const key = memoryKey(tenantId, context.sessionId);
+  const current = inMemoryMessages.get(key) ?? [];
+  inMemoryMessages.set(key, [...current, ...messages]);
+  inMemoryContexts.set(key, context);
 }
 
-function buildContextSnapshotMessage(context: SessionContext) {
+function memoryKey(tenantId: string, sessionId: string) {
+  return `${tenantId}:${sessionId}`;
+}
+
+function buildContextSnapshotMessage(tenantId: string, context: SessionContext) {
   return {
     id: crypto.randomUUID(),
+    tenant_id: tenantId,
     session_id: context.sessionId,
     role: "system",
     content: "__SESSION_CONTEXT__",

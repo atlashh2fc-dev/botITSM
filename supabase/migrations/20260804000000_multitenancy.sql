@@ -1,5 +1,10 @@
--- Tenant isolation for the ITSM bot. Run once in the existing Supabase project
--- before assigning the Forum hostname in Vercel.
+-- Phase 1: additive tenant expansion for the ITSM bot.
+--
+-- This migration is intentionally backward compatible: it adds nullable tenant
+-- columns, backfills legacy records as Geimser, and does not replace existing
+-- primary keys or unique constraints. Deploy the application code that filters
+-- by tenant_id first. Do the NOT NULL/compound-key phase only after auditing the
+-- live schema and confirming there are no legacy writers.
 create table if not exists public.tenants (
   id text primary key,
   name text not null,
@@ -13,39 +18,36 @@ values
   ('forum', 'Forum', 'iabot.atlasitsm.geimser.cl')
 on conflict (id) do update set name = excluded.name, primary_host = excluded.primary_host;
 
-alter table public.chat_sessions add column if not exists tenant_id text references public.tenants(id);
-alter table public.chat_messages add column if not exists tenant_id text references public.tenants(id);
-alter table public.tickets add column if not exists tenant_id text references public.tenants(id);
-alter table public.ticket_events add column if not exists tenant_id text references public.tenants(id);
-alter table public.knowledge_articles add column if not exists tenant_id text references public.tenants(id);
-alter table public.sla_rules add column if not exists tenant_id text references public.tenants(id);
-alter table public.bot_user_memory add column if not exists tenant_id text references public.tenants(id);
+do $$
+declare
+  table_name text;
+begin
+  foreach table_name in array array[
+    'chat_sessions', 'chat_messages', 'tickets', 'ticket_events',
+    'knowledge_articles', 'sla_rules', 'bot_user_memory', 'demo_users',
+    'user_assets'
+  ]
+  loop
+    if to_regclass('public.' || table_name) is not null then
+      execute format(
+        'alter table public.%I add column if not exists tenant_id text default ''geimser'' references public.tenants(id)',
+        table_name
+      );
+      -- All pre-tenant records belong to the existing Geimser service.
+      execute format('update public.%I set tenant_id = ''geimser'' where tenant_id is null', table_name);
+      execute format('create index if not exists %I on public.%I (tenant_id)', table_name || '_tenant_idx', table_name);
 
--- Existing bot data belongs to the current Geimser tenant.
-update public.chat_sessions set tenant_id = 'geimser' where tenant_id is null;
-update public.chat_messages set tenant_id = 'geimser' where tenant_id is null;
-update public.tickets set tenant_id = 'geimser' where tenant_id is null;
-update public.ticket_events set tenant_id = 'geimser' where tenant_id is null;
-update public.knowledge_articles set tenant_id = 'geimser' where tenant_id is null;
-update public.sla_rules set tenant_id = 'geimser' where tenant_id is null;
-update public.bot_user_memory set tenant_id = 'geimser' where tenant_id is null;
+      -- The browser must not be able to query tenant data directly. All access
+      -- goes through the server using the Supabase service-role key, while the
+      -- application applies the tenant filter on every query.
+      execute format('alter table public.%I enable row level security', table_name);
+      execute format('revoke all on public.%I from anon, authenticated', table_name);
+      execute format('grant select, insert, update, delete on public.%I to service_role', table_name);
+    end if;
+  end loop;
+end $$;
 
-alter table public.chat_sessions alter column tenant_id set not null;
-alter table public.chat_messages alter column tenant_id set not null;
-alter table public.tickets alter column tenant_id set not null;
-alter table public.ticket_events alter column tenant_id set not null;
-alter table public.knowledge_articles alter column tenant_id set not null;
-alter table public.sla_rules alter column tenant_id set not null;
-alter table public.bot_user_memory alter column tenant_id set not null;
-
--- IDs/emails can now repeat only across different tenants.
-alter table public.bot_user_memory drop constraint if exists bot_user_memory_pkey;
-alter table public.bot_user_memory add primary key (tenant_id, email);
-alter table public.sla_rules drop constraint if exists sla_rules_priority_key;
-create unique index if not exists tickets_tenant_external_id_idx on public.tickets (tenant_id, external_id) where external_id is not null;
-create unique index if not exists bot_user_memory_tenant_email_idx on public.bot_user_memory (tenant_id, email);
-create unique index if not exists sla_rules_tenant_priority_idx on public.sla_rules (tenant_id, priority);
-
+-- Query-path indexes used by the application after the tenant rollout.
 create index if not exists chat_sessions_tenant_created_idx on public.chat_sessions (tenant_id, created_at desc);
 create index if not exists chat_messages_tenant_session_idx on public.chat_messages (tenant_id, session_id);
 create index if not exists tickets_tenant_created_idx on public.tickets (tenant_id, created_at desc);

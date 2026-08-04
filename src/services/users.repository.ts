@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { currentTenant } from "@/lib/tenant/context";
 
 export type DemoUser = {
   id: string;
@@ -23,6 +24,8 @@ const MOCK_USERS: DemoUser[] = [
 ];
 
 export async function getUserProfile(email: string): Promise<DemoUser | undefined> {
+  const tenant = currentTenant();
+  if (!tenant) return undefined;
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
@@ -30,6 +33,7 @@ export async function getUserProfile(email: string): Promise<DemoUser | undefine
       const { data, error } = await supabase
         .from("demo_users")
         .select("*")
+        .eq("tenant_id", tenant.id)
         .eq("email", email)
         .maybeSingle();
 
@@ -41,18 +45,23 @@ export async function getUserProfile(email: string): Promise<DemoUser | undefine
     }
   }
 
-  // Fallback seguro a los datos de la POC en memoria
-  return MOCK_USERS.find((user) => user.email.toLowerCase() === email.toLowerCase());
+  // Los datos mock pertenecen solo a la POC histórica de Geimser.
+  return tenant.id === "geimser"
+    ? MOCK_USERS.find((user) => user.email.toLowerCase() === email.toLowerCase())
+    : undefined;
 }
 
 export async function getAllDemoUsers(): Promise<DemoUser[]> {
+  const tenant = currentTenant();
+  if (!tenant) return [];
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
     try {
       const { data, error } = await supabase
         .from("demo_users")
-        .select("*");
+        .select("*")
+        .eq("tenant_id", tenant.id);
 
       if (!error && data && data.length > 0) {
         return data as DemoUser[];
@@ -62,5 +71,5 @@ export async function getAllDemoUsers(): Promise<DemoUser[]> {
     }
   }
 
-  return MOCK_USERS;
+  return tenant.id === "geimser" ? MOCK_USERS : [];
 }
