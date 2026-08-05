@@ -33,7 +33,9 @@ export const zammadITSMAdapter: ITSMAdapter = {
       customerName: draft.requesterName,
       priority: draft.priority,
       status: draft.status,
-      group: resolverGroupByIntent(draft.type),
+      // Forum se integra con su propia cola configurada. Los grupos funcionales
+      // de Geimser no necesariamente existen en el ITSM Forum.
+      group: tenant.id === "forum" ? tenant.zammadGroup : resolverGroupByIntent(draft.type),
     });
 
     const externalUrl = zammadTicketUrl(zammadTicket.id);
@@ -46,8 +48,8 @@ export const zammadITSMAdapter: ITSMAdapter = {
       externalId: zammadTicket.number,
       externalUrl,
       description: draft.description,
-      nextAction: draft.nextAction || "Seguimiento en ITSM Geimser",
-      assignedTeam: draft.assignedTeam || "Mesa de Servicio Geimser",
+      nextAction: draft.nextAction || `Seguimiento en ITSM ${tenant.name}`,
+      assignedTeam: draft.assignedTeam || `Mesa de Servicio ${tenant.name}`,
       estimatedSla: draft.estimatedSla || "Según prioridad SLA",
       executedSteps: draft.executedSteps ?? [],
     });
@@ -96,7 +98,7 @@ function buildBody(input: ITSMCreateTicketInput): string {
     : undefined;
 
   return [
-    "TICKET GENERADO POR BOT ITSM GEIMSER",
+    "TICKET GENERADO POR BOT ITSM",
     `Canal: ${input.source}`,
     `Sesión: ${input.sessionId}`,
     "",

@@ -557,12 +557,8 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {/* Badges */}
-            <PbiBadge color={PBI.blue}>ITIL v4</PbiBadge>
             <PbiBadge color={ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : PBI.amber}>
               {ticketSource === "zammad" ? `${realTickets.length} tickets ITSM real` : ticketSource === "supabase" ? `${realTickets.length} tickets reales` : "modo demo"}
-            </PbiBadge>
-            <PbiBadge color={ticketSource === "zammad" ? PBI.green : PBI.text3}>
-              {ticketSource === "zammad" ? "Zammad" : "Supabase"}
             </PbiBadge>
             <button style={{ background: "none", border: "none", cursor: "pointer", color: PBI.text2, padding: "4px" }}>
               <RefreshCw size={13} />

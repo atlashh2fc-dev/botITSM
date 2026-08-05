@@ -18,11 +18,9 @@ export async function createTicketThroughITSM(input: ITSMCreateTicketInput): Pro
   try {
     return await adapter.createTicket(input);
   } catch (error) {
-    // El ITSM externo falló: degradar a demo para no perder la conversación.
-    console.error(`[itsmGateway] ${adapter.provider} falló, usando demo:`, error);
-    if (adapter.provider !== "demo") {
-      return demoITSMAdapter.createTicket(input);
-    }
+    // Un fallo del ITSM real no debe aparentar que el ticket fue creado:
+    // evita registros locales que no existen en Zammad.
+    console.error(`[itsmGateway] ${adapter.provider} falló al crear ticket:`, error);
     throw error;
   }
 }
