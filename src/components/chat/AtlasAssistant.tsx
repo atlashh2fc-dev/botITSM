@@ -200,7 +200,16 @@ const statusLabels: Partial<Record<OperationalStatus, string>> = {
 
 /* ─────────────────────────────────── COMPONENTE PRINCIPAL ─────────────────────────────────── */
 
-export function SondaAssistant({ standalone = false }: { standalone?: boolean }) {
+type ForumDesktopBridge = {
+  setExpanded: (expanded: boolean) => void;
+  onOpen: (callback: () => void) => () => void;
+};
+
+function getForumDesktopBridge() {
+  return (window as Window & { forumDesktop?: ForumDesktopBridge }).forumDesktop;
+}
+
+export function SondaAssistant({ standalone = false, desktop = false }: { standalone?: boolean; desktop?: boolean }) {
   const tenant = getClientTenant();
   const isForum = tenant.id === "forum";
   const brandName = isForum ? "Forum" : "SONDA";
@@ -222,7 +231,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const [closed, setClosed] = useState(!standalone);
+  const [closed, setClosed] = useState(desktop || !standalone);
 
   // Adjuntos
   const [attachedFile, setAttachedFile] = useState<{ name: string; url: string } | null>(null);
@@ -266,6 +275,16 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
 
   const hasConversation = useMemo(() => messages.length > 1, [messages.length]);
   const canUseChat = !requireITSMLogin || identityStatus === "authenticated";
+
+  useEffect(() => {
+    if (!desktop) return;
+    const desktopBridge = getForumDesktopBridge();
+    desktopBridge?.setExpanded(!closed);
+    return desktopBridge?.onOpen(() => {
+      setClosed(false);
+      setExpanded(true);
+    });
+  }, [closed, desktop]);
 
   useEffect(() => {
     if (closed || !expanded || !canUseChat || isLoading) return;
@@ -510,7 +529,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
         type="button"
         onPointerDown={openAssistant}
         onClick={openAssistant}
-        className="sonda-bot-launcher group relative grid h-[50px] w-[66px] place-items-center overflow-hidden rounded-xl p-0 transition-all duration-200"
+        className={`sonda-bot-launcher group relative grid place-items-center overflow-hidden p-0 transition-all duration-200${desktop ? " h-[60px] w-[60px] rounded-2xl" : " h-[50px] w-[66px] rounded-xl"}`}
         style={{
           background: "rgba(7, 13, 24, 0.82)",
           border: "1px solid rgba(226, 232, 240, 0.18)",
@@ -530,7 +549,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
         aria-label={`Abrir soporte ${brandName}`}
         title={`Abrir soporte ${brandName}`}
       >
-        {isForum ? <ForumLogo width={58} height={34} /> : <SondaBotIcon width={62} height={46} />}
+        {isForum ? (desktop ? <ForumIcon size={42} /> : <ForumLogo width={58} height={34} />) : <SondaBotIcon width={62} height={46} />}
         <span
           aria-hidden
           className="absolute -right-px -top-px size-3 rounded-full"
@@ -551,7 +570,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
       style={{
         width: standalone ? "100vw" : "min(420px, calc(100vw - 32px))",
         height: standalone ? "100dvh" : "min(528px, calc(100dvh - 86px))",
-        borderRadius: "16px",
+        borderRadius: desktop ? "16px" : standalone ? 0 : "16px",
         background: "linear-gradient(180deg, rgba(14, 21, 33, 0.98) 0%, rgba(5, 8, 13, 0.98) 100%)",
         border: "1px solid rgba(148, 163, 184, 0.22)",
         boxShadow: "0 24px 58px rgba(2, 6, 23, 0.64), 0 1px 0 rgba(255,255,255,0.08) inset",
@@ -560,7 +579,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
     >
       {/* ── Header ── */}
       <header
-        className={`relative flex h-[52px] shrink-0 items-center justify-between px-3.5${standalone ? " desktop-drag-region" : ""}`}
+        className={`relative flex h-[52px] shrink-0 items-center justify-between px-3.5${desktop ? " desktop-drag-region" : ""}`}
         style={{
           background: "rgba(8, 13, 22, 0.9)",
           borderBottom: "1px solid rgba(148, 163, 184, 0.14)",
@@ -619,10 +638,10 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
 
           <button
             type="button"
-            onClick={() => setExpanded((c) => !c)}
-            className={`grid size-8 place-items-center rounded-lg transition-all duration-200${standalone ? " desktop-no-drag" : ""}`}
+            onClick={() => desktop ? setClosed(true) : setExpanded((c) => !c)}
+            className={`grid size-8 place-items-center rounded-lg transition-all duration-200${desktop ? " desktop-no-drag" : ""}`}
             style={{ border: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(255, 255, 255, 0.04)", color: "rgba(226, 232, 240, 0.66)" }}
-            aria-label={expanded ? "Minimizar" : "Expandir"}
+            aria-label={desktop || expanded ? "Minimizar" : "Expandir"}
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(85, 244, 255, 0.36)"}
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(148, 163, 184, 0.16)"}
           >
