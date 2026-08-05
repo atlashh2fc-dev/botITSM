@@ -46,6 +46,13 @@ function setAssistantExpanded(expanded) {
   mainWindow.setAlwaysOnTop(true, "floating");
 }
 
+function collapseAssistant() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  setAssistantExpanded(false);
+  mainWindow.webContents.send("forum-window:collapse");
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     ...COLLAPSED_SIZE,
@@ -57,6 +64,7 @@ function createWindow() {
     hasShadow: true,
     alwaysOnTop: true,
     skipTaskbar: false,
+    show: false,
     backgroundColor: "#00000000",
     title: "Asistente ITSM Forum",
     webPreferences: {
@@ -104,16 +112,22 @@ function createWindow() {
   });
 
   mainWindow.on("minimize", (event) => {
-    // El asistente se minimiza desde su propio control; la ventana no desaparece del escritorio.
+    // El asistente se minimiza a la burbuja; nunca desaparece del escritorio.
     event.preventDefault();
-    showAssistant();
+    collapseAssistant();
   });
 
   mainWindow.on("close", (event) => {
     if (!isQuitting) {
       event.preventDefault();
-      mainWindow.hide();
+      collapseAssistant();
     }
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    // Esta transición es deliberadamente controlada por el proceso principal:
+    // si el renderizador aún está iniciando, el icono Forum sigue apareciendo.
+    collapseAssistant();
   });
 
   const botUrl = new URL(BOT_URL);

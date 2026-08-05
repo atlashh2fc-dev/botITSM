@@ -8,4 +8,9 @@ contextBridge.exposeInMainWorld("forumDesktop", {
     ipcRenderer.on("forum-window:open", listener);
     return () => ipcRenderer.removeListener("forum-window:open", listener);
   },
+  onCollapse: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("forum-window:collapse", listener);
+    return () => ipcRenderer.removeListener("forum-window:collapse", listener);
+  },
 });
