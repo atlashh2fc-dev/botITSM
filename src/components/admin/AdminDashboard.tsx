@@ -81,6 +81,23 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
 
   useEffect(() => {
     let active = true;
+    const trustedItsmOrigin = new URL(tenant.itsmBaseUrl).origin;
+
+    function acceptEmbeddedIdentity(event: MessageEvent) {
+      if (event.origin !== trustedItsmOrigin || event.source !== window.parent) return;
+      if (!event.data || event.data.type !== "geimser:itsm-identity") return;
+      if (!event.data.authenticated || event.data.tenant !== tenant.id || !event.data.user?.email) return;
+
+      if (active) {
+        setIdentity(event.data.user as ITSMIdentity);
+        setAccessError("");
+      }
+    }
+
+    window.addEventListener("message", acceptEmbeddedIdentity);
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: "geimser:request-itsm-identity", tenant: tenant.id }, trustedItsmOrigin);
+    }
 
     async function loadIdentity() {
       try {
@@ -98,8 +115,11 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
     }
 
     void loadIdentity();
-    return () => { active = false; };
-  }, []);
+    return () => {
+      active = false;
+      window.removeEventListener("message", acceptEmbeddedIdentity);
+    };
+  }, [tenant.id, tenant.itsmBaseUrl]);
 
   if (identity) return <AdminWorkspace initialSection={initialSection} userEmail={identity.email ?? ""} />;
 
