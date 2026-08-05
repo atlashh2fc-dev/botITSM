@@ -14,6 +14,19 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb",
     },
   },
+  async headers() {
+    return [
+      {
+        source: "/dashboard/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self' https://atlasitsm.geimser.cl",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
