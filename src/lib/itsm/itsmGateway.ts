@@ -1,6 +1,7 @@
 import { demoITSMAdapter } from "@/lib/itsm/adapters/demoAdapter";
 import { zammadITSMAdapter } from "@/lib/itsm/adapters/zammadAdapter";
 import { hasZammadConfig } from "@/lib/zammad/client";
+import { currentTenant } from "@/lib/tenant/context";
 import type { ITSMAdapter, ITSMCreateTicketInput, ITSMCreateTicketResult, ITSMProvider } from "@/lib/itsm/adapters/types";
 
 const adapters: Record<ITSMProvider, ITSMAdapter | undefined> = {
@@ -42,6 +43,10 @@ function resolveProvider(): ITSMProvider {
   ) {
     return configured;
   }
+
+  // Todo portal con tenant representa un ITSM real. Si su credencial falta,
+  // el adapter devolverá un error explícito en vez de crear una copia demo.
+  if (currentTenant()) return "zammad";
 
   // Sin configuración explícita: si hay credenciales Zammad, usarlas.
   if (!configured && hasZammadConfig()) {
