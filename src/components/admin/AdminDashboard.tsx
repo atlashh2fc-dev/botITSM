@@ -547,24 +547,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
         padding: "0 20px", position: "sticky", top: 0, zIndex: 20, flexShrink: 0,
       }}>
         {/* Left: Logo & DB Status */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <AtlasHexLogo size={24} />
-            <p style={{ color: PBI.blue, fontWeight: 700, fontSize: 15, margin: 0 }}>Atlas ITSM</p>
-          </div>
-          <div style={{ width: 1, height: 20, background: PBI.headerBor }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: "50%",
-              background: ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : ticketSource === "cargando" ? PBI.amber : PBI.text3,
-            }} />
-            <span style={{ fontSize: 12, color: PBI.text2, fontWeight: 500 }}>
-              {ticketSource === "cargando" ? "Conectando..." : ticketSource === "zammad" ? "ITSM real" : ticketSource === "supabase" ? "En BD" : "Modo demo"}
-            </span>
-          </div>
-        </div>
-
-        {/* Center: Navigation */}
+        {/* Left block removed as requested */}
         <nav style={{ display: "flex", alignItems: "center", gap: 4, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
           {nav.map(item => (
             <TopNavItem
