@@ -75,7 +75,8 @@ function createWindow() {
     transparent: true,
     hasShadow: true,
     alwaysOnTop: true,
-    skipTaskbar: false,
+    // La burbuja se mantiene en el escritorio; no ocupa espacio en la barra de tareas.
+    skipTaskbar: true,
     show: false,
     backgroundColor: "#00000000",
     title: "Asistente ITSM Forum",
