@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron main process is CommonJS. */
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = require("electron");
 
 const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.atlasitsm.geimser.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
@@ -15,14 +15,40 @@ function isTrusted(url) {
   }
 }
 
+let mainWindow;
+let tray;
+let isQuitting = false;
+
+function createTrayIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+    <rect width="32" height="32" rx="8" fill="#004481"/>
+    <rect x="2" y="2" width="28" height="28" rx="6" fill="none" stroke="#5BBEFF" stroke-width="2"/>
+    <text x="16" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="18" fill="#fff">F</text>
+  </svg>`;
+  return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`);
+}
+
+function showAssistant() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.setAlwaysOnTop(true, "floating");
+  mainWindow.focus();
+}
+
 function createWindow() {
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 460,
     height: 720,
-    minWidth: 390,
+    minWidth: 400,
     minHeight: 560,
-    backgroundColor: "#07101d",
-    autoHideMenuBar: true,
+    resizable: false,
+    frame: false,
+    transparent: true,
+    hasShadow: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    backgroundColor: "#00000000",
     title: "Asistente ITSM Forum",
     webPreferences: {
       contextIsolation: true,
@@ -32,9 +58,11 @@ function createWindow() {
     },
   });
 
-  window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  mainWindow.setAlwaysOnTop(true, "floating");
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
 
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // The ITSM login uses postMessage back to this window, so it stays inside
     // Electron as a constrained child window instead of opening in a browser.
     if (isTrusted(url)) {
@@ -44,7 +72,7 @@ function createWindow() {
           width: 520,
           height: 640,
           autoHideMenuBar: true,
-          parent: window,
+          parent: mainWindow,
           modal: true,
           webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
         },
@@ -54,27 +82,66 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  window.webContents.on("will-navigate", (event, url) => {
+  mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!isTrusted(url)) {
       event.preventDefault();
       void shell.openExternal(url);
     }
   });
 
-  window.webContents.on("will-redirect", (event, url) => {
+  mainWindow.webContents.on("will-redirect", (event, url) => {
     if (!isTrusted(url)) event.preventDefault();
   });
 
-  window.loadURL(BOT_URL);
+  mainWindow.on("minimize", (event) => {
+    // El asistente se minimiza desde su propio control; la ventana no desaparece del escritorio.
+    event.preventDefault();
+    showAssistant();
+  });
+
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
+  mainWindow.loadURL(BOT_URL);
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
+function createTray() {
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip("Asistente ITSM Forum");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Abrir asistente", click: showAssistant },
+    { type: "separator" },
+    {
+      label: "Salir",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]));
+  tray.on("click", showAssistant);
+}
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", showAssistant);
+
+  app.whenReady().then(() => {
+    if (process.platform === "win32") {
+      app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false });
+    }
+
+    createWindow();
+    createTray();
+    app.on("activate", showAssistant);
+  });
+
+  app.on("before-quit", () => {
+    isQuitting = true;
+  });
+}

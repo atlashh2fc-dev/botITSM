@@ -74,6 +74,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* La ruta /asistente también se usa dentro de la ventana transparente de Electron. */
+body:has(main[data-desktop-assistant]) {
+  background: transparent;
+}
+
+.desktop-drag-region {
+  -webkit-app-region: drag;
+}
+
+.desktop-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 button, input, textarea, select {
   font-family: inherit;
 }
