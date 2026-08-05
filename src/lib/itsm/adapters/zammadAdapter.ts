@@ -10,7 +10,6 @@ import { createTicket } from "@/services/tickets.repository";
 import { createZammadTicket, hasZammadConfig, zammadTicketUrl } from "@/lib/zammad/client";
 import { intentLabel, resolverGroupByIntent } from "@/lib/itsm/engine";
 import type { ITSMAdapter, ITSMCreateTicketInput, ITSMCreateTicketResult } from "@/lib/itsm/adapters/types";
-import { demoITSMAdapter } from "@/lib/itsm/adapters/demoAdapter";
 import { requireCurrentTenant } from "@/lib/tenant/context";
 
 export const zammadITSMAdapter: ITSMAdapter = {
@@ -19,8 +18,7 @@ export const zammadITSMAdapter: ITSMAdapter = {
   async createTicket(input: ITSMCreateTicketInput): Promise<ITSMCreateTicketResult> {
     const tenant = requireCurrentTenant();
     if (!hasZammadConfig()) {
-      // Sin credenciales configuradas: degradar a demo para no romper el flujo.
-      return demoITSMAdapter.createTicket(input);
+      throw new Error(`Zammad no está configurado para el tenant ${tenant.name}.`);
     }
 
     const draft = input.draft;
