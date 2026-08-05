@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron main process is CommonJS. */
-const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require("electron");
 
 const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.atlasitsm.geimser.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
@@ -8,6 +8,7 @@ const TRUSTED_ORIGINS = new Set([
 ]);
 const COLLAPSED_SIZE = { width: 78, height: 78 };
 const EXPANDED_SIZE = { width: 460, height: 720 };
+const ASSISTANT_MARGIN = 16;
 
 function isTrusted(url) {
   try {
@@ -20,6 +21,7 @@ function isTrusted(url) {
 let mainWindow;
 let tray;
 let isQuitting = false;
+let isAssistantExpanded = false;
 
 function createTrayIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
@@ -34,15 +36,24 @@ function showAssistant() {
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
+  setAssistantExpanded(true);
   mainWindow.setAlwaysOnTop(true, "floating");
   mainWindow.focus();
   mainWindow.webContents.send("forum-window:open");
 }
 
+function positionAssistant(size) {
+  const { workArea } = screen.getPrimaryDisplay();
+  const x = Math.max(workArea.x, workArea.x + workArea.width - size.width - ASSISTANT_MARGIN);
+  const y = Math.max(workArea.y, workArea.y + workArea.height - size.height - ASSISTANT_MARGIN);
+  mainWindow.setBounds({ x, y, width: size.width, height: size.height }, true);
+}
+
 function setAssistantExpanded(expanded) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const size = expanded ? EXPANDED_SIZE : COLLAPSED_SIZE;
-  mainWindow.setSize(size.width, size.height, true);
+  isAssistantExpanded = expanded;
+  positionAssistant(size);
   mainWindow.setAlwaysOnTop(true, "floating");
 }
 
@@ -59,6 +70,7 @@ function createWindow() {
     minWidth: COLLAPSED_SIZE.width,
     minHeight: COLLAPSED_SIZE.height,
     resizable: false,
+    movable: false,
     frame: false,
     transparent: true,
     hasShadow: true,
@@ -165,6 +177,9 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     createTray();
     ipcMain.on("forum-window:set-expanded", (_event, expanded) => setAssistantExpanded(expanded));
+    screen.on("display-added", () => setAssistantExpanded(isAssistantExpanded));
+    screen.on("display-removed", () => setAssistantExpanded(isAssistantExpanded));
+    screen.on("display-metrics-changed", () => setAssistantExpanded(isAssistantExpanded));
     app.on("activate", showAssistant);
   });
 
