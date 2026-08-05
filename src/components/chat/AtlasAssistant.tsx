@@ -551,7 +551,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
       style={{
         width: standalone ? "100vw" : "min(420px, calc(100vw - 32px))",
         height: standalone ? "100dvh" : "min(528px, calc(100dvh - 86px))",
-        borderRadius: standalone ? 0 : "16px",
+        borderRadius: "16px",
         background: "linear-gradient(180deg, rgba(14, 21, 33, 0.98) 0%, rgba(5, 8, 13, 0.98) 100%)",
         border: "1px solid rgba(148, 163, 184, 0.22)",
         boxShadow: "0 24px 58px rgba(2, 6, 23, 0.64), 0 1px 0 rgba(255,255,255,0.08) inset",
@@ -560,7 +560,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
     >
       {/* ── Header ── */}
       <header
-        className="relative flex h-[52px] shrink-0 items-center justify-between px-3.5"
+        className={`relative flex h-[52px] shrink-0 items-center justify-between px-3.5${standalone ? " desktop-drag-region" : ""}`}
         style={{
           background: "rgba(8, 13, 22, 0.9)",
           borderBottom: "1px solid rgba(148, 163, 184, 0.14)",
@@ -620,7 +620,7 @@ export function SondaAssistant({ standalone = false }: { standalone?: boolean })
           <button
             type="button"
             onClick={() => setExpanded((c) => !c)}
-            className="grid size-8 place-items-center rounded-lg transition-all duration-200"
+            className={`grid size-8 place-items-center rounded-lg transition-all duration-200${standalone ? " desktop-no-drag" : ""}`}
             style={{ border: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(255, 255, 255, 0.04)", color: "rgba(226, 232, 240, 0.66)" }}
             aria-label={expanded ? "Minimizar" : "Expandir"}
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(85, 244, 255, 0.36)"}
