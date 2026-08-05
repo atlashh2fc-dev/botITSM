@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { PwaInstall } from "@/components/shared/PwaInstall";
 
 export const metadata: Metadata = {
-  title: "Asistente ITSM | Forum",
-  description: "Asistente ITSM instalable para soporte, tickets y seguimiento.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Forum ITSM",
-  },
-  icons: {
-    icon: "/icon",
-    apple: "/apple-icon",
-  },
+  title: "Portal de soporte inteligente | SONDA",
+  description: "Plataforma enterprise de soporte ITSM asistida por inteligencia operacional.",
 };
 
 export default function RootLayout({
@@ -24,10 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>
-        {children}
-        <PwaInstall />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

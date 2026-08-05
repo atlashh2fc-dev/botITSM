@@ -200,7 +200,7 @@ const statusLabels: Partial<Record<OperationalStatus, string>> = {
 
 /* ─────────────────────────────────── COMPONENTE PRINCIPAL ─────────────────────────────────── */
 
-export function SondaAssistant() {
+export function SondaAssistant({ standalone = false }: { standalone?: boolean }) {
   const tenant = getClientTenant();
   const isForum = tenant.id === "forum";
   const brandName = isForum ? "Forum" : "SONDA";
@@ -222,7 +222,7 @@ export function SondaAssistant() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const [closed, setClosed] = useState(true);
+  const [closed, setClosed] = useState(!standalone);
 
   // Adjuntos
   const [attachedFile, setAttachedFile] = useState<{ name: string; url: string } | null>(null);
@@ -549,9 +549,9 @@ export function SondaAssistant() {
     <section
       className="relative flex flex-col overflow-hidden"
       style={{
-        width: "min(420px, calc(100vw - 32px))",
-        height: "min(528px, calc(100dvh - 86px))",
-        borderRadius: "16px",
+        width: standalone ? "100vw" : "min(420px, calc(100vw - 32px))",
+        height: standalone ? "100dvh" : "min(528px, calc(100dvh - 86px))",
+        borderRadius: standalone ? 0 : "16px",
         background: "linear-gradient(180deg, rgba(14, 21, 33, 0.98) 0%, rgba(5, 8, 13, 0.98) 100%)",
         border: "1px solid rgba(148, 163, 184, 0.22)",
         boxShadow: "0 24px 58px rgba(2, 6, 23, 0.64), 0 1px 0 rgba(255,255,255,0.08) inset",
@@ -582,16 +582,16 @@ export function SondaAssistant() {
               className="text-[13px] font-semibold leading-tight"
               style={{ color: "#FFFFFF" }}
             >
-              Mesa de Ayuda
+              Mesa de Ayuda {isForum ? "Forum" : "SONDA"}
             </h1>
             <p className="text-[10px] font-medium" style={{ color: "rgba(203, 213, 225, 0.72)" }}>
-              Asistente TI SONDA
+              Asistente TI {brandName}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
+          {!standalone ? <button
             type="button"
             onClick={startNewChat}
             disabled={isLoading}
@@ -615,7 +615,7 @@ export function SondaAssistant() {
             aria-label="Nuevo caso"
           >
             <RotateCcw size={14} aria-hidden />
-          </button>
+          </button> : null}
 
           <button
             type="button"
@@ -629,7 +629,7 @@ export function SondaAssistant() {
             {expanded ? <Minus size={14} aria-hidden /> : <ChevronUp size={14} aria-hidden />}
           </button>
 
-          <button
+          {!standalone ? <button
             type="button"
             onClick={() => setClosed(true)}
             className="grid size-8 place-items-center rounded-lg transition-all duration-200"
@@ -639,7 +639,7 @@ export function SondaAssistant() {
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(148, 163, 184, 0.16)"}
           >
             <X size={14} aria-hidden />
-          </button>
+          </button> : null}
         </div>
       </header>
 

@@ -1,12 +1,17 @@
 {
   "name": "agente-ia-itsm-enterprise",
   "version": "0.1.0",
+  "description": "Cliente de escritorio del Asistente ITSM Forum.",
+  "author": "Geimser",
   "private": true,
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop:dev": "electron .",
+    "desktop:build": "electron-builder --win nsis"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
@@ -24,9 +29,32 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "latest",
     "eslint-config-next": "latest",
     "tailwindcss": "latest",
     "typescript": "latest"
+  },
+  "build": {
+    "appId": "cl.geimser.forumitsm",
+    "productName": "Asistente ITSM Forum",
+    "artifactName": "Asistente-ITSM-Forum-Setup-${version}.${ext}",
+    "directories": {
+      "app": "desktop",
+      "output": "installer"
+    },
+    "files": ["**/*", "!node_modules/**/*"],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
