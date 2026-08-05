@@ -203,6 +203,7 @@ const statusLabels: Partial<Record<OperationalStatus, string>> = {
 type ForumDesktopBridge = {
   setExpanded: (expanded: boolean) => void;
   onOpen: (callback: () => void) => () => void;
+  onCollapse: (callback: () => void) => () => void;
 };
 
 function getForumDesktopBridge() {
@@ -280,10 +281,19 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     if (!desktop) return;
     const desktopBridge = getForumDesktopBridge();
     desktopBridge?.setExpanded(!closed);
-    return desktopBridge?.onOpen(() => {
+    const stopOpening = desktopBridge?.onOpen(() => {
       setClosed(false);
       setExpanded(true);
     });
+    const stopCollapsing = desktopBridge?.onCollapse(() => {
+      setClosed(true);
+      setExpanded(false);
+    });
+
+    return () => {
+      stopOpening?.();
+      stopCollapsing?.();
+    };
   }, [closed, desktop]);
 
   useEffect(() => {
