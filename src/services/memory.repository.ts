@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireCurrentTenant } from "@/lib/tenant/context";
 import type { MemoryProfileValue } from "@/lib/itsm/types";
 
 export type UserMemory = {
@@ -30,6 +31,7 @@ function normalize(email: string) {
 }
 
 export async function getUserMemory(email: string): Promise<UserMemory | null> {
+  const tenant = requireCurrentTenant();
   const key = normalize(email);
   if (!key.includes("@")) return null;
 
@@ -39,6 +41,7 @@ export async function getUserMemory(email: string): Promise<UserMemory | null> {
     const { data, error } = await supabase
       .from("bot_user_memory")
       .select("*")
+      .eq("tenant_id", tenant.id)
       .eq("email", key)
       .maybeSingle();
 
@@ -57,7 +60,7 @@ export async function getUserMemory(email: string): Promise<UserMemory | null> {
     }
   }
 
-  return inMemoryStore.get(key) ?? null;
+  return inMemoryStore.get(memoryKey(tenant.id, key)) ?? null;
 }
 
 export type UserMemoryPatch = Partial<{
@@ -71,6 +74,7 @@ export type UserMemoryPatch = Partial<{
 
 /** Crea/actualiza la memoria relacional del usuario y registra la interacción. */
 export async function upsertUserMemory(email: string, patch: UserMemoryPatch): Promise<UserMemory | null> {
+  const tenant = requireCurrentTenant();
   const key = normalize(email);
   if (!key.includes("@")) return null;
 
@@ -107,6 +111,7 @@ export async function upsertUserMemory(email: string, patch: UserMemoryPatch): P
 
   if (supabase) {
     const { error } = await supabase.from("bot_user_memory").upsert({
+      tenant_id: tenant.id,
       email: key,
       name: next.name,
       area: next.area,
@@ -117,13 +122,17 @@ export async function upsertUserMemory(email: string, patch: UserMemoryPatch): P
       interaction_count: next.interactionCount,
       last_seen_at: now,
       updated_at: now,
-    });
+    }, { onConflict: "tenant_id,email" });
 
     if (!error) return next;
   }
 
-  inMemoryStore.set(key, next);
+  inMemoryStore.set(memoryKey(tenant.id, key), next);
   return next;
+}
+
+function memoryKey(tenantId: string, email: string) {
+  return `${tenantId}:${email}`;
 }
 
 /** Mantiene un resumen episódico acotado (últimos 12 eventos). */

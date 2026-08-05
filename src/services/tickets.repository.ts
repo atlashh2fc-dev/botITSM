@@ -1,7 +1,7 @@
 import { fallbackTickets } from "@/data/mock/fallbackTickets";
 import type { Ticket, TicketDraft } from "@/lib/itsm/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { currentTenant } from "@/lib/tenant/context";
+import { currentTenant, requireCurrentTenant } from "@/lib/tenant/context";
 import {
   getZammadUserDetail,
   findTicketByNumber,
@@ -17,7 +17,7 @@ import {
   type ZammadUserDetail,
 } from "@/lib/zammad/client";
 
-const inMemoryTickets: Ticket[] = [...fallbackTickets];
+const inMemoryTickets = new Map<string, Ticket[]>();
 
 export type TicketTimelineEntry = {
   id: string;
@@ -46,20 +46,23 @@ export type TicketDetail = Ticket & {
 };
 
 export async function listTickets(): Promise<Ticket[]> {
+  const tenant = currentTenant();
+  if (!tenant) return [];
+
   if (hasZammadConfig()) {
     const zammadTickets = await listTicketsFromZammad().catch(() => null);
     if (zammadTickets) return zammadTickets;
   }
 
-  // Supabase legacy is shared by the original Geimser POC. It must never be
-  // used as a fallback for a tenant-scoped request while its tenant migration
-  // is pending, otherwise Forum could see Geimser's historical records.
-  if (currentTenant()) return [];
-
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
-    const { data, error } = await supabase.from("tickets").select("*").order("created_at", { ascending: false }).limit(25);
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("*")
+      .eq("tenant_id", tenant.id)
+      .order("created_at", { ascending: false })
+      .limit(25);
 
     if (!error && data) {
       return data.map((row) => ({
@@ -80,14 +83,14 @@ export async function listTickets(): Promise<Ticket[]> {
     }
   }
 
-  return inMemoryTickets;
+  return inMemoryTickets.get(tenant.id) ?? (tenant.id === "geimser" ? [...fallbackTickets] : []);
 }
 
 export async function getTicketFullDetail(ticketId: string): Promise<TicketDetail | null> {
   const baseTicket = (await listTickets()).find((ticket) => ticket.id === ticketId);
 
   if (hasZammadConfig() && ticketId.toUpperCase().startsWith("ZAM-")) {
-    const number = ticketId.replace(/^ZAM-/i, "");
+    const number = baseTicket?.externalId ?? ticketId.replace(/^ZAM-(?:GEIMSER|FORUM|ITSM)-/i, "");
     const zammadSummary = await findTicketByNumber(number).catch(() => null);
     if (zammadSummary) {
       const detail = await getTicketDetail(zammadSummary).catch(() => null);
@@ -108,7 +111,7 @@ function zammadDetailToTicketDetail(detail: ZammadTicketDetail, baseTicket?: Tic
   const ticket = baseTicket ?? mappedTicket;
 
   const fallbackTicket: Ticket = ticket ?? {
-    id: `ZAM-${detail.number}`,
+    id: zammadLocalTicketId(detail.number),
     type: "INCIDENT",
     priority: mapZammadPriority(detail.priority),
     category: expanded?.group ?? "Gestión ITSM",
@@ -216,7 +219,7 @@ function zammadTicketToTicket(
     || "Grupo no asignado";
 
   return {
-    id: `ZAM-${ticket.number}`,
+    id: zammadLocalTicketId(ticket.number),
     type: inferIntent(ticket.title, ticket.group),
     priority,
     category: inferCategory(ticket.title, ticket.group),
@@ -294,9 +297,10 @@ function estimateSla(priority: Ticket["priority"]): string {
 }
 
 export async function createTicket(draft: TicketDraft): Promise<Ticket> {
+  const tenant = requireCurrentTenant();
   const ticket: Ticket = {
     ...draft,
-    id: draft.id ?? createTicketId(),
+    id: draft.id ?? createTicketId(tenant.id),
     status: draft.priority === "P1" || draft.status === "escalated" ? "escalated" : "created",
     createdAt: new Date().toISOString(),
     requesterName: draft.requesterName ?? "Usuario pendiente",
@@ -308,6 +312,7 @@ export async function createTicket(draft: TicketDraft): Promise<Ticket> {
   if (supabase) {
     const { error } = await supabase.from("tickets").insert({
       id: ticket.id,
+      tenant_id: tenant.id,
       type: ticket.type,
       priority: ticket.priority,
       category: ticket.category,
@@ -322,12 +327,17 @@ export async function createTicket(draft: TicketDraft): Promise<Ticket> {
     if (!error) return ticket;
   }
 
-  inMemoryTickets.unshift(ticket);
+  const current = inMemoryTickets.get(tenant.id) ?? [];
+  inMemoryTickets.set(tenant.id, [ticket, ...current]);
   return ticket;
 }
 
-function createTicketId() {
+function createTicketId(tenantId: string) {
   const now = new Date();
   const sequence = Math.floor(10000 + Math.random() * 90000);
-  return `INC-${now.getFullYear()}-${sequence}`;
+  return `${tenantId.toUpperCase()}-INC-${now.getFullYear()}-${sequence}`;
+}
+
+function zammadLocalTicketId(number: string) {
+  return `ZAM-${currentTenant()?.id.toUpperCase() ?? "ITSM"}-${number}`;
 }

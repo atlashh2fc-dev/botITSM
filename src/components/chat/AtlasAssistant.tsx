@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Ticket } from "@/lib/itsm/types";
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
-import { SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
+import { ForumIcon, ForumLogo, SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
+import { getClientTenant, tenantStorageKey } from "@/lib/tenant/client";
 
 type ChatApiResponse = {
   response: ITSMResponse;
@@ -30,10 +31,7 @@ type ChatApiResponse = {
   ticket?: Ticket;
 };
 
-const sessionContextStorageKey = "sonda-active-session-context";
-const identityStorageKey = "sonda-itsm-identity";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const itsmLoginUrl = process.env.NEXT_PUBLIC_ITSM_LOGIN_URL ?? "https://itsm.geimser.cl/geimser/bot/login";
 const requireITSMLogin = process.env.NEXT_PUBLIC_REQUIRE_ITSM_LOGIN !== "false";
 
 type ITSMIdentity = {
@@ -202,7 +200,10 @@ const statusLabels: Partial<Record<OperationalStatus, string>> = {
 
 /* ─────────────────────────────────── COMPONENTE PRINCIPAL ─────────────────────────────────── */
 
-export function SondaAssistant() {
+export function SondaAssistant({ standalone = false }: { standalone?: boolean }) {
+  const tenant = getClientTenant();
+  const isForum = tenant.id === "forum";
+  const brandName = isForum ? "Forum" : "SONDA";
   const storedIdentity = readStoredIdentity();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const storedContext = readStoredSessionContext();
@@ -221,7 +222,7 @@ export function SondaAssistant() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const [closed, setClosed] = useState(true);
+  const [closed, setClosed] = useState(!standalone);
 
   // Adjuntos
   const [attachedFile, setAttachedFile] = useState<{ name: string; url: string } | null>(null);
@@ -371,10 +372,10 @@ export function SondaAssistant() {
   }
 
   function openITSMLogin() {
-    const url = new URL(itsmLoginUrl);
+    const url = new URL(tenant.botLoginUrl);
     url.searchParams.set("return_origin", window.location.origin);
     setStatus("esperando login ITSM...");
-    window.open(url.toString(), "geimser-itsm-login", "popup=yes,width=520,height=640");
+    window.open(url.toString(), `${tenant.id}-itsm-login`, "popup=yes,width=520,height=640");
   }
 
   function applyITSMIdentity(identity: ITSMIdentity) {
@@ -415,7 +416,7 @@ export function SondaAssistant() {
 
   useEffect(() => {
     function handleITSMIdentityMessage(event: MessageEvent) {
-      if (event.origin !== new URL(itsmLoginUrl).origin) return;
+      if (event.origin !== new URL(tenant.botLoginUrl).origin) return;
       if (!event.data || event.data.type !== "geimser:itsm-identity") return;
       if (!event.data.authenticated || !event.data.user?.email) return;
 
@@ -424,7 +425,7 @@ export function SondaAssistant() {
 
     window.addEventListener("message", handleITSMIdentityMessage);
     return () => window.removeEventListener("message", handleITSMIdentityMessage);
-  }, []);
+  }, [tenant.botLoginUrl]);
 
   // Se restablece todo limpiamente
   function startNewChat() {
@@ -526,10 +527,10 @@ export function SondaAssistant() {
           (e.currentTarget as HTMLElement).style.transform = "translateY(0) scale(1)";
           (e.currentTarget as HTMLElement).style.boxShadow = "0 12px 26px rgba(2, 6, 23, 0.34), 0 1px 0 rgba(255,255,255,0.1) inset";
         }}
-        aria-label="Abrir soporte SONDA"
-        title="Abrir soporte SONDA"
+        aria-label={`Abrir soporte ${brandName}`}
+        title={`Abrir soporte ${brandName}`}
       >
-        <SondaBotIcon width={62} height={46} />
+        {isForum ? <ForumLogo width={58} height={34} /> : <SondaBotIcon width={62} height={46} />}
         <span
           aria-hidden
           className="absolute -right-px -top-px size-3 rounded-full"
@@ -548,9 +549,9 @@ export function SondaAssistant() {
     <section
       className="relative flex flex-col overflow-hidden"
       style={{
-        width: "min(420px, calc(100vw - 32px))",
-        height: "min(528px, calc(100dvh - 86px))",
-        borderRadius: "16px",
+        width: standalone ? "100vw" : "min(420px, calc(100vw - 32px))",
+        height: standalone ? "100dvh" : "min(528px, calc(100dvh - 86px))",
+        borderRadius: standalone ? 0 : "16px",
         background: "linear-gradient(180deg, rgba(14, 21, 33, 0.98) 0%, rgba(5, 8, 13, 0.98) 100%)",
         border: "1px solid rgba(148, 163, 184, 0.22)",
         boxShadow: "0 24px 58px rgba(2, 6, 23, 0.64), 0 1px 0 rgba(255,255,255,0.08) inset",
@@ -574,23 +575,23 @@ export function SondaAssistant() {
               background: "rgba(5, 10, 18, 0.84)",
             }}
           >
-            <SondaBotIcon width={44} height={34} />
+            {isForum ? <ForumLogo width={42} height={26} /> : <SondaBotIcon width={44} height={34} />}
           </span>
           <div>
             <h1
               className="text-[13px] font-semibold leading-tight"
               style={{ color: "#FFFFFF" }}
             >
-              Mesa de Ayuda
+              Mesa de Ayuda {isForum ? "Forum" : "SONDA"}
             </h1>
             <p className="text-[10px] font-medium" style={{ color: "rgba(203, 213, 225, 0.72)" }}>
-              Asistente TI SONDA
+              Asistente TI {brandName}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
+          {!standalone ? <button
             type="button"
             onClick={startNewChat}
             disabled={isLoading}
@@ -614,7 +615,7 @@ export function SondaAssistant() {
             aria-label="Nuevo caso"
           >
             <RotateCcw size={14} aria-hidden />
-          </button>
+          </button> : null}
 
           <button
             type="button"
@@ -628,7 +629,7 @@ export function SondaAssistant() {
             {expanded ? <Minus size={14} aria-hidden /> : <ChevronUp size={14} aria-hidden />}
           </button>
 
-          <button
+          {!standalone ? <button
             type="button"
             onClick={() => setClosed(true)}
             className="grid size-8 place-items-center rounded-lg transition-all duration-200"
@@ -638,7 +639,7 @@ export function SondaAssistant() {
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(148, 163, 184, 0.16)"}
           >
             <X size={14} aria-hidden />
-          </button>
+          </button> : null}
         </div>
       </header>
 
@@ -984,7 +985,7 @@ function Bubble({ message, onReply }: { message: ChatMessage; onReply?: (message
             background: "rgba(85, 244, 255, 0.06)",
           }}
         >
-          <SondaIcon size={14} />
+          {getClientTenant().id === "forum" ? <ForumIcon size={14} /> : <SondaIcon size={14} />}
         </span>
       ) : null}
 
@@ -1340,7 +1341,7 @@ function normalizeEmail(email: string) {
 function readStoredIdentity() {
   if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.localStorage.getItem(identityStorageKey);
+    const raw = window.localStorage.getItem(tenantStorageKey("sonda-itsm-identity"));
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as ITSMIdentity;
     return parsed.email ? parsed : undefined;
@@ -1351,13 +1352,13 @@ function readStoredIdentity() {
 
 function storeIdentity(identity: ITSMIdentity) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(identityStorageKey, JSON.stringify(identity));
+  window.localStorage.setItem(tenantStorageKey("sonda-itsm-identity"), JSON.stringify(identity));
 }
 
 function readStoredSessionContext() {
   if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.localStorage.getItem(sessionContextStorageKey);
+    const raw = window.localStorage.getItem(tenantStorageKey("sonda-active-session-context"));
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as SessionContext;
     return Array.isArray(parsed.messages) && Array.isArray(parsed.stepsExecuted) ? parsed : undefined;
@@ -1368,10 +1369,10 @@ function readStoredSessionContext() {
 
 function storeSessionContext(sessionContext: SessionContext) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(sessionContextStorageKey, JSON.stringify(sessionContext));
+  window.localStorage.setItem(tenantStorageKey("sonda-active-session-context"), JSON.stringify(sessionContext));
 }
 
 function clearStoredSessionContext() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(sessionContextStorageKey);
+  window.localStorage.removeItem(tenantStorageKey("sonda-active-session-context"));
 }

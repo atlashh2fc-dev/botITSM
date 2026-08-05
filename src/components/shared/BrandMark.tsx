@@ -110,6 +110,31 @@ export function SondaIcon({ size = 32 }: { size?: number }) {
   );
 }
 
+/** Marca compacta de Forum para el tenant Forum del asistente. */
+export function ForumLogo({ width = 120, height }: { width?: number; height?: number }) {
+  const resolvedHeight = height ?? Math.round(width * 0.38);
+
+  return (
+    <svg width={width} height={resolvedHeight} viewBox="0 0 320 100" xmlns="http://www.w3.org/2000/svg" aria-label="Forum" role="img">
+      <rect width="320" height="100" rx="4" fill="#004481" />
+      <rect x="4" y="4" width="312" height="92" rx="2" fill="none" stroke="#5BBEFF" strokeWidth="4" />
+      <text x="160" y="70" textAnchor="middle" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="58" letterSpacing="2" fill="#FFFFFF">
+        FORUM
+      </text>
+    </svg>
+  );
+}
+
+export function ForumIcon({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-label="Forum" role="img">
+      <rect width="40" height="40" rx="4" fill="#004481" />
+      <rect x="2" y="2" width="36" height="36" rx="2" fill="none" stroke="#5BBEFF" strokeWidth="2" />
+      <text x="20" y="29" textAnchor="middle" fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="24" fill="#FFFFFF">F</text>
+    </svg>
+  );
+}
+
 /* ─── BrandMark compuesto: logo + tagline ────────────────────────── */
 export function BrandMark({
   variant = "dark",

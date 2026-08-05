@@ -1,5 +1,6 @@
 import { operationalCases } from "@/data/mock/operationalCases";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { currentTenant } from "@/lib/tenant/context";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
 import type { ITSMIntent, ITSMPriority, Ticket } from "@/lib/itsm/types";
 import { listTickets } from "@/services/tickets.repository";
@@ -31,6 +32,8 @@ type RawTicket = {
 // ─── Carga de datos ───────────────────────────────────────────────────────────
 
 async function loadLiveData(): Promise<{ sessions: RawSession[]; tickets: RawTicket[] } | null> {
+  const tenant = currentTenant();
+  if (!tenant) return null;
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
@@ -38,11 +41,13 @@ async function loadLiveData(): Promise<{ sessions: RawSession[]; tickets: RawTic
     supabase
       .from("chat_sessions")
       .select("id, status, detected_intent, priority, created_at, closed_at, context")
+      .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false })
       .limit(500),
     supabase
       .from("tickets")
       .select("id, type, priority, category, status, created_at, payload")
+      .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false })
       .limit(500),
   ]);
@@ -207,6 +212,7 @@ export async function listOperationalCases(limit = 100): Promise<OperationalCase
   if (live && live.sessions.length > 0) {
     return live.sessions.slice(0, limit).map((s) => sessionToCase(s));
   }
+  if (currentTenant()) return [];
   return operationalCases.slice(0, limit);
 }
 
@@ -260,7 +266,7 @@ export async function getAdminKpis(): Promise<AdminKpi[]> {
   }
 
   // ── Fallback mock ─────────────────────────────────────────────────────────
-  const cases = operationalCases;
+  const cases = currentTenant() ? [] : operationalCases;
   const total = cases.length;
   void total;
   return buildKpisFromCases(cases, "+18% últimos 7 días");

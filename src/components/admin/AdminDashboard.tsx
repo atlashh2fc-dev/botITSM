@@ -28,7 +28,8 @@ import {
   X,
   UsersRound,
 } from "lucide-react";
-import { AtlasHexLogo } from "@/components/shared/BrandMark";
+import { AtlasHexLogo, ForumIcon } from "@/components/shared/BrandMark";
+import { getClientTenant } from "@/lib/tenant/client";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
 import type { TicketDetail } from "@/services/tickets.repository";
 import type { UserAsset } from "@/services/assets.repository";
@@ -61,13 +62,7 @@ const PBI = {
 const SANTIAGO_TIME_ZONE = "America/Santiago";
 
 function currentItsmBaseUrl() {
-  const tenantItsmOrigins: Record<string, string> = {
-    "iabot.geimser.cl": "https://itsm.geimser.cl",
-    "iabot.atlasitsm.geimser.cl": "https://atlasitsm.geimser.cl",
-  };
-
-  const botHost = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
-  return (tenantItsmOrigins[botHost] ?? process.env.NEXT_PUBLIC_ITSM_BASE_URL ?? "https://itsm.geimser.cl").replace(/\/$/, "");
+  return getClientTenant().itsmBaseUrl;
 }
 
 type ITSMIdentity = {
@@ -80,6 +75,7 @@ type ITSMIdentity = {
 
 /* ─── Helpers de datos (sin cambios funcionales) ───────────────────── */
 export function AdminDashboard({ initialSection = "overview" }: { initialSection?: string }) {
+  const tenant = getClientTenant();
   const [identity, setIdentity] = useState<ITSMIdentity | null>(null);
   const [accessError, setAccessError] = useState("");
 
@@ -110,7 +106,7 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
   return (
     <main style={{ minHeight: "100vh", background: PBI.pageBg, display: "grid", placeItems: "center", fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
       <section style={{ width: 400, background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", padding: 32, textAlign: "center" }}>
-        <AtlasHexLogo size={36} />
+        {tenant.id === "forum" ? <ForumIcon size={36} /> : <AtlasHexLogo size={36} />}
         <p style={{ fontWeight: 700, fontSize: 16, color: PBI.text1, margin: "14px 0 6px" }}>Verificando sesión ITSM</p>
         <p style={{ fontSize: 13, color: PBI.text2, margin: 0 }}>{accessError || "Conectando con tu sesión activa…"}</p>
       </section>
