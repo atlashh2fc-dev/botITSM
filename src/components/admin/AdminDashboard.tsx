@@ -365,6 +365,50 @@ function averageDuration(items: OperationalCase[]) {
 }
 
 /* ═══════════════════════ WORKSPACE ══════════════════════════════════ */
+function TopNavItem({ item, active, onClick }: { item: { id: string; label: string; icon: any }; active: boolean; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  const Icon = item.icon;
+  const isExpanded = active || hovered;
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: isExpanded ? 6 : 0,
+        padding: isExpanded ? "6px 12px" : "6px",
+        background: active ? PBI.blue : hovered ? "#E2E8F0" : "transparent",
+        color: active ? "#FFFFFF" : hovered ? PBI.blue : PBI.text2,
+        border: "none",
+        borderRadius: 20,
+        cursor: "pointer",
+        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        height: 32,
+      }}
+      title={(!active && !hovered) ? item.label : undefined}
+    >
+      <Icon size={16} style={{ flexShrink: 0 }} />
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          maxWidth: isExpanded ? 150 : 0,
+          opacity: isExpanded ? 1 : 0,
+          transition: "all 0.25s ease",
+          overflow: "hidden",
+        }}
+      >
+        {item.label}
+      </span>
+    </button>
+  );
+}
+
 function AdminWorkspace({ initialSection }: { initialSection: string; userEmail: string }) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
@@ -495,96 +539,61 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
-
-      {/* ══ SIDEBAR — Power BI style ══ */}
-      <aside style={{
-        width: 220, flexShrink: 0, background: PBI.sidebarBg,
-        display: "flex", flexDirection: "column",
-        position: "sticky", top: 0, height: "100vh", overflowY: "auto",
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
+      {/* ── Top bar with centered nav ── */}
+      <header style={{
+        height: 52, background: PBI.headerBg, borderBottom: `1px solid ${PBI.headerBor}`,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 20px", position: "sticky", top: 0, zIndex: 20, flexShrink: 0,
       }}>
-        {/* Logo */}
-        <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #1B1F26" }}>
+        {/* Left: Logo & DB Status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <AtlasHexLogo size={30} />
-            <div>
-              <p style={{ color: "#fff", fontWeight: 700, fontSize: 13, margin: 0, lineHeight: 1.2 }}>Atlas ITSM</p>
-            </div>
+            <AtlasHexLogo size={24} />
+            <p style={{ color: PBI.blue, fontWeight: 700, fontSize: 15, margin: 0 }}>Atlas ITSM</p>
           </div>
-        </div>
-
-        {/* Estado BD */}
-        <div style={{ padding: "8px 12px", borderBottom: "1px solid #1B1F26" }}>
+          <div style={{ width: 1, height: 20, background: PBI.headerBor }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{
               width: 7, height: 7, borderRadius: "50%",
               background: ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : ticketSource === "cargando" ? PBI.amber : PBI.text3,
-              flexShrink: 0,
             }} />
-            <span style={{ fontSize: 11, color: "#CFDBED" }}>
-              {ticketSource === "cargando" ? "Conectando..." : ticketSource === "zammad" ? `${realTickets.length} tickets ITSM` : ticketSource === "supabase" ? `${realTickets.length} tickets en BD` : "Modo demo"}
+            <span style={{ fontSize: 12, color: PBI.text2, fontWeight: 500 }}>
+              {ticketSource === "cargando" ? "Conectando..." : ticketSource === "zammad" ? "ITSM real" : ticketSource === "supabase" ? "En BD" : "Modo demo"}
             </span>
           </div>
         </div>
 
-        {/* Navegación */}
-        <nav style={{ flex: 1, padding: "6px 0" }}>
-          {nav.map(item => {
-            const active = activeSection === item.id;
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveSection(item.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  width: "100%", padding: "8px 16px",
-                  background: active ? PBI.sidebarAct : "transparent",
-                  border: "none",
-                  borderLeft: "3px solid transparent",
-                  borderRadius: active ? "0 6px 6px 0" : 0,
-                  color: active ? "#FFFFFF" : "#CFDBED",
-                  fontSize: 12, fontWeight: active ? 600 : 400,
-                  cursor: "pointer", textAlign: "left",
-                  transition: "all 0.12s",
-                }}
-                onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = PBI.sidebarHov; (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; } }}
-                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#CFDBED"; } }}
-              >
-                <Icon size={14} style={{ flexShrink: 0 }} />
-                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
-              </button>
-            );
-          })}
+        {/* Center: Navigation */}
+        <nav style={{ display: "flex", alignItems: "center", gap: 4, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
+          {nav.map(item => (
+            <TopNavItem
+              key={item.id}
+              item={item}
+              active={activeSection === item.id}
+              onClick={() => setActiveSection(item.id)}
+            />
+          ))}
         </nav>
 
-      </aside>
-
-      {/* ══ CONTENIDO PRINCIPAL ══ */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-
-        {/* ── Top bar ── */}
-        <header style={{
-          height: 44, background: PBI.headerBg, borderBottom: `1px solid ${PBI.headerBor}`,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 20px", position: "sticky", top: 0, zIndex: 20, flexShrink: 0,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: PBI.text3 }}>Centro de Operaciones ITSM</span>
+        {/* Right: Breadcrumbs & Status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 8 }}>
+            <span style={{ fontSize: 11, color: PBI.text3 }}>Operaciones</span>
             <ChevronDown size={12} color={PBI.text3} />
             <span style={{ fontSize: 11, color: PBI.text1, fontWeight: 600 }}>{sectionTitle[activeSection]}</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Badges */}
-            <PbiBadge color={ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : PBI.amber}>
-              {ticketSource === "zammad" ? `${realTickets.length} tickets ITSM real` : ticketSource === "supabase" ? `${realTickets.length} tickets reales` : "modo demo"}
-            </PbiBadge>
-            <button style={{ background: "none", border: "none", cursor: "pointer", color: PBI.text2, padding: "4px" }}>
-              <RefreshCw size={13} />
-            </button>
-          </div>
-        </header>
+          <PbiBadge color={ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : PBI.amber}>
+            {ticketSource === "zammad" ? `${realTickets.length} tickets` : ticketSource === "supabase" ? `${realTickets.length} tickets` : "demo"}
+          </PbiBadge>
+          <button style={{ background: "none", border: "none", cursor: "pointer", color: PBI.text2, padding: "4px" }}>
+            <RefreshCw size={13} />
+          </button>
+        </div>
+      </header>
+
+      {/* ══ CONTENIDO PRINCIPAL ══ */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {/* ── Cuerpo ── */}
         <main style={{ flex: 1, padding: 16, overflowY: "auto" }}>
