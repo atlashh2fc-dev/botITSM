@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron main process is CommonJS. */
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = require("electron");
 
 const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.atlasitsm.geimser.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
   "https://iabot.atlasitsm.geimser.cl",
   "https://atlasitsm.geimser.cl",
 ]);
+const COLLAPSED_SIZE = { width: 78, height: 78 };
+const EXPANDED_SIZE = { width: 460, height: 720 };
 
 function isTrusted(url) {
   try {
@@ -34,14 +36,21 @@ function showAssistant() {
   mainWindow.show();
   mainWindow.setAlwaysOnTop(true, "floating");
   mainWindow.focus();
+  mainWindow.webContents.send("forum-window:open");
+}
+
+function setAssistantExpanded(expanded) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const size = expanded ? EXPANDED_SIZE : COLLAPSED_SIZE;
+  mainWindow.setSize(size.width, size.height, true);
+  mainWindow.setAlwaysOnTop(true, "floating");
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 460,
-    height: 720,
-    minWidth: 400,
-    minHeight: 560,
+    ...COLLAPSED_SIZE,
+    minWidth: COLLAPSED_SIZE.width,
+    minHeight: COLLAPSED_SIZE.height,
     resizable: false,
     frame: false,
     transparent: true,
@@ -51,6 +60,7 @@ function createWindow() {
     backgroundColor: "#00000000",
     title: "Asistente ITSM Forum",
     webPreferences: {
+      preload: `${__dirname}/preload.cjs`,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -106,7 +116,9 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadURL(BOT_URL);
+  const botUrl = new URL(BOT_URL);
+  botUrl.searchParams.set("desktop", "1");
+  mainWindow.loadURL(botUrl.toString());
 }
 
 function createTray() {
@@ -138,6 +150,7 @@ if (!app.requestSingleInstanceLock()) {
 
     createWindow();
     createTray();
+    ipcMain.on("forum-window:set-expanded", (_event, expanded) => setAssistantExpanded(expanded));
     app.on("activate", showAssistant);
   });
 

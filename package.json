@@ -1,6 +1,6 @@
 {
   "name": "agente-ia-itsm-enterprise",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Cliente de escritorio del Asistente ITSM Forum.",
   "author": "Geimser",
   "private": true,
