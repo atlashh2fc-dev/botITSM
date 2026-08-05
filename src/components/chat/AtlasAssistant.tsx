@@ -730,7 +730,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
                 </div>
               ) : null}
 
-              {isLoading ? <TypingIndicator /> : null}
+              {isLoading ? <TypingIndicator isForum={isForum} /> : null}
               {ticket ? <RegisteredCase ticket={ticket} /> : null}
             </div>
           </div>
@@ -1099,7 +1099,7 @@ function Bubble({ message, onReply }: { message: ChatMessage; onReply?: (message
   );
 }
 
-function TypingIndicator() {
+function TypingIndicator({ isForum }: { isForum: boolean }) {
   return (
     <div className="flex items-center gap-3 pl-8 text-[12.5px]" style={{ color: "rgba(255, 255, 255, 0.45)" }}>
       <span className="flex gap-1.5 items-center">
@@ -1115,7 +1115,7 @@ function TypingIndicator() {
           }} />
         ))}
       </span>
-      <span style={{ fontStyle: "italic" }}>Soporte SONDA está analizando tu caso...</span>
+      <span style={{ fontStyle: "italic" }}>{isForum ? "Equipo Forum está escribiendo..." : "Equipo SONDA está escribiendo..."}</span>
     </div>
   );
 }
