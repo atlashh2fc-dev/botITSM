@@ -846,6 +846,7 @@ function InventoryWorkspace({
   const active = assets.filter(asset => asset.status === "active").length;
   const attention = assets.filter(asset => asset.status === "warning" || asset.status === "error").length;
   const types = new Set(assets.map(asset => asset.asset_type)).size;
+  const [selectedHardwareAsset, setSelectedHardwareAsset] = useState<UserAsset | null>(null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -914,6 +915,9 @@ function InventoryWorkspace({
                         </div>
                       );
                     })}
+                    <button type="button" onClick={() => setSelectedHardwareAsset(asset)} style={{ background: PBI.blue, color: "#fff", border: `1px solid ${PBI.blue}`, borderRadius: 3, padding: "7px 8px", minWidth: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left" }}>
+                      Detalles del equipo
+                    </button>
                   </div>
                 </article>
               );
@@ -921,8 +925,20 @@ function InventoryWorkspace({
           </div>
         )}
       </PbiPanel>
+      {selectedHardwareAsset && <HardwareDetailsModal asset={selectedHardwareAsset} onClose={() => setSelectedHardwareAsset(null)} />}
     </div>
   );
+}
+
+function HardwareDetailsModal({ asset, onClose }: { asset: UserAsset; onClose: () => void }) {
+  const hardware = asset.hardware;
+  const entries = hardware ? Object.entries(hardware).filter(([key, value]) => !["status", "collected_at", "error"].includes(key) && value && (!Array.isArray(value) || value.length)) : [];
+  return <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(7,33,70,.58)", display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
+    <section style={{ width: "min(900px, 100%)", maxHeight: "88vh", overflow: "auto", background: "#fff", border: `1px solid ${PBI.cardBorder}`, borderRadius: 5, padding: 20 }} onClick={event => event.stopPropagation()}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start" }}><div><p style={{ margin: 0, color: PBI.text3, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Ficha técnica</p><h2 style={{ margin: "4px 0", color: PBI.text1, fontSize: 20 }}>{asset.asset_name}</h2></div><button type="button" onClick={onClose} style={{ border: 0, background: "transparent", fontSize: 24, cursor: "pointer" }} aria-label="Cerrar">×</button></div>
+      {!entries.length ? <p style={{ color: PBI.text2, fontSize: 13 }}>Aún no hay inventario técnico guardado para este equipo.</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10, marginTop: 16 }}>{entries.map(([key, value]) => <section key={key} style={{ border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: 10 }}><p style={{ margin: "0 0 7px", fontSize: 12, fontWeight: 700, color: PBI.blue, textTransform: "capitalize" }}>{key.replaceAll("_", " ")}</p><pre style={{ margin: 0, color: PBI.text2, font: "12px/1.45 ui-monospace, monospace", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(value, null, 2)}</pre></section>)}</div>}
+    </section>
+  </div>;
 }
 
 const INVENTORY_DETAIL_LABELS: Record<string, string> = {

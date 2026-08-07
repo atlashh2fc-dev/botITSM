@@ -10,6 +10,7 @@ export type UserAsset = {
   asset_tag: string;
   status: "active" | "warning" | "error";
   details: Record<string, unknown>;
+  hardware?: Record<string, unknown>;
 };
 
 type ITSMInventoryAsset = {
@@ -28,6 +29,7 @@ type ITSMInventoryAsset = {
   model?: string;
   last_seen_at?: string;
   updated_at?: string;
+  hardware?: Record<string, unknown>;
 };
 
 const MOCK_ASSETS: UserAsset[] = [
@@ -205,5 +207,6 @@ function normalizeITSMAsset(asset: ITSMInventoryAsset): UserAsset {
       actualizado: asset.updated_at || "Sin dato",
       remoto: asset.session_url || "",
     },
+    hardware: asset.hardware,
   };
 }
