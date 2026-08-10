@@ -856,6 +856,26 @@ function InventoryWorkspace({
   const [selectedHardwareAsset, setSelectedHardwareAsset] = useState<UserAsset | null>(null);
   const [hardwareRefreshing, setHardwareRefreshing] = useState<string | null>(null);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
+  const [inventoryGridFilter, setInventoryGridFilter] = useState<InventoryGridFilter>("all");
+  const [hardwareByAssetId, setHardwareByAssetId] = useState<Record<string, Record<string, unknown>>>({});
+
+  const inventoryRows = useMemo(
+    () => assets.map(asset => buildInventoryGridRow(asset, hardwareByAssetId[asset.id] ?? asset.hardware)),
+    [assets, hardwareByAssetId],
+  );
+  const inventoryTotals = useMemo(() => ({
+    withoutMonitor: inventoryRows.filter(row => row.monitorState === "without-monitor").length,
+    allInOne: inventoryRows.filter(row => row.deviceKind === "all-in-one").length,
+    tower: inventoryRows.filter(row => row.deviceKind === "tower").length,
+    pending: inventoryRows.filter(row => row.monitorState === "pending").length,
+  }), [inventoryRows]);
+  const filteredInventoryRows = inventoryRows.filter(row => {
+    if (inventoryGridFilter === "without-monitor") return row.monitorState === "without-monitor";
+    if (inventoryGridFilter === "all-in-one") return row.deviceKind === "all-in-one";
+    if (inventoryGridFilter === "tower") return row.deviceKind === "tower";
+    if (inventoryGridFilter === "pending") return row.monitorState === "pending";
+    return true;
+  });
 
   const refreshHardware = async (asset: UserAsset) => {
     setHardwareRefreshing(asset.id);
@@ -865,8 +885,13 @@ function InventoryWorkspace({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "No fue posible consultar el hardware.");
 
+      const hardware = payload.hardware ?? payload.asset?.hardware;
+      if (hardware && typeof hardware === "object" && !Array.isArray(hardware)) {
+        setHardwareByAssetId(current => ({ ...current, [asset.id]: hardware as Record<string, unknown> }));
+      }
+
       setSelectedHardwareAsset(current => current?.id === asset.id
-        ? { ...current, hardware: payload.hardware ?? payload.asset?.hardware }
+        ? { ...current, hardware }
         : current);
       void onRefresh();
     } catch (requestError) {
@@ -953,9 +978,118 @@ function InventoryWorkspace({
           </div>
         )}
       </PbiPanel>
+
+      <PbiPanel title="Matriz de control técnico" icon={PackageSearch}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          <InventoryFilterButton active={inventoryGridFilter === "all"} onClick={() => setInventoryGridFilter("all")} label={`Todos (${inventoryRows.length})`} />
+          <InventoryFilterButton active={inventoryGridFilter === "without-monitor"} onClick={() => setInventoryGridFilter("without-monitor")} label={`Sin pantalla (${inventoryTotals.withoutMonitor})`} tone={inventoryTotals.withoutMonitor ? PBI.red : undefined} />
+          <InventoryFilterButton active={inventoryGridFilter === "all-in-one"} onClick={() => setInventoryGridFilter("all-in-one")} label={`All-in-One (${inventoryTotals.allInOne})`} />
+          <InventoryFilterButton active={inventoryGridFilter === "tower"} onClick={() => setInventoryGridFilter("tower")} label={`Torres (${inventoryTotals.tower})`} />
+          <InventoryFilterButton active={inventoryGridFilter === "pending"} onClick={() => setInventoryGridFilter("pending")} label={`Pendientes de ficha (${inventoryTotals.pending})`} tone={inventoryTotals.pending ? PBI.amber : undefined} />
+        </div>
+        <p style={{ margin: "0 0 12px", color: PBI.text2, fontSize: 12, lineHeight: 1.45 }}>
+          La clasificación se obtiene de los datos informados por el agente. Los equipos sin ficha técnica se muestran como pendientes, sin asumir que no tienen periféricos.
+        </p>
+        {filteredInventoryRows.length === 0 ? (
+          <p style={{ margin: "20px 0", color: PBI.text2, fontSize: 12 }}>No hay equipos para este filtro.</p>
+        ) : (
+          <div style={{ overflowX: "auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}>
+            <table style={{ width: "100%", minWidth: 920, borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "#EEF4F7", color: PBI.text2, textAlign: "left" }}>
+                  {['Equipo', 'Tipo', 'Pantalla', 'Periféricos', 'Red', 'Estado', 'Acciones'].map(column => <th key={column} style={{ padding: "9px 10px", fontSize: 10, fontWeight: 800, letterSpacing: .35, textTransform: "uppercase", borderBottom: `1px solid ${PBI.cardBorder}` }}>{column}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredInventoryRows.map(row => (
+                  <tr key={row.asset.id} style={{ background: "#fff", borderBottom: `1px solid ${PBI.cardBorder}` }}>
+                    <td style={{ padding: "10px", color: PBI.text1, fontWeight: 700, maxWidth: 190, overflowWrap: "anywhere" }}>
+                      {row.asset.asset_name}
+                      <span style={{ display: "block", marginTop: 3, color: PBI.text3, fontSize: 11, fontWeight: 400 }}>{row.asset.asset_tag || "Sin identificador"}</span>
+                    </td>
+                    <td style={{ padding: "10px" }}><InventoryCellBadge label={row.deviceKindLabel} color={row.deviceKind === "all-in-one" ? PBI.purple : row.deviceKind === "tower" ? PBI.blue : PBI.text2} /></td>
+                    <td style={{ padding: "10px" }}><InventoryCellBadge label={row.monitorLabel} color={row.monitorState === "connected" ? PBI.green : row.monitorState === "without-monitor" ? PBI.red : PBI.amber} /></td>
+                    <td style={{ padding: "10px", color: PBI.text2, lineHeight: 1.45, maxWidth: 210 }}>{row.peripheralsLabel}</td>
+                    <td style={{ padding: "10px", color: PBI.text2, lineHeight: 1.45, maxWidth: 180 }}>{row.networkLabel}</td>
+                    <td style={{ padding: "10px" }}><InventoryCellBadge label={row.statusLabel} color={row.statusColor} /></td>
+                    <td style={{ padding: "10px" }}><button type="button" onClick={() => { setSelectedHardwareAsset({ ...row.asset, hardware: row.hardware }); if (!row.hardware) void refreshHardware(row.asset); }} style={{ background: PBI.blue, color: "#fff", border: 0, borderRadius: 3, padding: "7px 9px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>Ver ficha</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </PbiPanel>
       {selectedHardwareAsset && <HardwareDetailsModal asset={selectedHardwareAsset} refreshing={hardwareRefreshing === selectedHardwareAsset.id} error={hardwareError} onRefresh={() => void refreshHardware(selectedHardwareAsset)} onClose={() => setSelectedHardwareAsset(null)} />}
     </div>
   );
+}
+
+type InventoryGridFilter = "all" | "without-monitor" | "all-in-one" | "tower" | "pending";
+type InventoryMonitorState = "connected" | "without-monitor" | "pending";
+type InventoryDeviceKind = "all-in-one" | "tower" | "notebook" | "unclassified";
+type InventoryGridRow = {
+  asset: UserAsset;
+  hardware?: Record<string, unknown>;
+  deviceKind: InventoryDeviceKind;
+  deviceKindLabel: string;
+  monitorState: InventoryMonitorState;
+  monitorLabel: string;
+  peripheralsLabel: string;
+  networkLabel: string;
+  statusLabel: string;
+  statusColor: string;
+};
+
+function InventoryFilterButton({ active, label, tone, onClick }: { active: boolean; label: string; tone?: string; onClick: () => void }) {
+  const color = active ? "#fff" : tone ?? PBI.blue;
+  return <button type="button" onClick={onClick} style={{ border: `1px solid ${active ? PBI.blue : tone ?? PBI.cardBorder}`, background: active ? PBI.blue : "#fff", color, borderRadius: 999, padding: "6px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700 }}>{label}</button>;
+}
+
+function InventoryCellBadge({ label, color }: { label: string; color: string }) {
+  return <span style={{ display: "inline-block", maxWidth: 180, color, background: `${color}12`, border: `1px solid ${color}30`, borderRadius: 999, padding: "4px 8px", fontSize: 11, fontWeight: 700, lineHeight: 1.25, overflowWrap: "anywhere" }}>{label}</span>;
+}
+
+function buildInventoryGridRow(asset: UserAsset, hardware?: Record<string, unknown>): InventoryGridRow {
+  const monitors = asHardwareRecords(hardware?.monitors);
+  const activeMonitors = monitors.filter(monitor => monitor.active !== false);
+  const source = [
+    asset.asset_name,
+    asset.asset_type,
+    ...Object.values(asset.details ?? {}).map(value => hardwareString(value)),
+    hardwareString(asHardwareRecord(hardware?.system)?.manufacturer),
+    hardwareString(asHardwareRecord(hardware?.system)?.model),
+  ].join(" ").toLowerCase();
+
+  const allInOne = /all[-\s]?in[-\s]?one|\baio\b|todo en uno/.test(source);
+  const notebook = /notebook|laptop|elitebook|thinkpad|latitude|macbook/.test(source);
+  const tower = !allInOne && !notebook && /desktop|tower|prodesk|elitedesk|optiplex|thinkcentre|small form factor|\bsff\b|\bmt\b/.test(source);
+  const deviceKind: InventoryDeviceKind = allInOne ? "all-in-one" : tower ? "tower" : notebook ? "notebook" : "unclassified";
+  const deviceKindLabel = deviceKind === "all-in-one" ? "All-in-One" : deviceKind === "tower" ? "PC de torre" : deviceKind === "notebook" ? "Notebook" : "PC sin clasificar";
+
+  const monitorState: InventoryMonitorState = !hardware ? "pending" : activeMonitors.length ? "connected" : "without-monitor";
+  const monitorNames = activeMonitors.map(monitor => hardwareString(monitor.name)).filter(Boolean);
+  const monitorLabel = monitorState === "pending"
+    ? "Pendiente de consulta"
+    : monitorState === "without-monitor"
+      ? "Sin pantalla detectada"
+      : `${activeMonitors.length} conectada${activeMonitors.length === 1 ? "" : "s"}${monitorNames.length ? ` · ${monitorNames.join(", ")}` : ""}`;
+
+  const peripheralGroups: Array<[string, string, number]> = [
+    ["Teclado", "keyboards", asHardwareRecords(hardware?.keyboards).length],
+    ["Mouse", "mice", asHardwareRecords(hardware?.mice).length],
+    ["Audio", "audio", asHardwareRecords(hardware?.audio).length],
+    ["Impresora", "printers", asHardwareRecords(hardware?.printers).length],
+  ];
+  const peripherals = peripheralGroups.filter(([, , count]) => count > 0).map(([label, , count]) => `${label}${count > 1 ? ` (${count})` : ""}`);
+  const peripheralsLabel = !hardware ? "Pendiente de ficha técnica" : peripherals.length ? peripherals.join(" · ") : "Sin periféricos detectados";
+
+  const network = asHardwareRecords(hardware?.network);
+  const ips = network.flatMap(entry => Array.isArray(entry.ips) ? entry.ips.map(hardwareString) : [hardwareString(entry.ips)]).filter(Boolean);
+  const networkLabel = !hardware ? "Pendiente de ficha técnica" : ips.length ? ips.slice(0, 3).join(" · ") : "Sin red detectada";
+  const status = asset.status === "active" ? { label: "Operativo", color: PBI.green } : asset.status === "warning" ? { label: "Atención", color: PBI.amber } : { label: "Con alerta", color: PBI.red };
+
+  return { asset, hardware, deviceKind, deviceKindLabel, monitorState, monitorLabel, peripheralsLabel, networkLabel, statusLabel: status.label, statusColor: status.color };
 }
 
 function HardwareDetailsModal({ asset, refreshing, error, onRefresh, onClose }: { asset: UserAsset; refreshing: boolean; error: string | null; onRefresh: () => void; onClose: () => void }) {
