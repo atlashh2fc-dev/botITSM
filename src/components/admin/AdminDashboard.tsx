@@ -851,8 +851,6 @@ function InventoryWorkspace({
   const [hardwareError, setHardwareError] = useState<string | null>(null);
 
   const refreshHardware = async (asset: UserAsset) => {
-    if (asset.status !== "active") return;
-
     setHardwareRefreshing(asset.id);
     setHardwareError(null);
     try {
@@ -938,7 +936,7 @@ function InventoryWorkspace({
                         </div>
                       );
                     })}
-                    <button type="button" onClick={() => { setSelectedHardwareAsset(asset); if (asset.status === "active" && !asset.hardware) void refreshHardware(asset); }} style={{ background: PBI.blue, color: "#fff", border: `1px solid ${PBI.blue}`, borderRadius: 3, padding: "7px 8px", minWidth: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left" }}>
+                    <button type="button" onClick={() => { setSelectedHardwareAsset(asset); if (!asset.hardware) void refreshHardware(asset); }} style={{ background: PBI.blue, color: "#fff", border: `1px solid ${PBI.blue}`, borderRadius: 3, padding: "7px 8px", minWidth: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left" }}>
                       Detalles del equipo
                     </button>
                   </div>
@@ -957,10 +955,11 @@ function HardwareDetailsModal({ asset, refreshing, error, onRefresh, onClose }: 
   const hardware = asset.hardware;
   const entries = hardware ? Object.entries(hardware).filter(([key, value]) => !["status", "collected_at", "error"].includes(key) && value && (!Array.isArray(value) || value.length)) : [];
   const meshEntries = Object.entries(asset.details).filter(([key, value]) => key !== "remoto" && Boolean(value));
-  const canRefresh = asset.status === "active";
+  const canRefresh = true;
+  const inventoryMessage = "La consulta se valida directamente con el agente MeshCentral.";
   return <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(7,33,70,.58)", display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
     <section style={{ width: "min(900px, 100%)", maxHeight: "88vh", overflow: "auto", background: "#fff", border: `1px solid ${PBI.cardBorder}`, borderRadius: 5, padding: 20 }} onClick={event => event.stopPropagation()}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start" }}><div><p style={{ margin: 0, color: PBI.text3, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Ficha técnica</p><h2 style={{ margin: "4px 0", color: PBI.text1, fontSize: 20 }}>{asset.asset_name}</h2><p style={{ margin: 0, color: PBI.text2, fontSize: 12 }}>{canRefresh ? "Agente disponible para consulta técnica." : "El agente está fuera de línea; se muestra la última información conocida."}</p></div><button type="button" onClick={onClose} style={{ border: 0, background: "transparent", fontSize: 24, cursor: "pointer" }} aria-label="Cerrar">×</button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start" }}><div><p style={{ margin: 0, color: PBI.text3, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>Ficha técnica</p><h2 style={{ margin: "4px 0", color: PBI.text1, fontSize: 20 }}>{asset.asset_name}</h2><p style={{ margin: 0, color: PBI.text2, fontSize: 12 }}>{inventoryMessage}</p></div><button type="button" onClick={onClose} style={{ border: 0, background: "transparent", fontSize: 24, cursor: "pointer" }} aria-label="Cerrar">×</button></div>
       {canRefresh && <button type="button" onClick={onRefresh} disabled={refreshing} style={{ marginTop: 14, background: PBI.blue, color: "#fff", border: 0, borderRadius: 3, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: refreshing ? "wait" : "pointer" }}>{refreshing ? "Consultando pantalla, periféricos e impresoras…" : "Actualizar ficha técnica"}</button>}
       {error && <p style={{ margin: "10px 0 0", color: PBI.red, fontSize: 13 }}>{error}</p>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10, marginTop: 16 }}>
