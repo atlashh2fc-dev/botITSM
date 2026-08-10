@@ -37,8 +37,10 @@ import {
   TrendingUp,
   X,
   UsersRound,
+  type LucideIcon,
 } from "lucide-react";
 import { AtlasHexLogo, ForumIcon } from "@/components/shared/BrandMark";
+import { AgentSoftphone } from "@/components/telephony/AgentSoftphone";
 import { getClientTenant } from "@/lib/tenant/client";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
 import type { TicketDetail } from "@/services/tickets.repository";
@@ -83,6 +85,13 @@ type ITSMIdentity = {
   lastname?: string;
   login?: string;
 };
+
+const FORUM_PHONE_AGENT_EMAILS = new Set(
+  (process.env.NEXT_PUBLIC_TELEPHONY_FORUM_AGENT_EMAILS || "admin@atlas.local")
+    .split(",")
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 /* ─── Helpers de datos (sin cambios funcionales) ───────────────────── */
 export function AdminDashboard({ initialSection = "overview" }: { initialSection?: string }) {
@@ -132,7 +141,15 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
     };
   }, [tenant.id, tenant.itsmBaseUrl]);
 
-  if (identity) return <AdminWorkspace initialSection={initialSection} userEmail={identity.email ?? ""} />;
+  if (identity) {
+    return (
+      <AdminWorkspace
+        initialSection={initialSection}
+        userEmail={identity.email ?? ""}
+        phoneEnabled={tenant.id === "forum" && FORUM_PHONE_AGENT_EMAILS.has((identity.email ?? "").trim().toLowerCase())}
+      />
+    );
+  }
 
   return (
     <main style={{ minHeight: "100vh", background: PBI.pageBg, display: "grid", placeItems: "center", fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
@@ -376,7 +393,7 @@ function averageDuration(items: OperationalCase[]) {
 }
 
 /* ═══════════════════════ WORKSPACE ══════════════════════════════════ */
-function TopNavItem({ item, active, onClick }: { item: { id: string; label: string; icon: any }; active: boolean; onClick: () => void }) {
+function TopNavItem({ item, active, onClick }: { item: { id: string; label: string; icon: LucideIcon }; active: boolean; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   const Icon = item.icon;
   const isExpanded = active || hovered;
@@ -420,7 +437,15 @@ function TopNavItem({ item, active, onClick }: { item: { id: string; label: stri
   );
 }
 
-function AdminWorkspace({ initialSection }: { initialSection: string; userEmail: string }) {
+function AdminWorkspace({
+  initialSection,
+  userEmail,
+  phoneEnabled,
+}: {
+  initialSection: string;
+  userEmail: string;
+  phoneEnabled: boolean;
+}) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
@@ -861,6 +886,9 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
           error={ticketDetailError}
           onClose={closeTicketDetail}
         />
+      )}
+      {phoneEnabled && (
+        <AgentSoftphone userEmail={userEmail} onOpenTicket={(ticketId) => { void openTicketDetail(ticketId); }} />
       )}
     </div>
   );

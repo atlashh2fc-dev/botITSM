@@ -19,7 +19,8 @@
     "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "sip.js": "^0.21.2"
   },
   "overrides": {
     "postcss": "8.5.15"

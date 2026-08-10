@@ -296,7 +296,17 @@ function estimateSla(priority: Ticket["priority"]): string {
   return "72 horas hábiles";
 }
 
-export async function createTicket(draft: TicketDraft): Promise<Ticket> {
+export type CreateTicketOptions = {
+  /** Fail instead of silently falling back to process memory. */
+  requirePersistence?: boolean;
+  /** Treat an existing deterministic ticket id as an idempotent success. */
+  allowExisting?: boolean;
+};
+
+export async function createTicket(
+  draft: TicketDraft,
+  options: CreateTicketOptions = {},
+): Promise<Ticket> {
   const tenant = requireCurrentTenant();
   const ticket: Ticket = {
     ...draft,
@@ -324,7 +334,14 @@ export async function createTicket(draft: TicketDraft): Promise<Ticket> {
       external_url: ticket.externalUrl ?? null,
     });
 
-    if (!error) return ticket;
+    if (!error || (options.allowExisting && error.code === "23505")) return ticket;
+    if (options.requirePersistence) {
+      throw new Error(`No se pudo persistir el ticket ${ticket.id}: ${error.message}`);
+    }
+  }
+
+  if (options.requirePersistence) {
+    throw new Error(`No se pudo persistir el ticket ${ticket.id}: Supabase no está configurado.`);
   }
 
   const current = inMemoryTickets.get(tenant.id) ?? [];

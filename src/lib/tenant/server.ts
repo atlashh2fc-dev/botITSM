@@ -9,6 +9,8 @@ export type Tenant = {
   zammadBaseUrl?: string;
   zammadApiToken?: string;
   zammadGroup: string;
+  zammadCtiUrl?: string;
+  telephonyFallbackEmail?: string;
   cmdbToken?: string;
 };
 
@@ -22,6 +24,8 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
     zammadBaseUrl: process.env.ZAMMAD_GEIMSER_BASE_URL ?? process.env.ZAMMAD_BASE_URL,
     zammadApiToken: process.env.ZAMMAD_GEIMSER_API_TOKEN ?? process.env.ZAMMAD_API_TOKEN,
     zammadGroup: process.env.ZAMMAD_GEIMSER_GROUP ?? process.env.ZAMMAD_GROUP ?? "Users",
+    zammadCtiUrl: process.env.ZAMMAD_GEIMSER_CTI_URL,
+    telephonyFallbackEmail: process.env.TELEPHONY_GEIMSER_FALLBACK_EMAIL,
     cmdbToken: process.env.GEIMSER_CMDB_TOKEN,
   },
   forum: {
@@ -30,6 +34,8 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
     zammadBaseUrl: process.env.ZAMMAD_FORUM_BASE_URL,
     zammadApiToken: process.env.ZAMMAD_FORUM_API_TOKEN,
     zammadGroup: process.env.ZAMMAD_FORUM_GROUP || "Users",
+    zammadCtiUrl: process.env.ZAMMAD_FORUM_CTI_URL,
+    telephonyFallbackEmail: process.env.TELEPHONY_FORUM_FALLBACK_EMAIL,
     cmdbToken: process.env.FORUM_CMDB_TOKEN,
   },
 };

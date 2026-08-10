@@ -161,6 +161,88 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["ticket_events"]["Insert"]>;
         Relationships: [];
       };
+      telephony_calls: {
+        Row: {
+          tenant_id: string;
+          call_id: string;
+          direction: string;
+          from_number: string;
+          to_number: string;
+          queue: string | null;
+          agent_extension: string | null;
+          status: string;
+          cause: string | null;
+          duration_seconds: number | null;
+          zammad_ticket_id: number | null;
+          zammad_ticket_number: string | null;
+          local_ticket_id: string | null;
+          ticket_processing_started_at: string | null;
+          ticket_processing_error: string | null;
+          started_at: string;
+          answered_at: string | null;
+          ended_at: string | null;
+          last_payload: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          tenant_id: string;
+          call_id: string;
+          direction: string;
+          from_number: string;
+          to_number: string;
+          queue?: string | null;
+          agent_extension?: string | null;
+          status?: string;
+          cause?: string | null;
+          duration_seconds?: number | null;
+          zammad_ticket_id?: number | null;
+          zammad_ticket_number?: string | null;
+          local_ticket_id?: string | null;
+          ticket_processing_started_at?: string | null;
+          ticket_processing_error?: string | null;
+          started_at?: string;
+          answered_at?: string | null;
+          ended_at?: string | null;
+          last_payload?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["telephony_calls"]["Insert"]>;
+        Relationships: [];
+      };
+      telephony_events: {
+        Row: {
+          tenant_id: string;
+          event_id: string;
+          call_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload: Json;
+          processing_started_at: string;
+          processed_at: string | null;
+          processing_error: string | null;
+          cti_processed_at: string | null;
+          cti_error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          tenant_id: string;
+          event_id: string;
+          call_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload: Json;
+          processing_started_at?: string;
+          processed_at?: string | null;
+          processing_error?: string | null;
+          cti_processed_at?: string | null;
+          cti_error?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["telephony_events"]["Insert"]>;
+        Relationships: [];
+      };
       knowledge_articles: {
         Row: {
           tenant_id: string | null;
@@ -205,7 +287,28 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      claim_telephony_event: {
+        Args: {
+          p_tenant_id: string;
+          p_event_id: string;
+          p_call_id: string;
+          p_event_type: string;
+          p_occurred_at: string;
+          p_payload: Json;
+          p_lease_seconds?: number;
+        };
+        Returns: string;
+      };
+      claim_telephony_ticket: {
+        Args: {
+          p_tenant_id: string;
+          p_call_id: string;
+          p_lease_seconds?: number;
+        };
+        Returns: string;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

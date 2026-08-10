@@ -172,6 +172,20 @@ export async function ensureCustomer(email: string, fullName?: string, tenant?: 
   });
 }
 
+/** Busca un customer por teléfono o móvil usando comparación normalizada. */
+export async function findUserByPhone(phone: string, tenant?: Tenant): Promise<ZammadUserDetail | null> {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+
+  const results = await zammadFetch<ZammadUserDetail[]>(tenant,
+    `/users/search?query=${encodeURIComponent(phone.trim())}&limit=20`,
+  );
+
+  return results.find((user) =>
+    normalizePhone(user.phone ?? "") === normalized || normalizePhone(user.mobile ?? "") === normalized,
+  ) ?? null;
+}
+
 export type CreateZammadTicketInput = {
   title: string;
   body: string;
@@ -210,6 +224,143 @@ export async function createZammadTicket(input: CreateZammadTicketInput, tenant?
       },
     }),
   });
+}
+
+export type CreateZammadPhoneTicketInput = {
+  callId: string;
+  from: string;
+  to: string;
+  queue?: string;
+  occurredAt: string;
+};
+
+/** Crea el ticket que representa una llamada entrante, asociado por teléfono si es posible. */
+export async function createZammadPhoneTicket(
+  input: CreateZammadPhoneTicketInput,
+  tenant?: Tenant,
+): Promise<ZammadTicket> {
+  const active = tenant ?? currentTenant();
+  const phoneCustomer = await findUserByPhone(input.from, tenant);
+  const fallbackEmail = active?.telephonyFallbackEmail
+    ?? (active?.id === "geimser" ? "omnicanal@geimser.cl" : undefined);
+  if (!phoneCustomer && !fallbackEmail) {
+    throw new Error(`Customer fallback telefónico no configurado para ${active?.name ?? "el tenant"}.`);
+  }
+  const customer = phoneCustomer
+    ?? await ensureCustomer(fallbackEmail!, "Contacto telefónico", tenant);
+  const marker = zammadCallMarker(input.callId);
+  if (!marker) throw new Error("Call-ID inválido para crear ticket telefónico.");
+  const title = `${marker} Llamada entrante · ${input.from} → ${input.to}`.slice(0, 200);
+
+  return zammadFetch<ZammadTicket>(tenant, "/tickets", {
+    method: "POST",
+    body: JSON.stringify({
+      title,
+      group: active?.zammadGroup || process.env.ZAMMAD_GROUP?.trim() || "Users",
+      customer_id: customer.id,
+      priority_id: 2,
+      state_id: 2,
+      article: {
+        subject: "Llamada entrante recibida",
+        body: [
+          "LLAMADA REGISTRADA DESDE ASTERISK",
+          `Call-ID: ${input.callId}`,
+          `Desde: ${input.from}`,
+          `Hacia: ${input.to}`,
+          `Cola: ${input.queue || "No informada"}`,
+          `Inicio: ${input.occurredAt}`,
+        ].join("\n"),
+        type: "phone",
+        content_type: "text/plain",
+        internal: false,
+        sender: "Customer",
+      },
+    }),
+  });
+}
+
+export type ZammadPhoneArticleInput = {
+  ticketId: number;
+  eventId: string;
+  subject: string;
+  body: string;
+  durationSeconds?: number;
+};
+
+/** Agrega el resultado final de la llamada como nota telefónica del ticket. */
+export async function createZammadPhoneArticle(
+  input: ZammadPhoneArticleInput,
+  tenant?: Tenant,
+): Promise<ZammadTicketArticle> {
+  const existing = await getTicketArticles(input.ticketId, tenant);
+  const marker = `Event-ID: ${input.eventId}`;
+  const duplicate = existing.find((article) => article.body.includes(marker));
+  if (duplicate) return duplicate;
+
+  return zammadFetch<ZammadTicketArticle>(tenant, "/ticket_articles", {
+    method: "POST",
+    body: JSON.stringify({
+      ticket_id: input.ticketId,
+      subject: input.subject,
+      body: `${input.body}\n${marker}`,
+      content_type: "text/plain",
+      type: "phone",
+      internal: false,
+      sender: "Agent",
+      ...(input.durationSeconds !== undefined
+        ? { time_unit: Math.max(1, Math.ceil(input.durationSeconds / 60)).toString() }
+        : {}),
+    }),
+  });
+}
+
+/** Recupera un ticket ya creado si un reintento ocurrió antes de persistir su vínculo local. */
+export async function findZammadPhoneTicketByCallId(callId: string, tenant?: Tenant): Promise<ZammadTicket | null> {
+  const safe = callId.replace(/[^a-zA-Z0-9._:-]/g, "");
+  if (!safe) return null;
+  const marker = zammadCallMarker(safe);
+  const result = await searchTicketsByQuery(safe, 10, tenant);
+  return normalizeSearchResult(result).find((ticket) => ticket.title.includes(marker)) ?? null;
+}
+
+function zammadCallMarker(callId: string): string {
+  const safe = callId.replace(/[^a-zA-Z0-9._:-]/g, "");
+  return safe ? `[Call-ID:${safe}]` : "";
+}
+
+export type ZammadCtiEvent = {
+  event: "newCall" | "answer" | "hangup";
+  from: string;
+  to: string;
+  direction: "in" | "out";
+  callId: string;
+  answeringNumber?: string;
+  queue?: string;
+  cause?: string;
+  user?: string | string[];
+};
+
+/** Envía señalización a la CTI genérica. Su URL ya contiene el token secreto. */
+export async function sendZammadCtiEvent(event: ZammadCtiEvent, tenant?: Tenant): Promise<void> {
+  const active = tenant ?? currentTenant();
+  if (!active?.zammadCtiUrl) return;
+
+  const response = await fetch(active.zammadCtiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Zammad CTI → ${response.status}: ${body.slice(0, 200)}`);
+  }
+}
+
+function normalizePhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 7 ? digits.slice(-12) : "";
 }
 
 type TicketSearchResponse = ZammadTicket[] | { tickets?: number[]; assets?: { Ticket?: Record<string, ZammadTicket> } };
