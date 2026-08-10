@@ -935,7 +935,10 @@ function InventoryWorkspace({
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {assets.map(asset => {
               const status = asset.status === "active" ? { label: "Operativo", color: PBI.green } : asset.status === "warning" ? { label: "Atencion", color: PBI.amber } : { label: "Con alerta", color: PBI.red };
-              const detailEntries = getInventoryDetailEntries(asset);
+              const hardware = hardwareByAssetId[asset.id] ?? asset.hardware;
+              const currentNetworkIp = getPrimaryHardwareIPv4(hardware);
+              const assetWithCurrentNetworkIp = currentNetworkIp ? { ...asset, details: { ...asset.details, ip: currentNetworkIp }, hardware } : { ...asset, hardware };
+              const detailEntries = getInventoryDetailEntries(assetWithCurrentNetworkIp);
               return (
                 <article key={asset.id} style={{ padding: 12, background: PBI.pageBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto", gap: 12, alignItems: "start", minWidth: 0 }}>
@@ -965,7 +968,7 @@ function InventoryWorkspace({
                         </div>
                       );
                     })}
-                    <button type="button" onClick={() => { setSelectedHardwareAsset(asset); if (!asset.hardware) void refreshHardware(asset); }} style={{ background: PBI.blue, color: "#fff", border: `1px solid ${PBI.blue}`, borderRadius: 3, padding: "7px 8px", minWidth: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left" }}>
+                    <button type="button" onClick={() => { setSelectedHardwareAsset(assetWithCurrentNetworkIp); if (!hardware) void refreshHardware(asset); }} style={{ background: PBI.blue, color: "#fff", border: `1px solid ${PBI.blue}`, borderRadius: 3, padding: "7px 8px", minWidth: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left" }}>
                       Detalles del equipo
                     </button>
                   </div>
@@ -1089,6 +1092,26 @@ function buildInventoryGridRow(asset: UserAsset, hardware?: Record<string, unkno
   return { asset, hardware, deviceKind, deviceKindLabel, monitorState, monitorLabel, peripheralsLabel, networkLabel, statusLabel: status.label, statusColor: status.color };
 }
 
+function getPrimaryHardwareIPv4(hardware?: Record<string, unknown>): string {
+  const adapters = asHardwareRecords(hardware?.network).sort((left, right) => Number(isVirtualNetworkAdapter(left)) - Number(isVirtualNetworkAdapter(right)));
+  for (const adapter of adapters) {
+    const addresses = Array.isArray(adapter.ips) ? adapter.ips : [adapter.ips];
+    const address = addresses.map(hardwareString).find(isUsableIPv4);
+    if (address) return address;
+  }
+  return "";
+}
+
+function isVirtualNetworkAdapter(adapter: Record<string, unknown>) {
+  return /virtual|vmware|hyper-v|docker|wsl|vpn|tunnel|teredo|bluetooth|loopback/i.test(hardwareString(adapter.name));
+}
+
+function isUsableIPv4(value: string) {
+  const trimmed = value.trim();
+  const parts = trimmed.split(".");
+  return parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255) && !trimmed.startsWith("127.") && !trimmed.startsWith("169.254.") && trimmed !== "0.0.0.0";
+}
+
 function HardwareDetailsModal({ asset, refreshing, error, onRefresh, onClose }: { asset: UserAsset; refreshing: boolean; error: string | null; onRefresh: () => void; onClose: () => void }) {
   const hardware = asset.hardware;
   const hardwareSections = buildHardwareSections(hardware);
@@ -1182,7 +1205,7 @@ function formatHardwareBytes(value: unknown): string {
 const INVENTORY_DETAIL_LABELS: Record<string, string> = {
   grupo: "Grupo",
   usuario: "Usuario",
-  ip: "IP",
+  ip: "IP de red actual",
   sistema: "Sistema",
   fabricante: "Fabricante",
   modelo: "Modelo",
