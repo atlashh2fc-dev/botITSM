@@ -16,14 +16,17 @@ import {
   ExternalLink,
   FileText,
   Gauge,
+  Headphones,
   HardDrive,
   Keyboard,
   LockKeyhole,
+  Mail,
   MessageSquareText,
   Monitor,
   Mouse,
   Network,
   PackageSearch,
+  PhoneCall,
   Printer,
   RadioTower,
   RefreshCw,
@@ -40,6 +43,7 @@ import { getClientTenant } from "@/lib/tenant/client";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
 import type { TicketDetail } from "@/services/tickets.repository";
 import type { UserAsset } from "@/services/assets.repository";
+import type { ContactCenterReport } from "@/services/contact-center.repository";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
 
 /* ─── Paleta Forum ITSM ─────────────────────────────────────────────── */
@@ -428,6 +432,9 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
   const [assetsLoading, setAssetsLoading] = useState(true);
   const [assetsError, setAssetsError] = useState("");
   const [assetQuery, setAssetQuery] = useState("");
+  const [contactCenterReport, setContactCenterReport] = useState<ContactCenterReport | null>(null);
+  const [contactCenterLoading, setContactCenterLoading] = useState(false);
+  const [contactCenterError, setContactCenterError] = useState("");
 
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
   const cases = useMemo(() => realCases, [realCases]);
@@ -492,6 +499,28 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
     return () => window.clearTimeout(timeout);
   }, [loadAssets]);
 
+  const loadContactCenter = useCallback(async () => {
+    setContactCenterLoading(true);
+    setContactCenterError("");
+    try {
+      const response = await fetch("/api/contact-center", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "No fue posible cargar Contact Center.");
+      setContactCenterReport(payload.report ?? null);
+    } catch (requestError) {
+      setContactCenterError(requestError instanceof Error ? requestError.message : "No fue posible cargar Contact Center.");
+    } finally {
+      setContactCenterLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection !== "contact-center") return;
+    void loadContactCenter();
+    const interval = window.setInterval(() => { void loadContactCenter(); }, 60_000);
+    return () => window.clearInterval(interval);
+  }, [activeSection, loadContactCenter]);
+
   async function openTicketDetail(ticketId: string) {
     setSelectedTicketId(ticketId);
     setTicketDetail(null);
@@ -520,6 +549,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
   const nav = [
     { id: "overview",       label: "Vista General",             icon: Activity },
     { id: "realtime",       label: "Tiempo real",               icon: RadioTower },
+    { id: "contact-center", label: "Contact Center",            icon: Headphones },
     { id: "incidents",      label: "Gestión Incidentes",        icon: ShieldAlert },
     { id: "requests",       label: "Gestión Requerimientos",    icon: BarChart3 },
     { id: "access",         label: "Gestión de Accesos",        icon: UsersRound },
@@ -534,6 +564,7 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
   const sectionTitle: Record<string, string> = {
     overview:      "Vista General",
     realtime:      "Tiempo real",
+    "contact-center": "Contact Center",
     incidents:     "Gestión de Incidentes",
     requests:      "Gestión de Requerimientos",
     access:        "Gestión de Accesos",
@@ -648,6 +679,10 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
                   </div>
                   <OperationalTable cases={realtimeModel.active.length ? realtimeModel.active : cases.slice(0, 12)} onOpenTicket={openTicketDetail} />
                 </div>
+              )}
+
+              {activeSection === "contact-center" && (
+                <ContactCenterWorkspace report={contactCenterReport} loading={contactCenterLoading} error={contactCenterError} onRefresh={loadContactCenter} />
               )}
 
               {activeSection === "incidents" && (
@@ -832,6 +867,63 @@ function AdminWorkspace({ initialSection }: { initialSection: string; userEmail:
 }
 
 /* ═══════════════════════ COMPONENTES UI PBI ══════════════════════════ */
+
+function ContactCenterWorkspace({ report, loading, error, onRefresh }: { report: ContactCenterReport | null; loading: boolean; error: string; onRefresh: () => void }) {
+  const channels = report?.channels ?? { bot: 0, email: 0, phone: 0, portal: 0, unclassified: 0 };
+  const channelCards = [
+    { label: "Bot ITSM", value: channels.bot, meta: "marcador del bot", color: PBI.purple, icon: MessageSquareText },
+    { label: "Correo", value: channels.email, meta: "artículo email", color: PBI.blue, icon: Mail },
+    { label: "Llamada", value: channels.phone, meta: "artículo phone", color: PBI.green, icon: PhoneCall },
+    { label: "Portal web", value: channels.portal, meta: "artículo web", color: PBI.amber, icon: UsersRound },
+    { label: "Sin clasificar", value: channels.unclassified, meta: "sin evidencia", color: PBI.text3, icon: Database },
+  ];
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <SectionHeader title="Contact Center" subtitle="Trazabilidad inbound basada en el primer artículo externo de cada ticket." />
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "9px 12px", border: `1px solid ${PBI.cardBorder}`, background: "#fff", borderRadius: 3 }}>
+      <p style={{ margin: 0, color: PBI.text2, fontSize: 12 }}>Cobertura: últimos {report?.sampleSize ?? 0} tickets disponibles. Los indicadores CTI sin fuente de telefonía no se inventan.</p>
+      <button type="button" onClick={onRefresh} disabled={loading} style={{ flexShrink: 0, border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, padding: "7px 10px", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: loading ? "wait" : "pointer" }}>{loading ? "Actualizando…" : "Actualizar reporte"}</button>
+    </div>
+    {error && <p style={{ margin: 0, color: PBI.red, fontSize: 12 }}>{error}</p>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+      <KpiCard kpi={{ label: "Inbound recibido", value: String(report?.inbound ?? 0), meta: "tickets con entrada", tone: "neutral" }} />
+      <KpiCard kpi={{ label: "Respuesta inicial", value: report?.firstResponseAverageMinutes === null || report?.firstResponseAverageMinutes === undefined ? "Sin dato" : `${report.firstResponseAverageMinutes} min`, meta: `${report?.firstResponseMeasured ?? 0} casos medidos`, tone: "positive" }} />
+      <KpiCard kpi={{ label: "Sin primera respuesta", value: String(report?.awaitingFirstResponse ?? 0), meta: "tickets abiertos", tone: (report?.awaitingFirstResponse ?? 0) ? "critical" : "positive" }} />
+      <KpiCard kpi={{ label: "Escalados", value: String(report?.escalated ?? 0), meta: "marca SLA del ITSM", tone: (report?.escalated ?? 0) ? "critical" : "positive" }} />
+      <KpiCard kpi={{ label: "Resueltos", value: String(report?.resolved ?? 0), meta: "estado informado", tone: "positive" }} />
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 8 }}>
+      <PbiPanel title="Entrada por canal" icon={Headphones}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 14 }}>
+          {channelCards.map(item => { const Icon = item.icon; return <div key={item.label} style={{ minWidth: 0, borderTop: `3px solid ${item.color}`, background: PBI.pageBg, padding: 10 }}><Icon size={16} color={item.color} /><p style={{ margin: "8px 0 2px", color: PBI.text3, fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{item.label}</p><p style={{ margin: 0, color: PBI.text1, fontSize: 21, fontWeight: 800 }}>{item.value}</p><p style={{ margin: "3px 0 0", color: PBI.text2, fontSize: 10, lineHeight: 1.3 }}>{item.meta}</p></div>; })}
+        </div>
+        <HorizBarPbi items={channelCards.map(item => ({ label: item.label, value: item.value }))} color={PBI.blue} />
+      </PbiPanel>
+      <PbiPanel title="Criterio de medición" icon={FileText}>
+        <div style={{ display: "grid", gap: 9, fontSize: 12, color: PBI.text2, lineHeight: 1.5 }}>
+          <p style={{ margin: 0 }}><strong style={{ color: PBI.text1 }}>Bot:</strong> marcador del Bot ITSM en el artículo inicial.</p>
+          <p style={{ margin: 0 }}><strong style={{ color: PBI.text1 }}>Correo, llamada y portal:</strong> tipo real de artículo (`email`, `phone`, `web`).</p>
+          <p style={{ margin: 0 }}><strong style={{ color: PBI.text1 }}>Sin clasificar:</strong> se conserva cuando el ITSM no entrega evidencia suficiente.</p>
+          {(report?.unavailable ?? []).map(item => <p key={item} style={{ margin: 0, color: PBI.amber }}><strong>Nota:</strong> {item}</p>)}
+        </div>
+      </PbiPanel>
+    </div>
+    <PbiPanel title="Trazabilidad de solicitudes inbound" icon={Database}>
+      {loading && !report ? <p style={{ margin: "24px 0", color: PBI.text2, fontSize: 12 }}>Leyendo los artículos del ITSM…</p> : !report?.rows.length ? <p style={{ margin: "24px 0", color: PBI.text2, fontSize: 12 }}>No hay tickets con evidencia disponible.</p> : <div style={{ overflowX: "auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 3 }}><table style={{ width: "100%", minWidth: 920, borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "#EEF4F7", color: PBI.text2, textAlign: "left" }}>{["Ticket", "Canal de entrada", "Evidencia", "Creado", "Primera respuesta", "Estado", "SLA"].map(label => <th key={label} style={{ padding: "9px 10px", fontSize: 10, fontWeight: 800, letterSpacing: .35, textTransform: "uppercase", borderBottom: `1px solid ${PBI.cardBorder}` }}>{label}</th>)}</tr></thead><tbody>{report.rows.map(row => <tr key={row.id} style={{ background: "#fff", borderBottom: `1px solid ${PBI.cardBorder}` }}><td style={{ padding: 10, color: PBI.blue, fontWeight: 800 }}>#{row.number}<span style={{ display: "block", color: PBI.text2, fontWeight: 400, maxWidth: 220, overflowWrap: "anywhere" }}>{row.subject}</span></td><td style={{ padding: 10 }}><ContactChannelBadge channel={row.channel} /></td><td style={{ padding: 10, color: PBI.text2, maxWidth: 220 }}>{row.channelEvidence}</td><td style={{ padding: 10, color: PBI.text2, whiteSpace: "nowrap" }}>{formatContactDate(row.createdAt)}</td><td style={{ padding: 10, color: PBI.text2 }}>{row.firstResponseMinutes === null ? "Sin dato" : `${row.firstResponseMinutes} min`}</td><td style={{ padding: 10, color: PBI.text2 }}>{row.state}</td><td style={{ padding: 10 }}><InventoryCellBadge label={row.escalated ? "Escalado" : "Sin escalación"} color={row.escalated ? PBI.red : PBI.green} /></td></tr>)}</tbody></table></div>}
+    </PbiPanel>
+  </div>;
+}
+
+function ContactChannelBadge({ channel }: { channel: "bot" | "email" | "phone" | "portal" | "unclassified" }) {
+  const config = { bot: ["Bot ITSM", PBI.purple], email: ["Correo", PBI.blue], phone: ["Llamada", PBI.green], portal: ["Portal web", PBI.amber], unclassified: ["Sin clasificar", PBI.text3] } as const;
+  const [label, color] = config[channel];
+  return <InventoryCellBadge label={label} color={color} />;
+}
+
+function formatContactDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Sin fecha" : new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short", timeZone: SANTIAGO_TIME_ZONE }).format(date);
+}
 
 function InventoryWorkspace({
   assets,
