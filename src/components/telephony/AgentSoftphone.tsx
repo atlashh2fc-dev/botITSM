@@ -247,8 +247,12 @@ export function AgentSoftphone({
 
   async function answerCall() {
     try {
-      await audioRef.current?.play().catch(() => undefined);
-      await phoneRef.current?.answer();
+      const phone = phoneRef.current;
+      if (!phone) throw new Error("El teléfono todavía no está disponible.");
+
+      setError("");
+      await phone.answer();
+      void audioRef.current?.play().catch(() => undefined);
     } catch {
       setError("No fue posible contestar. Revisa el permiso del micrófono.");
     }
