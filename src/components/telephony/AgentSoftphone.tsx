@@ -302,7 +302,12 @@ export function AgentSoftphone({
 
   useEffect(() => {
     const zammadTicketId = activeCall?.zammadTicketId;
-    if (status !== "active" || !activeCall?.callId || !zammadTicketId) return;
+    const startedAt = Date.parse(activeCall?.startedAt || "");
+    const isFreshCall = Number.isFinite(startedAt)
+      && startedAt <= Date.now() + 60_000
+      && startedAt >= Date.now() - 15 * 60_000;
+    const hasTrackedLifecycle = ["ringing", "answered", "completed"].includes(activeCall?.status || "");
+    if (!activeCall?.callId || !zammadTicketId || !isFreshCall || !hasTrackedLifecycle) return;
 
     const requestId = `${activeCall.callId}:${zammadTicketId}`;
     if (classifierRequestRef.current === requestId) return;
@@ -332,7 +337,7 @@ export function AgentSoftphone({
       ticketNumber: activeCall.ticketNumber,
       fromNumber: activeCall.fromNumber,
     }, itsmOrigin);
-  }, [activeCall?.callId, activeCall?.fromNumber, activeCall?.ticketNumber, activeCall?.zammadTicketId, status]);
+  }, [activeCall?.callId, activeCall?.fromNumber, activeCall?.startedAt, activeCall?.status, activeCall?.ticketNumber, activeCall?.zammadTicketId]);
 
   async function activatePhone() {
     if (!accessCode.trim()) return;
