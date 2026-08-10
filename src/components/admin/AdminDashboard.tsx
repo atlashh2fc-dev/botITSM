@@ -850,9 +850,6 @@ function InventoryWorkspace({
   onQueryChange: (value: string) => void;
   onRefresh: () => void;
 }) {
-  const active = assets.filter(asset => asset.status === "active").length;
-  const attention = assets.filter(asset => asset.status === "warning" || asset.status === "error").length;
-  const types = new Set(assets.map(asset => asset.asset_type)).size;
   const [selectedHardwareAsset, setSelectedHardwareAsset] = useState<UserAsset | null>(null);
   const [hardwareRefreshing, setHardwareRefreshing] = useState<string | null>(null);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
@@ -906,9 +903,9 @@ function InventoryWorkspace({
       <SectionHeader title="Inventario" subtitle="Equipos registrados en el ITSM, su estado y datos tecnicos para soporte." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
         <KpiCard kpi={{ label: "Equipos registrados", value: totalAssets.toString(), meta: "en inventario ITSM", tone: "neutral" }} />
-        <KpiCard kpi={{ label: "Operativos", value: active.toString(), meta: "sin alertas", tone: "positive" }} />
-        <KpiCard kpi={{ label: "Requieren atencion", value: attention.toString(), meta: "revisar estado", tone: attention ? "warning" : "positive" }} />
-        <KpiCard kpi={{ label: "Tipos de activo", value: types.toString(), meta: "equipos y perifericos", tone: "neutral" }} />
+        <KpiCard kpi={{ label: "All-in-One", value: inventoryTotals.allInOne.toString(), meta: "equipos integrados", tone: "neutral" }} />
+        <KpiCard kpi={{ label: "PC de torre", value: inventoryTotals.tower.toString(), meta: "gabinetes detectados", tone: "positive" }} />
+        <KpiCard kpi={{ label: "Sin pantalla detectada", value: inventoryTotals.withoutMonitor.toString(), meta: inventoryTotals.pending ? `${inventoryTotals.pending} pendiente${inventoryTotals.pending === 1 ? "" : "s"} de ficha` : "fichas consultadas", tone: inventoryTotals.withoutMonitor ? "warning" : "positive" }} />
       </div>
 
       <PbiPanel title="Consulta rapida de inventario" icon={Database}>
