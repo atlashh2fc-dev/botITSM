@@ -620,12 +620,12 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
         </div>
 
         <div className="flex items-center gap-1.5">
-          {!standalone ? <button
+          {(!standalone || desktop) ? <button
             type="button"
             onClick={startNewChat}
             disabled={isLoading}
             title="Nuevo caso"
-            className="grid size-8 place-items-center rounded-lg transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className={`grid size-8 place-items-center rounded-lg transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40${desktop ? " desktop-no-drag" : ""}`}
             style={{
               border: "1px solid rgba(148, 163, 184, 0.16)",
               background: "rgba(255, 255, 255, 0.04)",
@@ -658,10 +658,10 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
             {expanded ? <Minus size={14} aria-hidden /> : <ChevronUp size={14} aria-hidden />}
           </button>
 
-          {!standalone ? <button
+          {(!standalone || desktop) ? <button
             type="button"
             onClick={() => setClosed(true)}
-            className="grid size-8 place-items-center rounded-lg transition-all duration-200"
+            className={`grid size-8 place-items-center rounded-lg transition-all duration-200${desktop ? " desktop-no-drag" : ""}`}
             style={{ border: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(255, 255, 255, 0.04)", color: "rgba(226, 232, 240, 0.66)" }}
             aria-label="Cerrar"
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(248, 113, 113, 0.42)"}

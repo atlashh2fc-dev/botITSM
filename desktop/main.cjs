@@ -7,7 +7,9 @@ const TRUSTED_ORIGINS = new Set([
   "https://atlasitsm.geimser.cl",
 ]);
 const COLLAPSED_SIZE = { width: 78, height: 78 };
-const EXPANDED_SIZE = { width: 460, height: 720 };
+// Keep the installed assistant aligned with the compact support window used by
+// the web portal. The content itself scrolls when a conversation is longer.
+const EXPANDED_SIZE = { width: 420, height: 528 };
 const ASSISTANT_MARGIN = 16;
 
 function isTrusted(url) {
