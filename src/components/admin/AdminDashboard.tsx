@@ -4,20 +4,27 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  AudioLines,
   BarChart3,
   BookOpen,
   Building2,
   CheckCircle2,
   ChevronDown,
   Clock3,
+  Cpu,
   Database,
   ExternalLink,
   FileText,
   Gauge,
+  HardDrive,
+  Keyboard,
   LockKeyhole,
   MessageSquareText,
   Monitor,
+  Mouse,
+  Network,
   PackageSearch,
+  Printer,
   RadioTower,
   RefreshCw,
   Smartphone,
@@ -953,7 +960,7 @@ function InventoryWorkspace({
 
 function HardwareDetailsModal({ asset, refreshing, error, onRefresh, onClose }: { asset: UserAsset; refreshing: boolean; error: string | null; onRefresh: () => void; onClose: () => void }) {
   const hardware = asset.hardware;
-  const entries = hardware ? Object.entries(hardware).filter(([key, value]) => !["status", "collected_at", "error"].includes(key) && value && (!Array.isArray(value) || value.length)) : [];
+  const hardwareSections = buildHardwareSections(hardware);
   const meshEntries = Object.entries(asset.details).filter(([key, value]) => key !== "remoto" && Boolean(value));
   const canRefresh = true;
   const inventoryMessage = "La consulta se valida directamente con el agente MeshCentral.";
@@ -964,10 +971,81 @@ function HardwareDetailsModal({ asset, refreshing, error, onRefresh, onClose }: 
       {error && <p style={{ margin: "10px 0 0", color: PBI.red, fontSize: 13 }}>{error}</p>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10, marginTop: 16 }}>
         <section style={{ border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: 10 }}><p style={{ margin: "0 0 7px", fontSize: 12, fontWeight: 700, color: PBI.blue }}>Datos de MeshCentral</p>{meshEntries.map(([key, value]) => <p key={key} style={{ margin: "5px 0", color: PBI.text2, fontSize: 12 }}><strong>{formatInventoryDetailLabel(key)}: </strong>{formatInventoryDetailValue(key, value)}</p>)}</section>
-        {!entries.length ? <section style={{ border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: 10 }}><p style={{ margin: 0, color: PBI.text2, fontSize: 13 }}>{canRefresh ? "La consulta se iniciará automáticamente y también puedes actualizarla desde este botón." : "Conecta el equipo para obtener pantalla, mouse, teclado, audio, impresoras, discos y red."}</p></section> : entries.map(([key, value]) => <section key={key} style={{ border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: 10 }}><p style={{ margin: "0 0 7px", fontSize: 12, fontWeight: 700, color: PBI.blue, textTransform: "capitalize" }}>{key.replaceAll("_", " ")}</p><pre style={{ margin: 0, color: PBI.text2, font: "12px/1.45 ui-monospace, monospace", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(value, null, 2)}</pre></section>)}
+        {!hardwareSections.length ? <section style={{ border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, padding: 10 }}><p style={{ margin: 0, color: PBI.text2, fontSize: 13 }}>{canRefresh ? "La consulta se iniciará automáticamente y también puedes actualizarla desde este botón." : "Conecta el equipo para obtener pantalla, mouse, teclado, audio, impresoras, discos y red."}</p></section> : hardwareSections.map(section => <HardwareSectionCard key={section.key} section={section} />)}
       </div>
     </section>
   </div>;
+}
+
+type HardwareRow = { label: string; value: string };
+type HardwareItem = { title: string; rows: HardwareRow[] };
+type HardwareSection = { key: string; title: string; icon: ReactNode; accent: string; items: HardwareItem[] };
+
+function HardwareSectionCard({ section }: { section: HardwareSection }) {
+  return <section style={{ border: `1px solid ${PBI.cardBorder}`, borderTop: `3px solid ${section.accent}`, borderRadius: 3, padding: 12, background: "#fff" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: section.accent }}>
+      {section.icon}
+      <p style={{ margin: 0, color: PBI.text1, fontSize: 13, fontWeight: 800 }}>{section.title}</p>
+      <span style={{ marginLeft: "auto", color: PBI.text3, fontSize: 11, fontWeight: 700 }}>{section.items.length}</span>
+    </div>
+    <div style={{ display: "grid", gap: 8 }}>
+      {section.items.map((item, index) => <div key={`${item.title}-${index}`} style={{ borderLeft: `2px solid ${section.accent}40`, paddingLeft: 8 }}>
+        <p style={{ margin: 0, color: PBI.text1, fontSize: 12, fontWeight: 700, overflowWrap: "anywhere" }}>{item.title}</p>
+        <div style={{ display: "grid", gap: 3, marginTop: 4 }}>
+          {item.rows.map(row => <p key={row.label} style={{ margin: 0, color: PBI.text2, fontSize: 11, lineHeight: 1.35, overflowWrap: "anywhere" }}><span style={{ color: PBI.text3, fontWeight: 700 }}>{row.label}: </span>{row.value}</p>)}
+        </div>
+      </div>)}
+    </div>
+  </section>;
+}
+
+function buildHardwareSections(hardware?: Record<string, unknown>): HardwareSection[] {
+  if (!hardware) return [];
+  const sections: HardwareSection[] = [];
+  const system = asHardwareRecord(hardware.system);
+  if (system) sections.push({ key: "system", title: "Equipo", icon: <Cpu size={17} />, accent: PBI.blue, items: [{ title: [hardwareString(system.manufacturer), hardwareString(system.model)].filter(Boolean).join(" · ") || "Equipo detectado", rows: compactHardwareRows([["Tipo", system.system_type], ["Memoria", formatHardwareBytes(system.memory_bytes)]]) }] });
+
+  addHardwareListSection(sections, "monitors", "Pantallas", <Monitor size={17} />, PBI.purple, hardware.monitors, entry => ({ title: hardwareString(entry.name) || "Pantalla", rows: compactHardwareRows([["Marca", entry.manufacturer], ["Serie", entry.serial], ["Año", entry.year], ["Estado", entry.active === true ? "Activa" : entry.active === false ? "Inactiva" : "Sin dato"]]) }));
+  addHardwareListSection(sections, "audio", "Audio", <AudioLines size={17} />, PBI.green, hardware.audio, entry => ({ title: hardwareString(entry.name) || "Dispositivo de audio", rows: compactHardwareRows([["Fabricante", entry.manufacturer], ["Estado", entry.status]]) }));
+  addHardwareListSection(sections, "keyboards", "Teclados", <Keyboard size={17} />, PBI.blue, hardware.keyboards, entry => ({ title: hardwareString(entry.name) || "Teclado", rows: compactHardwareRows([["Descripción", entry.description], ["Estado", entry.status]]) }));
+  addHardwareListSection(sections, "mice", "Mouse", <Mouse size={17} />, PBI.blue, hardware.mice, entry => ({ title: hardwareString(entry.name) || "Mouse", rows: compactHardwareRows([["Descripción", entry.description], ["Estado", entry.status]]) }));
+  addHardwareListSection(sections, "printers", "Impresoras", <Printer size={17} />, PBI.amber, hardware.printers, entry => ({ title: hardwareString(entry.name) || "Impresora", rows: compactHardwareRows([["Controlador", entry.driver], ["Puerto", entry.port], ["Conexión", entry.network === true ? "Red" : "Local"], ["Predeterminada", entry.default === true ? "Sí" : "No"], ["Estado", entry.offline === true ? "Sin conexión" : "Disponible"]]) }));
+  addHardwareListSection(sections, "storage", "Almacenamiento", <HardDrive size={17} />, PBI.green, hardware.storage, entry => ({ title: hardwareString(entry.name) || "Disco", rows: compactHardwareRows([["Capacidad", formatHardwareBytes(entry.size_bytes)], ["Interfaz", entry.interface], ["Serie", entry.serial]]) }));
+  addHardwareListSection(sections, "network", "Red", <Network size={17} />, PBI.purple, hardware.network, entry => ({ title: hardwareString(entry.name) || "Adaptador de red", rows: compactHardwareRows([["Direcciones IP", Array.isArray(entry.ips) ? entry.ips.map(hardwareString).filter(Boolean).join(", ") : entry.ips], ["DHCP", entry.dhcp === true ? "Sí" : entry.dhcp === false ? "No" : "Sin dato"]]) }));
+
+  return sections;
+}
+
+function addHardwareListSection(sections: HardwareSection[], key: string, title: string, icon: ReactNode, accent: string, value: unknown, mapItem: (entry: Record<string, unknown>) => HardwareItem) {
+  const items = asHardwareRecords(value).map(mapItem).filter(item => item.title || item.rows.length);
+  if (items.length) sections.push({ key, title, icon, accent, items });
+}
+
+function asHardwareRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function asHardwareRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(asHardwareRecord).filter((entry): entry is Record<string, unknown> => Boolean(entry)) : [];
+}
+
+function compactHardwareRows(rows: Array<[string, unknown]>): HardwareRow[] {
+  return rows.map(([label, value]) => ({ label, value: hardwareString(value) })).filter(row => row.value && row.value !== "Sin dato");
+}
+
+function hardwareString(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "boolean") return value ? "Sí" : "No";
+  if (Array.isArray(value)) return value.map(hardwareString).filter(Boolean).join(", ");
+  return String(value);
+}
+
+function formatHardwareBytes(value: unknown): string {
+  const bytes = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** index).toLocaleString("es-CL", { maximumFractionDigits: 1 })} ${units[index]}`;
 }
 
 const INVENTORY_DETAIL_LABELS: Record<string, string> = {
