@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         status: data.status,
         cause: data.cause,
         durationSeconds: data.duration_seconds,
+        zammadTicketId: data.zammad_ticket_id,
         ticketId: data.local_ticket_id,
         ticketNumber: data.zammad_ticket_number,
         ticketUrl: data.zammad_ticket_id && tenant.zammadBaseUrl

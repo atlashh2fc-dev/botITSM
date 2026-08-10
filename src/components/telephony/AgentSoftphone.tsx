@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { getClientTenant } from "@/lib/tenant/client";
 
 type PhoneStatus = "locked" | "connecting" | "ready" | "ringing" | "active" | "offline" | "error";
 
@@ -36,12 +37,33 @@ type TrackedCall = {
   status: string;
   cause?: string | null;
   durationSeconds?: number | null;
+  zammadTicketId?: number | null;
   ticketId?: string | null;
   ticketNumber?: string | null;
   ticketUrl?: string | null;
   startedAt: string;
   answeredAt?: string | null;
   endedAt?: string | null;
+};
+
+type PhoneClassifierOption = {
+  value: string;
+  label: string;
+};
+
+type PhoneClassifierState = {
+  requestId: string;
+  callId: string;
+  ticketId: number;
+  ticketNumber?: string | null;
+  fieldName: string;
+  fieldLabel: string;
+  options: PhoneClassifierOption[];
+  value: string;
+  loading: boolean;
+  saving: boolean;
+  saved: boolean;
+  error: string;
 };
 
 type SimplePhone = {
@@ -77,6 +99,7 @@ export function AgentSoftphone({
 }) {
   const phoneRef = useRef<SimplePhone | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const classifierRequestRef = useRef("");
   const [sessionRevision, setSessionRevision] = useState(0);
   const [status, setStatus] = useState<PhoneStatus>("connecting");
   const [extension, setExtension] = useState("6020");
@@ -87,6 +110,60 @@ export function AgentSoftphone({
   const [muted, setMuted] = useState(false);
   const [held, setHeld] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [classifier, setClassifier] = useState<PhoneClassifierState | null>(null);
+
+  useEffect(() => {
+    const itsmOrigin = new URL(getClientTenant().itsmBaseUrl).origin;
+
+    function receiveClassifierMessage(event: MessageEvent) {
+      if (event.origin !== itsmOrigin || event.source !== window.parent || !event.data) return;
+
+      if (event.data.type === "geimser:phone-classifier-schema") {
+        const options = Array.isArray(event.data.options)
+          ? event.data.options.filter((option: unknown): option is PhoneClassifierOption => {
+              if (!option || typeof option !== "object") return false;
+              const candidate = option as Partial<PhoneClassifierOption>;
+              return typeof candidate.value === "string" && typeof candidate.label === "string";
+            })
+          : [];
+
+        setClassifier(current => {
+          if (!current || current.requestId !== event.data.requestId) return current;
+          return {
+            ...current,
+            fieldName: typeof event.data.fieldName === "string" ? event.data.fieldName : "",
+            fieldLabel: typeof event.data.fieldLabel === "string" ? event.data.fieldLabel : "Tipo de Servicio",
+            options,
+            value: typeof event.data.value === "string" ? event.data.value : "",
+            loading: false,
+            error: options.length ? "" : "El ITSM no devolvió opciones de tipificación.",
+          };
+        });
+      }
+
+      if (event.data.type === "geimser:phone-classifier-saved") {
+        setClassifier(current => {
+          if (!current || current.requestId !== event.data.requestId) return current;
+          return { ...current, saving: false, saved: true, error: "" };
+        });
+      }
+
+      if (event.data.type === "geimser:phone-classifier-error") {
+        setClassifier(current => {
+          if (!current || current.requestId !== event.data.requestId) return current;
+          return {
+            ...current,
+            loading: false,
+            saving: false,
+            error: typeof event.data.error === "string" ? event.data.error : "No fue posible registrar la tipificación.",
+          };
+        });
+      }
+    }
+
+    window.addEventListener("message", receiveClassifierMessage);
+    return () => window.removeEventListener("message", receiveClassifierMessage);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -223,6 +300,40 @@ export function AgentSoftphone({
     };
   }, [status]);
 
+  useEffect(() => {
+    const zammadTicketId = activeCall?.zammadTicketId;
+    if (status !== "active" || !activeCall?.callId || !zammadTicketId) return;
+
+    const requestId = `${activeCall.callId}:${zammadTicketId}`;
+    if (classifierRequestRef.current === requestId) return;
+    classifierRequestRef.current = requestId;
+
+    setClassifier({
+      requestId,
+      callId: activeCall.callId,
+      ticketId: zammadTicketId,
+      ticketNumber: activeCall.ticketNumber,
+      fieldName: "",
+      fieldLabel: "Tipo de Servicio",
+      options: [],
+      value: "",
+      loading: true,
+      saving: false,
+      saved: false,
+      error: "",
+    });
+
+    const itsmOrigin = new URL(getClientTenant().itsmBaseUrl).origin;
+    window.parent.postMessage({
+      type: "geimser:phone-classifier-request",
+      requestId,
+      callId: activeCall.callId,
+      ticketId: zammadTicketId,
+      ticketNumber: activeCall.ticketNumber,
+      fromNumber: activeCall.fromNumber,
+    }, itsmOrigin);
+  }, [activeCall?.callId, activeCall?.fromNumber, activeCall?.ticketNumber, activeCall?.zammadTicketId, status]);
+
   async function activatePhone() {
     if (!accessCode.trim()) return;
     setActivating(true);
@@ -295,6 +406,21 @@ export function AgentSoftphone({
       setStatus("locked");
       setOpen(true);
     }
+  }
+
+  function savePhoneClassification() {
+    if (!classifier || classifier.loading || classifier.saving || classifier.saved || !classifier.value) return;
+
+    setClassifier(current => current ? { ...current, saving: true, error: "" } : current);
+    const itsmOrigin = new URL(getClientTenant().itsmBaseUrl).origin;
+    window.parent.postMessage({
+      type: "geimser:phone-classifier-save",
+      requestId: classifier.requestId,
+      callId: classifier.callId,
+      ticketId: classifier.ticketId,
+      fieldName: classifier.fieldName,
+      value: classifier.value,
+    }, itsmOrigin);
   }
 
   const statusColor = status === "ready" ? "#1F7A4D"
@@ -445,6 +571,45 @@ export function AgentSoftphone({
                       Abrir <ExternalLink size={12} />
                     </button>
                   </div>
+                )}
+
+                {classifier && classifier.callId === activeCall?.callId && (
+                  <section style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${classifier.saved ? "#79B993" : "#C6D3DC"}`, background: classifier.saved ? "#F0F8F4" : "#F8FAFC", padding: 10 }}>
+                    <p style={{ margin: 0, color: "#0F172A", fontSize: 11, fontWeight: 900 }}>
+                      Tipificar llamada{classifier.ticketNumber ? ` · Ticket #${classifier.ticketNumber}` : ""}
+                    </p>
+                    <p style={{ margin: "3px 0 8px", color: "#64748B", fontSize: 10, lineHeight: 1.4 }}>
+                      Catálogo cargado directamente desde Forum ITSM.
+                    </p>
+
+                    {classifier.loading ? (
+                      <p style={{ margin: 0, color: "#64748B", fontSize: 10 }}>Cargando tipificador…</p>
+                    ) : classifier.saved ? (
+                      <p style={{ margin: 0, color: "#1F7A4D", fontSize: 11, fontWeight: 800 }}>Llamada registrada y tipificada.</p>
+                    ) : (
+                      <div style={{ display: "flex", gap: 7 }}>
+                        <select
+                          aria-label={classifier.fieldLabel}
+                          value={classifier.value}
+                          onChange={event => setClassifier(current => current ? { ...current, value: event.target.value, error: "" } : current)}
+                          style={{ flex: 1, minWidth: 0, border: "1px solid #C6D3DC", borderRadius: 6, background: "#fff", padding: "8px 9px", color: "#0F172A", fontSize: 11 }}
+                        >
+                          <option value="">Seleccionar {classifier.fieldLabel}</option>
+                          {classifier.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!classifier.value || classifier.saving}
+                          onClick={savePhoneClassification}
+                          style={{ border: 0, borderRadius: 6, background: "#004481", color: "#fff", padding: "0 11px", fontSize: 10, fontWeight: 800, cursor: classifier.value && !classifier.saving ? "pointer" : "not-allowed", opacity: classifier.value && !classifier.saving ? 1 : 0.55 }}
+                        >
+                          {classifier.saving ? "Guardando…" : "Registrar"}
+                        </button>
+                      </div>
+                    )}
+
+                    {classifier.error && <p role="alert" style={{ margin: "7px 0 0", color: "#B42318", fontSize: 10 }}>{classifier.error}</p>}
+                  </section>
                 )}
               </>
             )}
