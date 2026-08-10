@@ -943,7 +943,7 @@ function ContactCenterWorkspace({ report, loading, error, onRefresh }: { report:
 }
 
 function ContactChannelBadge({ channel }: { channel: "bot" | "email" | "phone" | "portal" | "unclassified" }) {
-  const config = { bot: ["Bot ITSM", PBI.purple], email: ["Correo", PBI.blue], phone: ["Llamada", PBI.green], portal: ["Portal web", PBI.amber], unclassified: ["Sin clasificar", PBI.text3] } as const;
+  const config = { bot: ["Bot ITSM", PBI.purple], email: ["Correo", PBI.blue], phone: ["Teléfono", PBI.green], portal: ["Portal web", PBI.amber], unclassified: ["Sin clasificar", PBI.text3] } as const;
   const [label, color] = config[channel];
   return <InventoryCellBadge label={label} color={color} />;
 }
@@ -1982,48 +1982,53 @@ function getSantiagoHour(value: string) {
 function buildTicketStory(ticket: TicketDetail): TicketStoryEvent[] {
   const entries = [...ticket.timeline].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   const events: TicketStoryEvent[] = [];
-  const botEntry = entries.find((entry) => looksLikeBotContext(entry.body)) ?? entries.find((entry) => !entry.internal);
-  const botText = botEntry ? cleanArticleBody(botEntry.body) : "";
+  const contactEntry = entries.find((entry) => !entry.internal) ?? entries[0];
+  const contactText = contactEntry ? cleanArticleBody(contactEntry.body) : "";
   const allText = entries.map((entry) => cleanArticleBody(entry.body)).join("\n\n");
 
-  if (botEntry) {
-    const firstUser = extractTranscriptMessage(botText, "user", "first");
-    const firstBot = extractTranscriptMessage(botText, "bot", "first");
-    const channel = extractField(botText, ["Canal"]);
-    const session = extractField(botText, ["Sesión", "Sesion"]);
+  if (contactEntry) {
+    const isBotContact = looksLikeBotContext(contactEntry.body);
+    const firstUser = isBotContact ? extractTranscriptMessage(contactText, "user", "first") : undefined;
+    const firstBot = isBotContact ? extractTranscriptMessage(contactText, "bot", "first") : undefined;
+    const channel = extractField(contactText, ["Canal"]) ?? timelineChannelLabel(contactEntry);
+    const session = extractField(contactText, ["Sesión", "Sesion"]);
     events.push({
       title: "Primer contacto con la mesa",
-      time: botEntry.createdAt,
+      time: contactEntry.createdAt,
       tone: "user",
-      summary: firstUser
-        ? `El usuario contactó al bot y reportó: ${firstUser}`
-        : `El usuario contactó al canal de soporte por ${ticket.category.toLowerCase()}.`,
+      summary: channel === "Teléfono"
+        ? "El usuario contactó a la mesa mediante una llamada telefónica entrante."
+        : firstUser
+          ? `El usuario contactó al bot y reportó: ${firstUser}`
+          : `El usuario contactó al canal de soporte por ${ticket.category.toLowerCase()}.`,
       details: compactDetails([
-        ["Canal", channel ?? "Bot ITSM / portal"],
+        ["Canal", channel],
         ["Primera respuesta", firstBot],
         ["Sesión", session],
       ]),
     });
 
-    const playbook = extractField(botText, ["Playbook"]);
-    const stage = extractField(botText, ["Etapa"]);
-    const asset = extractField(botText, ["Activo", "Activo afectado"]);
-    const criteria = extractField(botText, ["Criterio aplicado"]);
-    const completed = extractField(botText, ["Pasos completados"]);
-    const diagnosticSummary = criteria
-      ?? (completed ? `El bot completó ${completed}.` : "El bot clasificó el caso y dejó trazabilidad del diagnóstico aplicado.");
-    events.push({
-      title: "Diagnóstico ejecutado por el bot",
-      time: botEntry.createdAt,
-      tone: "bot",
-      summary: diagnosticSummary,
-      details: compactDetails([
-        ["Playbook", playbook],
-        ["Etapa", stage],
-        ["Activo", asset],
-        ["Pasos", completed],
-      ]),
-    });
+    if (isBotContact) {
+      const playbook = extractField(contactText, ["Playbook"]);
+      const stage = extractField(contactText, ["Etapa"]);
+      const asset = extractField(contactText, ["Activo", "Activo afectado"]);
+      const criteria = extractField(contactText, ["Criterio aplicado"]);
+      const completed = extractField(contactText, ["Pasos completados"]);
+      const diagnosticSummary = criteria
+        ?? (completed ? `El bot completó ${completed}.` : "El bot clasificó el caso y dejó trazabilidad del diagnóstico aplicado.");
+      events.push({
+        title: "Diagnóstico ejecutado por el bot",
+        time: contactEntry.createdAt,
+        tone: "bot",
+        summary: diagnosticSummary,
+        details: compactDetails([
+          ["Playbook", playbook],
+          ["Etapa", stage],
+          ["Activo", asset],
+          ["Pasos", completed],
+        ]),
+      });
+    }
   }
 
   const problem = extractField(allText, ["Problema reportado", "Descripción", "Descripcion"]) ?? ticket.description;
@@ -2043,7 +2048,7 @@ function buildTicketStory(ticket: TicketDetail): TicketStoryEvent[] {
     ]),
   });
 
-  const nonBotEntries = entries.filter((entry) => entry !== botEntry);
+  const nonBotEntries = entries.filter((entry) => entry !== contactEntry);
   for (const entry of nonBotEntries) {
     const text = cleanArticleBody(entry.body);
     const lower = normalizeText(text);
@@ -2076,6 +2081,16 @@ function buildTicketStory(ticket: TicketDetail): TicketStoryEvent[] {
 function looksLikeBotContext(value: string) {
   const text = normalizeText(value);
   return text.includes("bot itsm") || text.includes("chatbot") || text.includes("playbook") || text.includes("transcripcion");
+}
+
+function timelineChannelLabel(entry: TicketDetail["timeline"][number]) {
+  const type = normalizeText(entry.type ?? "");
+  const body = normalizeText(entry.body);
+  if (type.includes("phone") || body.includes("llamada registrada desde asterisk")) return "Teléfono";
+  if (type.includes("email")) return "Correo";
+  if (type === "web") return "Portal web";
+  if (looksLikeBotContext(entry.body)) return "Bot ITSM / portal";
+  return "Sin clasificar";
 }
 
 function compactDetails(items: Array<[string, string | null | undefined]>): Array<{ label: string; value: string }> {
