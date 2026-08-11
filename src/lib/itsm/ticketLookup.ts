@@ -6,7 +6,7 @@
  */
 
 import type { SessionContext } from "@/lib/itsm/types";
-import { findTicketByNumberForCustomer, getTicketDetail, hasZammadConfig, searchTicketsByCustomer, type ZammadTicketArticle, type ZammadTicketDetail, type ZammadTicketSummary } from "@/lib/zammad/client";
+import { findTicketByNumberForCustomer, getTicketDetail, hasZammadConfig, searchTicketsByCustomer, searchTodayTicketsByCustomer, type ZammadTicketArticle, type ZammadTicketDetail, type ZammadTicketSummary } from "@/lib/zammad/client";
 
 const TICKET_ENTITY_TERMS = [
   "ticket",
@@ -57,6 +57,11 @@ const LOOKUP_ACTION_TERMS = [
 ];
 
 const HISTORY_TERMS = [
+  "hoy",
+  "mismo dia",
+  "del dia",
+  "este dia",
+  "getdate",
   "anterior",
   "anteriores",
   "pasado",
@@ -364,7 +369,7 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
         tickets: [],
         topics: [],
         matched: false,
-        message: `No encontré el ticket #${ticketNumber} asociado a tu usuario. Revisa el número o usa “Estado de mis tickets” para ver tus casos disponibles.`,
+        message: `No encontré el ticket #${ticketNumber} asociado a tu usuario. Revisa el número o usa “Tickets generados hoy” para ver los casos del día.`,
       };
     }
     const detail = await getTicketDetail(ticket);
@@ -373,6 +378,7 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
   }
 
   const topics = extractTicketQueryTopics(userMessage, options.fallbackTopics);
+  const asksForToday = isTodayTicketQuery(userMessage);
 
   if (!email) {
     return {
@@ -386,7 +392,9 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
   }
 
   const excludedNumbers = new Set(options.excludeTicketNumbers ?? []);
-  const tickets = (await searchTicketsByCustomer(email, topics.length ? 50 : 5))
+  const tickets = (await (asksForToday
+    ? searchTodayTicketsByCustomer(email)
+    : searchTicketsByCustomer(email, topics.length ? 50 : 5)))
     .filter((ticket) => !excludedNumbers.has(ticket.number));
 
   if (!tickets.length) {
@@ -395,7 +403,19 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
       tickets: [],
       topics,
       matched: false,
-      message: `No encuentro tickets registrados a nombre de ${email}. Si reportaste un caso por otro canal, dame el número de ticket y lo reviso.`,
+      message: asksForToday
+        ? `No encuentro tickets creados hoy a nombre de ${email}. Si acabas de generar uno, espera unos segundos y vuelve a consultar.`
+        : `No encuentro tickets registrados a nombre de ${email}. Si reportaste un caso por otro canal, dame el número de ticket y lo reviso.`,
+    };
+  }
+
+  if (asksForToday) {
+    return {
+      handled: true,
+      tickets,
+      topics: [],
+      matched: true,
+      message: formatTickets(tickets, `Hoy tienes ${tickets.length} ${tickets.length === 1 ? "ticket creado" : "tickets creados"}:`),
     };
   }
 
@@ -465,6 +485,10 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
   }
 
   return { handled: true, tickets, topics, matched: true, message: formatTickets(tickets) };
+}
+
+function isTodayTicketQuery(message: string): boolean {
+  return /\b(hoy|mismo dia|del dia|este dia|getdate)\b/.test(normalizeText(message));
 }
 
 function formatTickets(tickets: ZammadTicketSummary[], customHeader?: string): string {

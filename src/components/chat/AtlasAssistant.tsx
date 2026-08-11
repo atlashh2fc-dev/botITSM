@@ -744,22 +744,22 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
                   <button
                     type="button"
                     disabled={!canUseChat || isLoading}
-                    onClick={() => void sendMessage("Quiero revisar el estado de mis tickets")}
+                    onClick={() => void sendMessage("Quiero revisar todos mis tickets generados hoy")}
                     className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
                     style={{
                       border: "1px solid rgba(85, 244, 255, 0.24)",
                       background: "linear-gradient(135deg, rgba(0, 68, 129, 0.34), rgba(85, 244, 255, 0.07))",
                       color: "#FFFFFF",
                     }}
-                    aria-label="Consultar estado de mis tickets"
+                    aria-label="Consultar tickets generados hoy"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
                       <span className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ background: "rgba(85, 244, 255, 0.1)", color: "#55F4FF" }}>
                         <ClipboardList size={16} aria-hidden />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-xs font-bold">Estado de mis tickets</span>
-                        <span className="block text-[10px]" style={{ color: "rgba(226, 232, 240, 0.62)" }}>Revisar casos abiertos y recientes</span>
+                        <span className="block text-xs font-bold">Tickets generados hoy</span>
+                        <span className="block text-[10px]" style={{ color: "rgba(226, 232, 240, 0.62)" }}>Ver todos los casos creados durante el día</span>
                       </span>
                     </span>
                     <ChevronUp size={14} className="rotate-90" aria-hidden style={{ color: "#55F4FF" }} />
@@ -1171,7 +1171,7 @@ function TypingIndicator({ isForum }: { isForum: boolean }) {
 function TicketStatusResults({ tickets }: { tickets: TicketLookupSummary[] }) {
   return (
     <section className="ml-8 grid gap-2" aria-label="Estado de tickets ITSM">
-      {tickets.slice(0, 5).map((item) => {
+      {tickets.map((item) => {
         const normalizedState = item.state.toLowerCase();
         const stateColor = normalizedState.includes("cerr") || normalizedState.includes("resuel")
           ? "#8CF0B2"

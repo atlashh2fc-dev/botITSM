@@ -398,10 +398,55 @@ export async function searchTicketsByCustomer(email: string, limit = 5, tenant?:
     .map((ticket) => toSummary(ticket, tenant));
 }
 
-function searchTicketsByQuery(query: string, limit: number, tenant?: Tenant) {
+/** Todos los tickets creados hoy por el cliente, usando el día calendario de Chile. */
+export async function searchTodayTicketsByCustomer(email: string, tenant?: Tenant): Promise<ZammadTicketSummary[]> {
+  const user = await findUserByEmail(email, tenant);
+  if (!user) return [];
+
+  const today = dateKeyInChile(new Date());
+  const unique = new Map<number, ZammadTicket>();
+  const pageSize = 100;
+
+  // Zammad impone límites por respuesta. Recorremos páginas ordenadas por
+  // creación y dejamos de consultar apenas entramos a un día anterior.
+  for (let page = 1; page <= 50; page += 1) {
+    const result = await searchTicketsByQuery(`customer_id:${user.id}`, pageSize, tenant, page)
+      .catch(() => [] as ZammadTicket[]);
+    const pageTickets = normalizeSearchResult(result);
+
+    pageTickets.forEach((ticket) => {
+      if (ticket.customer_id === user.id && dateKeyInChile(ticket.created_at) === today) {
+        unique.set(ticket.id, ticket);
+      }
+    });
+
+    if (pageTickets.length < pageSize) break;
+    if (pageTickets.some((ticket) => dateKeyInChile(ticket.created_at) < today)) break;
+  }
+
+  return [...unique.values()]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((ticket) => toSummary(ticket, tenant));
+}
+
+function searchTicketsByQuery(query: string, limit: number, tenant?: Tenant, page = 1) {
   return zammadFetch<TicketSearchResponse>(tenant,
-    `/tickets/search?query=${encodeURIComponent(query)}&limit=${limit}&sort_by=created_at&order_by=desc`,
+    `/tickets/search?query=${encodeURIComponent(query)}&limit=${limit}&per_page=${limit}&page=${page}&sort_by=created_at&order_by=desc`,
   );
+}
+
+function dateKeyInChile(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 /** Busca un ticket por número visible (ej. 87008). */
