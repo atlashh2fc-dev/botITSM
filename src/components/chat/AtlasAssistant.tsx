@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronUp,
+  ClipboardList,
   HardDrive,
   KeyRound,
   Laptop,
@@ -29,6 +30,18 @@ type ChatApiResponse = {
   response: ITSMResponse;
   sessionContext: SessionContext;
   ticket?: Ticket;
+  tickets?: TicketLookupSummary[];
+};
+
+type TicketLookupSummary = {
+  id: number;
+  number: string;
+  title: string;
+  state: string;
+  priority: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -230,6 +243,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   const [identityStatus, setIdentityStatus] = useState<"anonymous" | "authenticated">(() => storedIdentity?.email ? "authenticated" : "anonymous");
   const [status, setStatus] = useState("en línea");
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [ticketResults, setTicketResults] = useState<TicketLookupSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [closed, setClosed] = useState(desktop || !standalone);
@@ -331,6 +345,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     setAttachedFile(null);
     setShowAttachmentMenu(false);
     setTicket(null);
+    setTicketResults([]);
     setIsLoading(true);
     setStatus("analizando...");
 
@@ -378,6 +393,10 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
       if (payload.ticket) {
         setTicket(payload.ticket);
         setStatus("caso registrado");
+      }
+      if (payload.tickets?.length) {
+        setTicketResults(payload.tickets);
+        setStatus(payload.tickets.length === 1 ? "ticket actualizado" : "tickets encontrados");
       }
     } catch {
       setMessages((current) => [
@@ -436,6 +455,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     setMessages([greetingMsg]);
     setInput("");
     setTicket(null);
+    setTicketResults([]);
     setAttachedFile(null);
     setShowAttachmentMenu(false);
     setStatus("sesión ITSM activa");
@@ -490,6 +510,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
 
     setInput("");
     setTicket(null);
+    setTicketResults([]);
     setAttachedFile(null);
     setShowAttachmentMenu(false);
     setStatus("en línea");
@@ -510,6 +531,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     setContext(freshContext);
     setMessages([initialMessage]);
     setTicket(null);
+    setTicketResults([]);
     setAttachedFile(null);
     setShowAttachmentMenu(false);
     setStatus("en línea");
@@ -718,19 +740,45 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
               ))}
 
               {!hasConversation ? (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {smartActions.map((action) => (
-                    <SmartActionCard
-                      key={action.topic}
-                      action={action}
-                      disabled={!canUseChat}
-                      onClick={() => handleSuggestion(action.topic)}
-                    />
-                  ))}
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={!canUseChat || isLoading}
+                    onClick={() => void sendMessage("Quiero revisar el estado de mis tickets")}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{
+                      border: "1px solid rgba(85, 244, 255, 0.24)",
+                      background: "linear-gradient(135deg, rgba(0, 68, 129, 0.34), rgba(85, 244, 255, 0.07))",
+                      color: "#FFFFFF",
+                    }}
+                    aria-label="Consultar estado de mis tickets"
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ background: "rgba(85, 244, 255, 0.1)", color: "#55F4FF" }}>
+                        <ClipboardList size={16} aria-hidden />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-bold">Estado de mis tickets</span>
+                        <span className="block text-[10px]" style={{ color: "rgba(226, 232, 240, 0.62)" }}>Revisar casos abiertos y recientes</span>
+                      </span>
+                    </span>
+                    <ChevronUp size={14} className="rotate-90" aria-hidden style={{ color: "#55F4FF" }} />
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    {smartActions.map((action) => (
+                      <SmartActionCard
+                        key={action.topic}
+                        action={action}
+                        disabled={!canUseChat}
+                        onClick={() => handleSuggestion(action.topic)}
+                      />
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
               {isLoading ? <TypingIndicator isForum={isForum} /> : null}
+              {ticketResults.length ? <TicketStatusResults tickets={ticketResults} /> : null}
               {ticket ? <RegisteredCase ticket={ticket} /> : null}
             </div>
           </div>
@@ -892,7 +940,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
                 }}
                 rows={1}
                 disabled={!canUseChat || isLoading}
-                placeholder={!canUseChat ? "Inicia sesión con ITSM para continuar..." : attachedFile ? "Agrega un comentario o envía..." : "Describe tu problema..."}
+                placeholder={!canUseChat ? "Inicia sesión con ITSM para continuar..." : attachedFile ? "Agrega un comentario o envía..." : "Describe tu problema o consulta un ticket..."}
                 className="thin-scrollbar max-h-28 min-h-10 flex-1 resize-none rounded-lg px-3.5 py-2.5 text-[13px] leading-5 outline-none transition-all duration-200"
                 style={{
                   border: "1px solid rgba(148, 163, 184, 0.14)",
@@ -1118,6 +1166,55 @@ function TypingIndicator({ isForum }: { isForum: boolean }) {
       <span style={{ fontStyle: "italic" }}>{isForum ? "Equipo Forum está escribiendo..." : "Equipo SONDA está escribiendo..."}</span>
     </div>
   );
+}
+
+function TicketStatusResults({ tickets }: { tickets: TicketLookupSummary[] }) {
+  return (
+    <section className="ml-8 grid gap-2" aria-label="Estado de tickets ITSM">
+      {tickets.slice(0, 5).map((item) => {
+        const normalizedState = item.state.toLowerCase();
+        const stateColor = normalizedState.includes("cerr") || normalizedState.includes("resuel")
+          ? "#8CF0B2"
+          : normalizedState.includes("pend")
+            ? "#FBBF24"
+            : "#67F8FF";
+
+        return (
+          <article
+            key={item.id}
+            className="rounded-xl p-3"
+            style={{
+              border: "1px solid rgba(85, 244, 255, 0.2)",
+              background: "linear-gradient(135deg, rgba(0, 68, 129, 0.18), rgba(15, 23, 42, 0.72))",
+            }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: "rgba(226, 232, 240, 0.56)" }}>Ticket #{item.number}</p>
+                <p className="mt-1 line-clamp-2 text-[12px] font-semibold leading-4" style={{ color: "#FFFFFF" }}>{item.title}</p>
+              </div>
+              <span
+                className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase"
+                style={{ border: `1px solid ${stateColor}55`, background: `${stateColor}14`, color: stateColor }}
+              >
+                {item.state}
+              </span>
+            </div>
+            <div className="mt-2 flex items-end justify-between gap-3 text-[10px]" style={{ color: "rgba(226, 232, 240, 0.58)" }}>
+              <span>Prioridad {item.priority} · actualizado {formatTicketUpdate(item.updatedAt)}</span>
+              <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0 font-bold" style={{ color: "#67F8FF" }}>Ver ticket</a>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function formatTicketUpdate(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "sin fecha";
+  return new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function RegisteredCase({ ticket }: { ticket: Ticket }) {

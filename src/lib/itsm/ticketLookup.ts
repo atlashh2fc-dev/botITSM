@@ -6,7 +6,7 @@
  */
 
 import type { SessionContext } from "@/lib/itsm/types";
-import { findTicketByNumber, getTicketDetail, hasZammadConfig, searchTicketsByCustomer, type ZammadTicketArticle, type ZammadTicketDetail, type ZammadTicketSummary } from "@/lib/zammad/client";
+import { findTicketByNumberForCustomer, getTicketDetail, hasZammadConfig, searchTicketsByCustomer, type ZammadTicketArticle, type ZammadTicketDetail, type ZammadTicketSummary } from "@/lib/zammad/client";
 
 const TICKET_ENTITY_TERMS = [
   "ticket",
@@ -346,14 +346,25 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
   const ticketNumber = extractTicketNumber(userMessage);
 
   if (ticketNumber) {
-    const ticket = await findTicketByNumber(ticketNumber);
+    if (!email) {
+      return {
+        handled: true,
+        tickets: [],
+        topics: [],
+        matched: false,
+        needsEmail: true,
+        message: "Para proteger la información del ticket, primero necesito identificarte con tu sesión ITSM.",
+      };
+    }
+
+    const ticket = await findTicketByNumberForCustomer(ticketNumber, email);
     if (!ticket) {
       return {
         handled: true,
         tickets: [],
         topics: [],
         matched: false,
-        message: `No encontré el ticket #${ticketNumber} en el sistema. ¿Puedes confirmar el número? También puedo listar tus tickets si me confirmas tu correo corporativo.`,
+        message: `No encontré el ticket #${ticketNumber} asociado a tu usuario. Revisa el número o usa “Estado de mis tickets” para ver tus casos disponibles.`,
       };
     }
     const detail = await getTicketDetail(ticket);

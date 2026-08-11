@@ -421,6 +421,18 @@ export async function findTicketByNumber(number: string, tenant?: Tenant): Promi
   return ticket ? toSummary(ticket, tenant) : null;
 }
 
+/** Busca un ticket visible y confirma que pertenezca al cliente autenticado. */
+export async function findTicketByNumberForCustomer(number: string, email: string, tenant?: Tenant): Promise<ZammadTicketSummary | null> {
+  const [ticket, user] = await Promise.all([
+    findTicketByNumber(number, tenant),
+    findUserByEmail(email, tenant),
+  ]);
+  if (!ticket || !user) return null;
+
+  const expanded = await getZammadTicket(ticket.id, tenant).catch(() => null);
+  return expanded?.customer_id === user.id ? ticket : null;
+}
+
 /** Artículos/comentarios del ticket, incluyendo notas internas para entender la última gestión operativa. */
 export async function getTicketArticles(ticketId: number, tenant?: Tenant): Promise<ZammadTicketArticle[]> {
   return zammadFetch<ZammadTicketArticle[]>(tenant, "/ticket_articles/by_ticket/" + ticketId);
