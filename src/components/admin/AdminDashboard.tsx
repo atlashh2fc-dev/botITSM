@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   Activity,
   AudioLines,
@@ -20,6 +21,7 @@ import {
   HardDrive,
   Keyboard,
   LockKeyhole,
+  MapPinned,
   Mail,
   MessageSquareText,
   Monitor,
@@ -973,6 +975,7 @@ function InventoryWorkspace({
   const [selectedHardwareAsset, setSelectedHardwareAsset] = useState<UserAsset | null>(null);
   const [hardwareRefreshing, setHardwareRefreshing] = useState<string | null>(null);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
+  const [communeMapOpen, setCommuneMapOpen] = useState(false);
   const [inventoryGridFilter, setInventoryGridFilter] = useState<InventoryGridFilter>("all");
   const [hardwareByAssetId, setHardwareByAssetId] = useState<Record<string, Record<string, unknown>>>({});
 
@@ -1020,7 +1023,12 @@ function InventoryWorkspace({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <SectionHeader title="Inventario" subtitle="Equipos registrados en el ITSM, su estado y datos tecnicos para soporte." />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <SectionHeader title="Inventario" subtitle="Equipos registrados en el ITSM, su estado y datos tecnicos para soporte." />
+        <button type="button" onClick={() => setCommuneMapOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 36, border: `1px solid ${PBI.blue}`, borderRadius: 4, background: "#fff", color: PBI.blue, padding: "0 13px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 800 }}>
+          <MapPinned size={16} /> Mapa por comunas
+        </button>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
         <KpiCard kpi={{ label: "Equipos registrados", value: totalAssets.toString(), meta: "en inventario ITSM", tone: "neutral" }} />
         <KpiCard kpi={{ label: "All-in-One", value: inventoryTotals.allInOne.toString(), meta: "equipos integrados", tone: "neutral" }} />
@@ -1141,8 +1149,182 @@ function InventoryWorkspace({
         )}
       </PbiPanel>
       {selectedHardwareAsset && <HardwareDetailsModal asset={selectedHardwareAsset} refreshing={hardwareRefreshing === selectedHardwareAsset.id} error={hardwareError} onRefresh={() => void refreshHardware(selectedHardwareAsset)} onClose={() => setSelectedHardwareAsset(null)} />}
+      {communeMapOpen && <CommuneInventoryModal onClose={() => setCommuneMapOpen(false)} />}
     </div>
   );
+}
+
+type CommuneMapAsset = {
+  id: string | number;
+  name?: string;
+  hostname?: string;
+  ip?: string;
+  os?: string;
+  status?: string;
+};
+
+type CommuneMapAssignment = {
+  id: string | number;
+  commune: string;
+  asset: CommuneMapAsset;
+};
+
+type CommuneMapPayload = {
+  communes: string[];
+  assignments: CommuneMapAssignment[];
+  assets: CommuneMapAsset[];
+};
+
+const COMMUNE_MAP_HOTSPOTS = [
+  ["Quilicura", 25.7, 15.8, 9, 5], ["Huechuraba", 42.2, 18.3, 10, 5],
+  ["Conchalí", 36.6, 21.2, 8, 4], ["Renca", 25.4, 25.4, 7, 4],
+  ["Recoleta", 44.4, 26, 8, 4], ["Independencia", 37.9, 28.8, 8, 7],
+  ["Cerro Navia", 20.1, 31, 10, 4], ["Quinta Normal", 31.1, 31, 9, 6],
+  ["Pudahuel", 14.3, 34.7, 9, 5], ["Lo Prado", 26.2, 37, 8, 4],
+  ["Estación Central", 31, 40.8, 10, 6], ["Santiago", 41.4, 38.3, 8, 5],
+  ["Providencia", 49.6, 32.3, 11, 5], ["Vitacura", 58, 20, 9, 5],
+  ["Lo Barnechea", 72.1, 10.9, 12, 5], ["Las Condes", 75, 30.2, 12, 5],
+  ["La Reina", 66.1, 37.2, 9, 5], ["Ñuñoa", 52, 39.7, 7, 5],
+  ["Peñalolén", 67, 46, 11, 5], ["Macul", 52.5, 47, 7, 5],
+  ["Pedro Aguirre Cerda", 37, 47.6, 10, 8], ["San Miguel", 42.4, 50.5, 7, 6],
+  ["San Joaquín", 47.8, 50.7, 8, 6], ["Cerrillos", 29.4, 53.6, 8, 5],
+  ["Maipú", 19.1, 56, 7, 5], ["Lo Espejo", 33.5, 57.5, 8, 6],
+  ["La Cisterna", 40, 58.8, 8, 6], ["La Granja", 48.2, 60.4, 8, 6],
+  ["La Florida", 58.9, 58.7, 10, 5], ["San Ramón", 43.5, 64, 7, 6],
+  ["El Bosque", 36, 67, 8, 5], ["La Pintana", 45.7, 74.5, 9, 5],
+  ["San Bernardo", 32.4, 77, 11, 5], ["Puente Alto", 59, 76, 11, 5],
+  ["Padre Hurtado", 9, 71, 9, 7],
+] as const;
+
+function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
+  const [payload, setPayload] = useState<CommuneMapPayload | null>(null);
+  const [selectedCommune, setSelectedCommune] = useState<string | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/inventory/communes", { cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo cargar el mapa territorial.");
+      setPayload(body as CommuneMapPayload);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "No se pudo cargar el mapa territorial.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
+
+  const assignments = payload?.assignments ?? [];
+  const assets = payload?.assets ?? [];
+  const communeAssets = selectedCommune
+    ? assignments.filter(item => item.commune === selectedCommune)
+    : [];
+  const assignedByAsset = new Map(assignments.map(item => [String(item.asset.id), item.commune]));
+
+  const saveAssignment = async () => {
+    if (!selectedCommune || !selectedAssetId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/inventory/communes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset_id: selectedAssetId, commune: selectedCommune }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo guardar la asignación.");
+      setSelectedAssetId("");
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "No se pudo guardar la asignación.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeAssignment = async (assetId: string | number) => {
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/inventory/communes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset_id: String(assetId) }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "No se pudo quitar el equipo.");
+      }
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "No se pudo quitar el equipo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activeCommunes = new Set(assignments.map(item => item.commune)).size;
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Mapa de equipos por comuna" style={{ position: "fixed", inset: 0, zIndex: 5000, display: "grid", placeItems: "center", padding: 18 }}>
+      <button type="button" onClick={onClose} aria-label="Cerrar mapa" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, background: "rgba(3, 19, 40, .70)", cursor: "default" }} />
+      <section style={{ position: "relative", width: "min(1380px, 96vw)", height: "min(900px, 94vh)", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr)", overflow: "hidden", border: `1px solid ${PBI.cardBorder}`, borderRadius: 10, background: PBI.pageBg, boxShadow: "0 26px 70px rgba(0, 31, 67, .34)" }}>
+        <header style={{ display: "flex", justifyContent: "space-between", gap: 20, padding: "16px 20px", borderBottom: `1px solid ${PBI.cardBorder}`, background: "#fff" }}>
+          <div><p style={{ margin: 0, color: PBI.text3, fontSize: 10, fontWeight: 800, letterSpacing: .5, textTransform: "uppercase" }}>Inventario territorial</p><h2 style={{ margin: "3px 0", color: PBI.text1, fontSize: 21 }}>Equipos por comuna</h2><p style={{ margin: 0, color: PBI.text2, fontSize: 12 }}>Selecciona el nombre de una comuna y asigna los equipos sincronizados desde MeshCentral.</p></div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" style={{ width: 36, height: 36, display: "grid", placeItems: "center", border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: "#fff", color: PBI.text2, cursor: "pointer" }}><X size={19} /></button>
+        </header>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, borderBottom: `1px solid ${PBI.cardBorder}`, background: PBI.cardBorder }}>
+          {[[assets.length, "Equipos Mesh"], [assignments.length, "Con comuna"], [Math.max(0, assets.length - assignments.length), "Sin comuna"], [activeCommunes, "Comunas activas"]].map(([value, label]) => (
+            <div key={String(label)} style={{ padding: "10px 16px", background: "#fff" }}><strong style={{ display: "block", color: PBI.blue, fontSize: 20, lineHeight: 1 }}>{value}</strong><span style={{ display: "block", marginTop: 4, color: PBI.text3, fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{label}</span></div>
+          ))}
+        </div>
+
+        <div style={{ minHeight: 0, display: "flex", flexWrap: "wrap", gap: 14, padding: 14, overflow: "auto" }}>
+          <div style={{ position: "relative", flex: "1.5 1 600px", width: "100%", maxWidth: 760, aspectRatio: "1 / 1", alignSelf: "start", margin: "0 auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 6, overflow: "hidden", background: "#fff" }}>
+            {/* La imagen conserva únicamente los límites y nombres; estas áreas transparentes hacen clicable cada nombre. */}
+            <Image src="/images/forum-santiago-communes.png" alt="Mapa de comunas de Santiago" fill sizes="(max-width: 900px) 92vw, 760px" priority style={{ objectFit: "contain" }} />
+            {COMMUNE_MAP_HOTSPOTS.map(([commune, x, y, width, height]) => (
+              <button key={commune} type="button" onClick={() => { setSelectedCommune(commune); setSelectedAssetId(""); setError(""); }} aria-label={`Seleccionar ${commune}`} title={commune} style={{ position: "absolute", zIndex: 1, left: `${x}%`, top: `${y}%`, width: `${width}%`, height: `${height}%`, transform: "translate(-50%, -50%)", border: selectedCommune === commune ? "2px solid #00A0D2" : "1px solid transparent", borderRadius: 6, background: selectedCommune === commune ? "rgba(0, 160, 210, .18)" : "transparent", boxShadow: selectedCommune === commune ? "0 0 0 2px rgba(255,255,255,.88)" : "none", cursor: "pointer" }} />
+            ))}
+          </div>
+
+          <aside style={{ flex: "1 1 320px", minWidth: 300, minHeight: 340, alignSelf: "stretch", overflow: "auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 6, background: "#fff" }}>
+            {loading ? <MapEmptyState title="Cargando equipos de MeshCentral..." /> : error && !payload ? <MapEmptyState title={error} error /> : !selectedCommune ? <MapEmptyState title="Selecciona una comuna" text="Haz clic sobre su nombre en el mapa para consultar o asignar equipos." /> : (
+              <>
+                <div style={{ padding: 16, background: `linear-gradient(135deg, ${PBI.sidebarBg}, ${PBI.blue})`, color: "#fff" }}><p style={{ margin: 0, color: "#D8EFFB", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Comuna seleccionada</p><h3 style={{ margin: "4px 0", fontSize: 21 }}>{selectedCommune}</h3><p style={{ margin: 0, color: "#D8EFFB", fontSize: 11 }}>{communeAssets.length} equipo{communeAssets.length === 1 ? "" : "s"} asignado{communeAssets.length === 1 ? "" : "s"}</p></div>
+                <div style={{ display: "grid", gap: 8, padding: 13 }}>
+                  {communeAssets.length ? communeAssets.map(item => <article key={String(item.asset.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: 10, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: PBI.pageBg }}><div style={{ minWidth: 0 }}><strong style={{ display: "block", color: PBI.text1, fontSize: 12, overflowWrap: "anywhere" }}>{item.asset.name || item.asset.hostname || "Equipo"}</strong><span style={{ display: "block", marginTop: 3, color: PBI.text3, fontSize: 10, overflowWrap: "anywhere" }}>{[item.asset.ip, item.asset.os].filter(Boolean).join(" · ") || "Sin detalle"}</span></div><button type="button" disabled={saving} onClick={() => void removeAssignment(item.asset.id)} style={{ border: 0, background: "transparent", color: PBI.red, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 800 }}>Quitar</button></article>) : <MapEmptyState title="Sin equipos asignados" compact />}
+                </div>
+                <div style={{ display: "grid", gap: 8, margin: "0 13px 14px", padding: 13, border: `1px solid ${PBI.cardBorder}`, borderRadius: 5, background: "#EEF6FB" }}>
+                  <label htmlFor="commune-map-asset" style={{ color: PBI.text2, fontSize: 11, fontWeight: 800 }}>Agregar equipo MeshCentral</label>
+                  <select id="commune-map-asset" value={selectedAssetId} onChange={event => setSelectedAssetId(event.target.value)} style={{ width: "100%", minHeight: 39, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: "#fff", color: PBI.text1, fontFamily: "inherit", fontSize: 11 }}><option value="">Selecciona un equipo...</option>{assets.map(asset => { const location = assignedByAsset.get(String(asset.id)); return <option key={String(asset.id)} value={String(asset.id)}>{asset.name || asset.hostname || `Equipo ${asset.id}`} — {location ? `actualmente en ${location}` : "sin comuna"}</option>; })}</select>
+                  <button type="button" disabled={!selectedAssetId || saving} onClick={() => void saveAssignment()} style={{ minHeight: 39, border: 0, borderRadius: 4, background: !selectedAssetId || saving ? "#91A9BC" : PBI.blue, color: "#fff", cursor: !selectedAssetId || saving ? "not-allowed" : "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800 }}>{saving ? "Guardando..." : `Asignar a ${selectedCommune}`}</button>
+                  {error && <p style={{ margin: 0, color: PBI.red, fontSize: 11 }}>{error}</p>}
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MapEmptyState({ title, text, error = false, compact = false }: { title: string; text?: string; error?: boolean; compact?: boolean }) {
+  return <div style={{ minHeight: compact ? 70 : 250, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 6, padding: compact ? 12 : 24, color: error ? PBI.red : PBI.text3, textAlign: "center" }}><strong style={{ color: error ? PBI.red : PBI.text1, fontSize: compact ? 12 : 14 }}>{title}</strong>{text && <span style={{ maxWidth: 280, fontSize: 11, lineHeight: 1.45 }}>{text}</span>}</div>;
 }
 
 type InventoryGridFilter = "all" | "without-monitor" | "all-in-one" | "tower" | "pending";
