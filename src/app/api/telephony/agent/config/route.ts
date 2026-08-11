@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  createPhoneSession,
+  PHONE_SESSION_COOKIE,
+  PHONE_SESSION_COOKIE_OPTIONS,
   PhoneAgentConfigurationError,
   PhoneAgentForbiddenError,
   PhoneAgentUnauthorizedError,
@@ -34,6 +37,11 @@ export async function GET(request: NextRequest) {
       aor: `sip:${extension}@${domain}`,
       webSocketServer,
       agentEmail: session.email,
+    });
+    const renewedSession = createPhoneSession(tenant.id, session.email);
+    response.cookies.set(PHONE_SESSION_COOKIE, renewedSession.token, {
+      ...PHONE_SESSION_COOKIE_OPTIONS,
+      maxAge: renewedSession.maxAge,
     });
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
     response.headers.set("Pragma", "no-cache");

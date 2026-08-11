@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createPhoneSession,
   PHONE_SESSION_COOKIE,
+  PHONE_SESSION_COOKIE_OPTIONS,
   PhoneAgentConfigurationError,
   PhoneAgentForbiddenError,
   requireAssignedPhoneAgent,
@@ -46,10 +47,7 @@ export async function POST(request: NextRequest) {
     const session = createPhoneSession(tenant.id, assignedEmail);
     const response = NextResponse.json({ ok: true });
     response.cookies.set(PHONE_SESSION_COOKIE, session.token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      path: "/api/telephony/agent",
+      ...PHONE_SESSION_COOKIE_OPTIONS,
       maxAge: session.maxAge,
     });
     response.headers.set("Cache-Control", "no-store");
@@ -71,10 +69,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(PHONE_SESSION_COOKIE, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    path: "/api/telephony/agent",
+    ...PHONE_SESSION_COOKIE_OPTIONS,
     maxAge: 0,
   });
   response.headers.set("Cache-Control", "no-store");

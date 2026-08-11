@@ -5,7 +5,13 @@ import type { NextRequest } from "next/server";
 import type { TenantId } from "@/lib/tenant/server";
 
 export const PHONE_SESSION_COOKIE = "atlas_phone_session";
-const SESSION_TTL_SECONDS = 8 * 60 * 60;
+export const PHONE_SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "strict" as const,
+  path: "/api/telephony/agent",
+};
+const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 type PhoneSession = {
   tenantId: TenantId;
