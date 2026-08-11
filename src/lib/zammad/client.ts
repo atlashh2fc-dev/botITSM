@@ -378,18 +378,14 @@ function normalizeSearchResult(result: TicketSearchResponse): ZammadTicket[] {
 /** Tickets del cliente (por email), más recientes primero. */
 export async function searchTicketsByCustomer(email: string, limit = 5, tenant?: Tenant): Promise<ZammadTicketSummary[]> {
   const user = await findUserByEmail(email, tenant);
-  const safeEmail = email.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
-  if (!safeEmail) return [];
+  if (!user) return [];
 
-  const searches: Promise<TicketSearchResponse>[] = [];
-
-  if (user) {
-    searches.push(searchTicketsByQuery(`customer_id:${user.id}`, limit, tenant));
-  }
-
-  searches.push(searchTicketsByQuery(safeEmail, limit, tenant));
-
-  const results = await Promise.all(searches.map((search) => search.catch(() => [] as ZammadTicket[])));
+  // Never use a broad email search here. In Zammad that can also match the
+  // creator, owner or an article participant and leak tickets from another
+  // customer. customer_id is the authoritative tenant/user boundary.
+  const results = await Promise.all([
+    searchTicketsByQuery(`customer_id:${user.id}`, limit, tenant).catch(() => [] as ZammadTicket[]),
+  ]);
   const unique = new Map<number, ZammadTicket>();
 
   results.flatMap(normalizeSearchResult).forEach((ticket) => {
