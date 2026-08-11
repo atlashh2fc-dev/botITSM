@@ -488,7 +488,9 @@ export async function resolveTicketQuery(userMessage: string, email?: string, op
 }
 
 function isTodayTicketQuery(message: string): boolean {
-  return /\b(hoy|mismo dia|del dia|este dia|getdate)\b/.test(normalizeText(message));
+  const text = normalizeText(message);
+  return /\b(hoy|mismo dia|del dia|este dia|getdate)\b/.test(text) ||
+    text === "quiero revisar el estado de mis tickets";
 }
 
 function formatTickets(tickets: ZammadTicketSummary[], customHeader?: string): string {
