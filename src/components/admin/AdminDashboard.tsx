@@ -1292,8 +1292,8 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <div style={{ minHeight: 0, display: "flex", flexWrap: "wrap", gap: 14, padding: 14, overflow: "auto" }}>
-          <div style={{ position: "relative", flex: "1.5 1 600px", width: "100%", maxWidth: 760, aspectRatio: "1 / 1", alignSelf: "start", margin: "0 auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 6, overflow: "hidden", background: "#fff" }}>
+        <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(0, 1.55fr) minmax(300px, .75fr)", gap: 14, padding: 14, overflow: "hidden" }}>
+          <div style={{ position: "relative", justifySelf: "center", width: "auto", maxWidth: "100%", height: "100%", aspectRatio: "1 / 1", border: `1px solid ${PBI.cardBorder}`, borderRadius: 6, overflow: "hidden", background: "#fff" }}>
             {/* La imagen conserva únicamente los límites y nombres; estas áreas transparentes hacen clicable cada nombre. */}
             <Image src="/images/forum-santiago-communes.png" alt="Mapa de comunas de Santiago" fill sizes="(max-width: 900px) 92vw, 760px" priority style={{ objectFit: "contain" }} />
             {COMMUNE_MAP_HOTSPOTS.map(([commune, x, y, width, height]) => (
@@ -1301,7 +1301,7 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
-          <aside style={{ flex: "1 1 320px", minWidth: 300, minHeight: 340, alignSelf: "stretch", overflow: "auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 6, background: "#fff" }}>
+          <aside style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: `1px solid ${PBI.cardBorder}`, borderRadius: 6, background: "#fff" }}>
             {loading ? <MapEmptyState title="Cargando equipos de MeshCentral..." /> : error && !payload ? <MapEmptyState title={error} error /> : !selectedCommune ? <MapEmptyState title="Selecciona una comuna" text="Haz clic sobre su nombre en el mapa para consultar o asignar equipos." /> : (
               <>
                 <div style={{ padding: 16, background: `linear-gradient(135deg, ${PBI.sidebarBg}, ${PBI.blue})`, color: "#fff" }}><p style={{ margin: 0, color: "#D8EFFB", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Comuna seleccionada</p><h3 style={{ margin: "4px 0", fontSize: 21 }}>{selectedCommune}</h3><p style={{ margin: 0, color: "#D8EFFB", fontSize: 11 }}>{communeAssets.length} equipo{communeAssets.length === 1 ? "" : "s"} asignado{communeAssets.length === 1 ? "" : "s"}</p></div>
