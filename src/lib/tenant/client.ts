@@ -19,8 +19,8 @@ const CLIENT_TENANTS: Record<TenantId, ClientTenant> = {
   forum: {
     id: "forum",
     name: "Forum",
-    itsmBaseUrl: "https://atlasitsm.geimser.cl",
-    botLoginUrl: "https://atlasitsm.geimser.cl/geimser/bot/login",
+    itsmBaseUrl: "https://mdatoshiba.geimser.cl",
+    botLoginUrl: "https://mdatoshiba.geimser.cl/geimser/bot/login",
   },
 };
 

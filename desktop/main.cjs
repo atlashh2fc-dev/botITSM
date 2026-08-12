@@ -4,6 +4,7 @@ const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = 
 const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.atlasitsm.geimser.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
   "https://iabot.atlasitsm.geimser.cl",
+  "https://mdatoshiba.geimser.cl",
   "https://atlasitsm.geimser.cl",
 ]);
 const COLLAPSED_SIZE = { width: 78, height: 78 };

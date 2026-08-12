@@ -3,7 +3,7 @@
 El tenant se determina exclusivamente por el hostname recibido por el servidor.
 
 - Geimser: iabot.geimser.cl -> https://itsm.geimser.cl
-- Forum: iabot.atlasitsm.geimser.cl -> https://atlasitsm.geimser.cl
+- Forum: iabot.atlasitsm.geimser.cl -> https://mdatoshiba.geimser.cl
 
 ## Variables de Vercel
 
@@ -14,11 +14,11 @@ Configurar en Production, sin prefijo NEXT_PUBLIC_:
     ZAMMAD_GEIMSER_BASE_URL=https://itsm.geimser.cl
     ZAMMAD_GEIMSER_API_TOKEN=<token-geimser>
     ZAMMAD_GEIMSER_GROUP=Users
-    ZAMMAD_FORUM_BASE_URL=https://atlasitsm.geimser.cl
+    ZAMMAD_FORUM_BASE_URL=https://mdatoshiba.geimser.cl
     ZAMMAD_FORUM_API_TOKEN=<token-forum>
     ZAMMAD_FORUM_GROUP=Users
 
-El token Forum debe ser nuevo y emitido en atlasitsm.geimser.cl; no reutilizar el
+El token Forum debe ser nuevo y emitido en mdatoshiba.geimser.cl; no reutilizar el
 token de Geimser. Conservar también las variables actuales de Supabase y del modelo
 LLM como secretos de servidor.
 
