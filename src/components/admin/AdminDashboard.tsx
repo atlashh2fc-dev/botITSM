@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
@@ -1162,6 +1162,7 @@ type CommuneMapAsset = {
   os?: string;
   status?: string;
   raw_status?: string;
+  demo?: boolean;
 };
 
 type CommuneMapAssignment = {
@@ -1197,6 +1198,38 @@ const COMMUNE_MAP_HOTSPOTS = [
   ["Padre Hurtado", 9, 71, 9, 7],
 ] as const;
 
+const COMMUNE_DEMO_TOTAL = 80;
+
+function buildCommuneDemoPayload(): CommuneMapPayload {
+  const communes = COMMUNE_MAP_HOTSPOTS.map(([commune]) => commune);
+  const assets: CommuneMapAsset[] = Array.from({ length: COMMUNE_DEMO_TOTAL }, (_, index) => {
+    const communeIndex = index % communes.length;
+    const deviceNumber = index + 1;
+    const communeMode = communeIndex % 7 === 0 ? "offline" : communeIndex % 5 === 0 ? "mixed" : "online";
+    const online = communeMode === "online" || (communeMode === "mixed" && index % 2 === 0);
+    return {
+      id: `demo-rm-${String(deviceNumber).padStart(3, "0")}`,
+      name: `RM-DEMO-${String(deviceNumber).padStart(3, "0")}`,
+      hostname: `RM-DEMO-${String(deviceNumber).padStart(3, "0")}`,
+      ip: `10.${20 + (communeIndex % 10)}.${Math.floor(index / 35) + 1}.${20 + (index % 200)}`,
+      os: index % 9 === 0 ? "Windows 10 Pro" : "Windows 11 Pro",
+      status: online ? "En línea" : "Fuera de Línea",
+      raw_status: online ? "online" : "offline",
+      demo: true,
+    };
+  });
+
+  return {
+    communes: [...communes],
+    assets,
+    assignments: assets.map((asset, index) => ({
+      id: `demo-assignment-${index + 1}`,
+      commune: communes[index % communes.length],
+      asset,
+    })),
+  };
+}
+
 type CommuneEquipmentState = "empty" | "online" | "offline" | "mixed";
 
 function isCommuneAssetOnline(asset: CommuneMapAsset) {
@@ -1224,6 +1257,7 @@ function communeStatePresentation(state: CommuneEquipmentState) {
 
 function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
   const [payload, setPayload] = useState<CommuneMapPayload | null>(null);
+  const [demoMode, setDemoMode] = useState(true);
   const [selectedCommune, setSelectedCommune] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1252,12 +1286,16 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
     return () => { document.body.style.overflow = previousOverflow; };
   }, []);
 
-  const assignments = payload?.assignments ?? [];
-  const assets = payload?.assets ?? [];
+  const demoPayload = useMemo(() => buildCommuneDemoPayload(), []);
+  const visiblePayload = demoMode ? demoPayload : payload;
+  const assignments = visiblePayload?.assignments ?? [];
+  const assets = visiblePayload?.assets ?? [];
   const communeAssets = selectedCommune
     ? assignments.filter(item => item.commune === selectedCommune)
     : [];
   const assignedByAsset = new Map(assignments.map(item => [String(item.asset.id), item.commune]));
+  const onlineAssets = assets.filter(isCommuneAssetOnline).length;
+  const offlineAssets = Math.max(0, assets.length - onlineAssets);
 
   const saveAssignment = async () => {
     if (!selectedCommune || !selectedAssetId) return;
@@ -1307,21 +1345,25 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
     <div role="dialog" aria-modal="true" aria-label="Mapa de equipos por comuna" style={{ position: "fixed", inset: 0, zIndex: 5000, display: "grid", placeItems: "center", padding: 18 }}>
       <button type="button" onClick={onClose} aria-label="Cerrar mapa" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, background: "rgba(3, 19, 40, .70)", cursor: "default" }} />
       <section style={{ position: "relative", width: "min(1380px, 96vw)", height: "min(900px, 94vh)", display: "grid", gridTemplateRows: "auto auto auto minmax(0, 1fr)", overflow: "hidden", border: `1px solid ${PBI.cardBorder}`, borderRadius: 10, background: PBI.pageBg, boxShadow: "0 26px 70px rgba(0, 31, 67, .34)" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", gap: 20, padding: "16px 20px", borderBottom: `1px solid ${PBI.cardBorder}`, background: "#fff" }}>
+        <style>{`@keyframes commune-live-pulse { 0% { box-shadow: 0 0 0 0 var(--pulse-color); } 72% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } } @media (prefers-reduced-motion: reduce) { .commune-live-marker { animation: none !important; } }`}</style>
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, padding: "16px 20px", borderBottom: `1px solid ${PBI.cardBorder}`, background: "#fff" }}>
           <div><p style={{ margin: 0, color: PBI.text3, fontSize: 10, fontWeight: 800, letterSpacing: .5, textTransform: "uppercase" }}>Inventario territorial</p><h2 style={{ margin: "3px 0", color: PBI.text1, fontSize: 21 }}>Equipos por comuna</h2><p style={{ margin: 0, color: PBI.text2, fontSize: 12 }}>Selecciona el nombre de una comuna y asigna los equipos sincronizados desde MeshCentral.</p></div>
-          <button type="button" onClick={onClose} aria-label="Cerrar" style={{ width: 36, height: 36, display: "grid", placeItems: "center", border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: "#fff", color: PBI.text2, cursor: "pointer" }}><X size={19} /></button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button type="button" role="switch" aria-checked={demoMode} onClick={() => { setDemoMode(current => !current); setSelectedCommune(null); setSelectedAssetId(""); setError(""); }} style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 36, padding: "6px 10px", border: `1px solid ${demoMode ? PBI.blue : PBI.cardBorder}`, borderRadius: 4, background: demoMode ? "#E8F4FB" : "#fff", color: demoMode ? PBI.blue : PBI.text2, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800 }}><span aria-hidden style={{ position: "relative", width: 30, height: 16, borderRadius: 99, background: demoMode ? PBI.green : "#A8B5C0" }}><i style={{ position: "absolute", top: 2, left: demoMode ? 16 : 2, width: 12, height: 12, borderRadius: 99, background: "#fff", transition: "left .18s ease" }} /></span>Demo 80 equipos</button>
+            <button type="button" onClick={onClose} aria-label="Cerrar" style={{ width: 36, height: 36, display: "grid", placeItems: "center", border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: "#fff", color: PBI.text2, cursor: "pointer" }}><X size={19} /></button>
+          </div>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, borderBottom: `1px solid ${PBI.cardBorder}`, background: PBI.cardBorder }}>
-          {[[assets.length, "Equipos Mesh"], [assignments.length, "Con comuna"], [Math.max(0, assets.length - assignments.length), "Sin comuna"], [activeCommunes, "Comunas activas"]].map(([value, label]) => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 1, borderBottom: `1px solid ${PBI.cardBorder}`, background: PBI.cardBorder }}>
+          {[[assets.length, demoMode ? "Equipos demo" : "Equipos Mesh"], [onlineAssets, "En línea"], [offlineAssets, "Offline"], [assignments.length, "Con comuna"], [Math.max(0, assets.length - assignments.length), "Sin comuna"], [activeCommunes, "Comunas activas"]].map(([value, label]) => (
             <div key={String(label)} style={{ padding: "10px 16px", background: "#fff" }}><strong style={{ display: "block", color: PBI.blue, fontSize: 20, lineHeight: 1 }}>{value}</strong><span style={{ display: "block", marginTop: 4, color: PBI.text3, fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{label}</span></div>
           ))}
         </div>
 
         <div aria-label="Leyenda del estado de comunas" style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 18, padding: "8px 14px", borderBottom: `1px solid ${PBI.cardBorder}`, background: "#fff" }}>
-          <MapLegendItem color={PBI.green} label="Asignada · equipos en línea" />
-          <MapLegendItem color={PBI.red} label="Asignada · equipos apagados/offline" />
-          <MapLegendItem color={PBI.amber} label="Estado mixto" />
+          <MapLegendItem color={PBI.green} label="Asignada · equipos en línea" pulse />
+          <MapLegendItem color={PBI.red} label="Asignada · equipos apagados/offline" pulse />
+          <MapLegendItem color={PBI.amber} label="Estado mixto" pulse />
           <MapLegendItem color="#FFFFFF" border={PBI.cardBorder} label="Sin equipos asignados" />
         </div>
 
@@ -1333,7 +1375,10 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
               const communeState = getCommuneEquipmentState(commune, assignments);
               const presentation = communeStatePresentation(communeState);
               const assignedCount = assignments.filter(item => item.commune === commune).length;
-              return <button key={commune} type="button" onClick={() => { setSelectedCommune(commune); setSelectedAssetId(""); setError(""); }} aria-label={`Seleccionar ${commune}. ${presentation.label}`} title={`${commune}: ${presentation.label}${assignedCount ? ` (${assignedCount})` : ""}`} style={{ position: "absolute", zIndex: 1, left: `${x}%`, top: `${y}%`, width: `${width}%`, height: `${height}%`, transform: "translate(-50%, -50%)", border: communeState === "empty" ? selectedCommune === commune ? "2px solid #00A0D2" : "1px solid transparent" : `2px solid ${presentation.color}`, borderRadius: 6, background: presentation.background, boxShadow: selectedCommune === commune ? "0 0 0 3px #00A0D2, 0 0 0 5px rgba(255,255,255,.92)" : "none", cursor: "pointer" }} />;
+              return <div key={commune}>
+                <button type="button" onClick={() => { setSelectedCommune(commune); setSelectedAssetId(""); setError(""); }} aria-label={`Seleccionar ${commune}. ${presentation.label}`} title={`${commune}: ${presentation.label}${assignedCount ? ` (${assignedCount})` : ""}`} style={{ position: "absolute", zIndex: 1, left: `${x}%`, top: `${y}%`, width: `${width}%`, height: `${height}%`, transform: "translate(-50%, -50%)", border: communeState === "empty" ? selectedCommune === commune ? "2px solid #00A0D2" : "1px solid transparent" : `2px solid ${presentation.color}`, borderRadius: 6, background: presentation.background, boxShadow: selectedCommune === commune ? "0 0 0 3px #00A0D2, 0 0 0 5px rgba(255,255,255,.92)" : "none", cursor: "pointer" }} />
+                {communeState !== "empty" && <span className="commune-live-marker" aria-hidden style={{ "--pulse-color": `${presentation.color}88`, position: "absolute", zIndex: 3, left: `${x + width * .42}%`, top: `${y - height * .42}%`, width: 18, height: 18, display: "grid", placeItems: "center", transform: "translate(-50%, -50%)", border: "2px solid #fff", borderRadius: 999, background: presentation.color, color: "#fff", fontSize: 8, fontWeight: 900, lineHeight: 1, pointerEvents: "none", animation: "commune-live-pulse 1.8s ease-out infinite" } as CSSProperties}>{assignedCount}</span>}
+              </div>;
             })}
           </div>
 
@@ -1342,14 +1387,14 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
               <>
                 <div style={{ padding: 16, background: `linear-gradient(135deg, ${PBI.sidebarBg}, ${PBI.blue})`, color: "#fff" }}><p style={{ margin: 0, color: "#D8EFFB", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Comuna seleccionada</p><h3 style={{ margin: "4px 0", fontSize: 21 }}>{selectedCommune}</h3><p style={{ margin: 0, color: "#D8EFFB", fontSize: 11 }}>{communeAssets.length} equipo{communeAssets.length === 1 ? "" : "s"} asignado{communeAssets.length === 1 ? "" : "s"}</p></div>
                 <div style={{ display: "grid", gap: 8, padding: 13 }}>
-                  {communeAssets.length ? communeAssets.map(item => { const online = isCommuneAssetOnline(item.asset); return <article key={String(item.asset.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: 10, border: `1px solid ${PBI.cardBorder}`, borderLeft: `4px solid ${online ? PBI.green : PBI.red}`, borderRadius: 4, background: PBI.pageBg }}><div style={{ minWidth: 0 }}><strong style={{ display: "block", color: PBI.text1, fontSize: 12, overflowWrap: "anywhere" }}>{item.asset.name || item.asset.hostname || "Equipo"}</strong><span style={{ display: "block", marginTop: 3, color: PBI.text3, fontSize: 10, overflowWrap: "anywhere" }}>{[item.asset.ip, item.asset.os].filter(Boolean).join(" · ") || "Sin detalle"}</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, color: online ? PBI.green : PBI.red, fontSize: 10, fontWeight: 800 }}><i aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: online ? PBI.green : PBI.red }} />{online ? "En línea" : "Apagado / offline"}</span></div><button type="button" disabled={saving} onClick={() => void removeAssignment(item.asset.id)} style={{ border: 0, background: "transparent", color: PBI.red, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 800 }}>Quitar</button></article>; }) : <MapEmptyState title="Sin equipos asignados" compact />}
+                  {communeAssets.length ? communeAssets.map(item => { const online = isCommuneAssetOnline(item.asset); return <article key={String(item.asset.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: 10, border: `1px solid ${PBI.cardBorder}`, borderLeft: `4px solid ${online ? PBI.green : PBI.red}`, borderRadius: 4, background: PBI.pageBg }}><div style={{ minWidth: 0 }}><strong style={{ display: "block", color: PBI.text1, fontSize: 12, overflowWrap: "anywhere" }}>{item.asset.name || item.asset.hostname || "Equipo"}</strong><span style={{ display: "block", marginTop: 3, color: PBI.text3, fontSize: 10, overflowWrap: "anywhere" }}>{[item.asset.ip, item.asset.os].filter(Boolean).join(" · ") || "Sin detalle"}</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, color: online ? PBI.green : PBI.red, fontSize: 10, fontWeight: 800 }}><i aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: online ? PBI.green : PBI.red }} />{online ? "En línea" : "Apagado / offline"}</span></div>{!item.asset.demo && <button type="button" disabled={saving} onClick={() => void removeAssignment(item.asset.id)} style={{ border: 0, background: "transparent", color: PBI.red, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 800 }}>Quitar</button>}</article>; }) : <MapEmptyState title="Sin equipos asignados" compact />}
                 </div>
-                <div style={{ display: "grid", gap: 8, margin: "0 13px 14px", padding: 13, border: `1px solid ${PBI.cardBorder}`, borderRadius: 5, background: "#EEF6FB" }}>
+                {!demoMode && <div style={{ display: "grid", gap: 8, margin: "0 13px 14px", padding: 13, border: `1px solid ${PBI.cardBorder}`, borderRadius: 5, background: "#EEF6FB" }}>
                   <label htmlFor="commune-map-asset" style={{ color: PBI.text2, fontSize: 11, fontWeight: 800 }}>Agregar equipo MeshCentral</label>
                   <select id="commune-map-asset" value={selectedAssetId} onChange={event => setSelectedAssetId(event.target.value)} style={{ width: "100%", minHeight: 39, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: "#fff", color: PBI.text1, fontFamily: "inherit", fontSize: 11 }}><option value="">Selecciona un equipo...</option>{assets.map(asset => { const location = assignedByAsset.get(String(asset.id)); return <option key={String(asset.id)} value={String(asset.id)}>{asset.name || asset.hostname || `Equipo ${asset.id}`} — {location ? `actualmente en ${location}` : "sin comuna"}</option>; })}</select>
                   <button type="button" disabled={!selectedAssetId || saving} onClick={() => void saveAssignment()} style={{ minHeight: 39, border: 0, borderRadius: 4, background: !selectedAssetId || saving ? "#91A9BC" : PBI.blue, color: "#fff", cursor: !selectedAssetId || saving ? "not-allowed" : "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800 }}>{saving ? "Guardando..." : `Asignar a ${selectedCommune}`}</button>
                   {error && <p style={{ margin: 0, color: PBI.red, fontSize: 11 }}>{error}</p>}
-                </div>
+                </div>}
               </>
             )}
           </aside>
@@ -1363,8 +1408,8 @@ function MapEmptyState({ title, text, error = false, compact = false }: { title:
   return <div style={{ minHeight: compact ? 70 : 250, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 6, padding: compact ? 12 : 24, color: error ? PBI.red : PBI.text3, textAlign: "center" }}><strong style={{ color: error ? PBI.red : PBI.text1, fontSize: compact ? 12 : 14 }}>{title}</strong>{text && <span style={{ maxWidth: 280, fontSize: 11, lineHeight: 1.45 }}>{text}</span>}</div>;
 }
 
-function MapLegendItem({ color, label, border }: { color: string; label: string; border?: string }) {
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: PBI.text2, fontSize: 10, fontWeight: 700 }}><i aria-hidden style={{ width: 12, height: 12, borderRadius: 3, border: `1px solid ${border ?? color}`, background: color }} />{label}</span>;
+function MapLegendItem({ color, label, border, pulse = false }: { color: string; label: string; border?: string; pulse?: boolean }) {
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: PBI.text2, fontSize: 10, fontWeight: 700 }}><i className={pulse ? "commune-live-marker" : undefined} aria-hidden style={{ "--pulse-color": `${color}75`, width: 12, height: 12, borderRadius: pulse ? 999 : 3, border: `1px solid ${border ?? color}`, background: color, animation: pulse ? "commune-live-pulse 1.8s ease-out infinite" : undefined } as CSSProperties} />{label}</span>;
 }
 
 type InventoryGridFilter = "all" | "without-monitor" | "all-in-one" | "tower" | "pending";
