@@ -31,7 +31,9 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
   forum: {
     id: "forum",
     name: "Forum",
-    zammadBaseUrl: process.env.ZAMMAD_FORUM_BASE_URL,
+    // Public, non-secret endpoint. Keep the environment override for staged
+    // migrations, but provide the production Forum URL as a safe default.
+    zammadBaseUrl: process.env.ZAMMAD_FORUM_BASE_URL ?? "https://mdatoshiba.geimser.cl",
     zammadApiToken: process.env.ZAMMAD_FORUM_API_TOKEN,
     zammadGroup: process.env.ZAMMAD_FORUM_GROUP || "Users",
     zammadCtiUrl: process.env.ZAMMAD_FORUM_CTI_URL,
