@@ -394,6 +394,41 @@ function averageDuration(items: OperationalCase[]) {
   return Math.round(items.reduce((s, i) => s + i.duration_minutes, 0) / items.length);
 }
 
+type ReportPeriod = "daily" | "weekly" | "monthly";
+
+const REPORT_PERIODS: Record<ReportPeriod, { label: string; duration: number; description: string }> = {
+  daily: { label: "Diario", duration: 24 * 60 * 60 * 1000, description: "Últimas 24 horas" },
+  weekly: { label: "Semanal", duration: 7 * 24 * 60 * 60 * 1000, description: "Últimos 7 días" },
+  monthly: { label: "Mensual", duration: 30 * 24 * 60 * 60 * 1000, description: "Últimos 30 días" },
+};
+
+function casesInsideWindow(cases: OperationalCase[], start: number, end: number) {
+  return cases.filter(item => {
+    const timestamp = new Date(item.created_at).getTime();
+    return Number.isFinite(timestamp) && timestamp >= start && timestamp < end;
+  });
+}
+
+function reportDelta(current: number, previous: number) {
+  if (previous === 0) return current === 0 ? "Sin variación" : "+100% vs. período anterior";
+  const delta = Math.round(((current - previous) / previous) * 100);
+  return `${delta > 0 ? "+" : ""}${delta}% vs. período anterior`;
+}
+
+function reportTimeline(cases: OperationalCase[], period: ReportPeriod, now: number): ChartPoint[] {
+  const config = REPORT_PERIODS[period];
+  const segments = period === "daily" ? 8 : period === "weekly" ? 7 : 6;
+  const segmentDuration = config.duration / segments;
+  return Array.from({ length: segments }, (_, index) => {
+    const start = now - config.duration + index * segmentDuration;
+    const end = start + segmentDuration;
+    const label = period === "daily"
+      ? new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", timeZone: SANTIAGO_TIME_ZONE }).format(new Date(start))
+      : new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: SANTIAGO_TIME_ZONE }).format(new Date(start));
+    return { label, value: casesInsideWindow(cases, start, end).length };
+  });
+}
+
 /* ═══════════════════════ WORKSPACE ══════════════════════════════════ */
 function TopNavItem({ item, active, onClick }: { item: { id: string; label: string; icon: LucideIcon }; active: boolean; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
@@ -542,7 +577,7 @@ function AdminWorkspace({
   }, []);
 
   useEffect(() => {
-    if (activeSection !== "contact-center") return;
+    if (activeSection !== "contact-center" && activeSection !== "reports") return;
     void loadContactCenter();
     const interval = window.setInterval(() => { void loadContactCenter(); }, 60_000);
     return () => window.clearInterval(interval);
@@ -583,6 +618,7 @@ function AdminWorkspace({
     { id: "inventory",      label: "Inventario",                 icon: PackageSearch },
     { id: "knowledge",      label: "Base de Conocimiento",      icon: BookOpen },
     { id: "analytics",      label: "Analítica Avanzada",        icon: TrendingUp },
+    { id: "reports",        label: "Reportes",                   icon: FileText },
     { id: "field",          label: "Field Copilot",              icon: Smartphone },
     { id: "cases",          label: "Bitácora de Casos",         icon: MessageSquareText },
     { id: "configuration",  label: "Gobernanza",                icon: Settings },
@@ -598,6 +634,7 @@ function AdminWorkspace({
     inventory:     "Inventario",
     knowledge:     "Base de Conocimiento",
     analytics:     "Analítica Avanzada",
+    reports:       "Reportes",
     field:         "Field Copilot",
     cases:         "Bitácora de Casos",
     configuration: "Gobernanza",
@@ -807,6 +844,16 @@ function AdminWorkspace({
                 </div>
               )}
 
+              {activeSection === "reports" && (
+                <ReportsWorkspace
+                  cases={cases}
+                  assets={assets}
+                  contactCenter={contactCenterReport}
+                  loadingChannels={contactCenterLoading}
+                  onOpenTicket={openTicketDetail}
+                />
+              )}
+
               {activeSection === "field" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <SectionHeader title="Field Copilot" subtitle="Analítica de diagnósticos móviles, evidencia de terreno y tickets generados desde técnicos en sitio" />
@@ -897,6 +944,99 @@ function AdminWorkspace({
 }
 
 /* ═══════════════════════ COMPONENTES UI PBI ══════════════════════════ */
+
+function ReportsWorkspace({ cases, assets, contactCenter, loadingChannels, onOpenTicket }: { cases: OperationalCase[]; assets: UserAsset[]; contactCenter: ContactCenterReport | null; loadingChannels: boolean; onOpenTicket: (ticketId: string) => void }) {
+  const [period, setPeriod] = useState<ReportPeriod>("weekly");
+  const [generatedAt, setGeneratedAt] = useState(() => Date.now());
+  const config = REPORT_PERIODS[period];
+  const start = generatedAt - config.duration;
+  const previousStart = start - config.duration;
+  const current = useMemo(() => casesInsideWindow(cases, start, generatedAt), [cases, start, generatedAt]);
+  const previous = useMemo(() => casesInsideWindow(cases, previousStart, start), [cases, previousStart, start]);
+  const resolved = current.filter(item => item.status === "Resuelto");
+  const open = current.filter(item => item.status !== "Resuelto");
+  const escalated = current.filter(item => item.escalated);
+  const slaMet = current.filter(item => item.duration_minutes <= item.sla_minutes).length;
+  const slaPercent = current.length ? Math.round((slaMet / current.length) * 100) : 0;
+  const previousSlaMet = previous.filter(item => item.duration_minutes <= item.sla_minutes).length;
+  const previousSlaPercent = previous.length ? Math.round((previousSlaMet / previous.length) * 100) : 0;
+  const channels = useMemo(() => {
+    const rows = (contactCenter?.rows ?? []).filter(row => {
+      const timestamp = new Date(row.createdAt).getTime();
+      return Number.isFinite(timestamp) && timestamp >= start && timestamp < generatedAt;
+    });
+    return (["bot", "email", "phone", "portal", "unclassified"] as const).map(channel => ({
+      label: { bot: "Bot ITSM", email: "Correo", phone: "Llamada", portal: "Portal", unclassified: "Sin clasificar" }[channel],
+      value: rows.filter(row => row.channel === channel).length,
+    }));
+  }, [contactCenter, generatedAt, start]);
+  const timeline = useMemo(() => reportTimeline(current, period, generatedAt), [current, generatedAt, period]);
+  const priorities = useMemo(() => groupByField(current, "priority", 4), [current]);
+  const statuses = useMemo(() => groupByField(current, "status", 6), [current]);
+  const categories = useMemo(() => groupByField(current, "category", 8), [current]);
+  const departments = useMemo(() => groupByField(current, "department", 8), [current]);
+  const resolverGroups = useMemo(() => groupByField(current, "assigned_technician", 8), [current]);
+  const activeAssets = assets.filter(asset => asset.status === "active").length;
+  const attentionAssets = assets.length - activeAssets;
+  const rangeLabel = `${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeStyle: period === "daily" ? "short" : undefined, timeZone: SANTIAGO_TIME_ZONE }).format(new Date(start))} — ${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeStyle: period === "daily" ? "short" : undefined, timeZone: SANTIAGO_TIME_ZONE }).format(new Date(generatedAt))}`;
+
+  function downloadCsv() {
+    const header = ["Ticket", "Creado", "Solicitante", "Área", "Tipo", "Categoría", "Prioridad", "Estado", "Grupo resolutor", "Duración min", "SLA min", "Cumple SLA"];
+    const rows = current.map(item => [item.id, item.created_at, item.user_name, item.department, item.issue_type, item.category, item.priority, item.status, item.assigned_technician, item.duration_minutes, item.sla_minutes, item.duration_minutes <= item.sla_minutes ? "Sí" : "No"]);
+    const csv = [header, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `reporte-forum-${period}-${new Date(generatedAt).toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: 14, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, background: "#fff" }}>
+      <div><SectionHeader title="Reportes operativos" subtitle="Consolidado de tickets, SLA, canales, áreas, resolución e inventario Forum." /><p style={{ margin: "5px 0 0", color: PBI.text3, fontSize: 11 }}>{rangeLabel} · Generado en horario de Santiago</p></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div role="group" aria-label="Período del reporte" style={{ display: "flex", padding: 3, border: `1px solid ${PBI.cardBorder}`, borderRadius: 4, background: PBI.pageBg }}>
+          {(Object.keys(REPORT_PERIODS) as ReportPeriod[]).map(option => <button key={option} type="button" onClick={() => setPeriod(option)} aria-pressed={period === option} style={{ minHeight: 32, padding: "5px 12px", border: 0, borderRadius: 3, background: period === option ? PBI.blue : "transparent", color: period === option ? "#fff" : PBI.text2, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800 }}>{REPORT_PERIODS[option].label}</button>)}
+        </div>
+        <button type="button" onClick={() => setGeneratedAt(Date.now())} style={{ minHeight: 38, border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, padding: "6px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800 }}>Actualizar</button>
+        <button type="button" onClick={downloadCsv} disabled={!current.length} style={{ minHeight: 38, border: 0, borderRadius: 3, background: current.length ? PBI.blue : "#91A9BC", color: "#fff", padding: "6px 11px", cursor: current.length ? "pointer" : "not-allowed", fontFamily: "inherit", fontSize: 11, fontWeight: 800 }}>Descargar CSV</button>
+      </div>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8 }}>
+      <KpiCard kpi={{ label: "Tickets recibidos", value: current.length.toString(), meta: reportDelta(current.length, previous.length), tone: "neutral" }} />
+      <KpiCard kpi={{ label: "Abiertos", value: open.length.toString(), meta: `${current.length ? Math.round(open.length / current.length * 100) : 0}% del período`, tone: open.length ? "warning" : "positive" }} />
+      <KpiCard kpi={{ label: "Resueltos", value: resolved.length.toString(), meta: `${current.length ? Math.round(resolved.length / current.length * 100) : 0}% del período`, tone: "positive" }} />
+      <KpiCard kpi={{ label: "Cumplimiento SLA", value: `${slaPercent}%`, meta: `${slaPercent - previousSlaPercent >= 0 ? "+" : ""}${slaPercent - previousSlaPercent} pts vs. anterior`, tone: slaPercent >= 90 ? "positive" : "critical" }} />
+      <KpiCard kpi={{ label: "Tiempo promedio", value: `${averageDuration(current)} min`, meta: "gestión del período", tone: "neutral" }} />
+      <KpiCard kpi={{ label: "Escalados", value: escalated.length.toString(), meta: `${current.length ? Math.round(escalated.length / current.length * 100) : 0}% del período`, tone: escalated.length ? "warning" : "positive" }} />
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "1.35fr .9fr .9fr", gap: 8 }}>
+      <PbiPanel title={`Volumen ${REPORT_PERIODS[period].label.toLowerCase()}`} icon={Activity}><BarChartPbi items={timeline} color={PBI.blue} /></PbiPanel>
+      <PbiPanel title="Estado de tickets" icon={RadioTower}><HorizBarPbi items={statuses} color={PBI.green} /></PbiPanel>
+      <PbiPanel title="Prioridad" icon={ShieldAlert}><PriorityPbi items={priorities} /></PbiPanel>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+      <PbiPanel title="Canales de entrada" icon={Headphones}>{loadingChannels && !contactCenter ? <p style={{ color: PBI.text2, fontSize: 12 }}>Clasificando canales del ITSM…</p> : <HorizBarPbi items={channels} color={PBI.purple} />}</PbiPanel>
+      <PbiPanel title="Categorías principales" icon={Gauge}><HorizBarPbi items={categories} color={PBI.blue} /></PbiPanel>
+      <PbiPanel title="Áreas solicitantes" icon={Building2}><HorizBarPbi items={departments} color={PBI.amber} /></PbiPanel>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+      <PbiPanel title="Grupos resolutores" icon={UsersRound}><HorizBarPbi items={resolverGroups} color={PBI.green} /></PbiPanel>
+      <PbiPanel title="Inventario actual" icon={PackageSearch}><div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}><ReportMiniMetric label="Equipos registrados" value={assets.length} color={PBI.blue} /><ReportMiniMetric label="Operativos" value={activeAssets} color={PBI.green} /><ReportMiniMetric label="Requieren atención" value={attentionAssets} color={attentionAssets ? PBI.amber : PBI.green} /></div><p style={{ margin: "12px 0 0", color: PBI.text3, fontSize: 10 }}>Inventario es una fotografía actual; no se atribuye históricamente al período.</p></PbiPanel>
+    </div>
+
+    <OperationalTable cases={[...current].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())} onOpenTicket={onOpenTicket} />
+  </div>;
+}
+
+function ReportMiniMetric({ label, value, color }: { label: string; value: number; color: string }) {
+  return <div style={{ borderTop: `3px solid ${color}`, background: PBI.pageBg, padding: 12 }}><p style={{ margin: 0, color: PBI.text3, fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{label}</p><strong style={{ display: "block", marginTop: 6, color: PBI.text1, fontSize: 24 }}>{value}</strong></div>;
+}
 
 function ContactCenterWorkspace({ report, loading, error, onRefresh }: { report: ContactCenterReport | null; loading: boolean; error: string; onRefresh: () => void }) {
   const channels = report?.channels ?? { bot: 0, email: 0, phone: 0, portal: 0, unclassified: 0 };
