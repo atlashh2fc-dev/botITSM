@@ -402,6 +402,15 @@ const REPORT_PERIODS: Record<ReportPeriod, { label: string; duration: number; de
   monthly: { label: "Mensual", duration: 30 * 24 * 60 * 60 * 1000, description: "Últimos 30 días" },
 };
 
+const OPTIMAL_EXECUTIVE_KPIS = [
+  { label: "Resolución en primer contacto", value: "96%", meta: "meta óptima ≥ 90%", tone: "positive" },
+  { label: "Cumplimiento SLA", value: "97%", meta: "meta óptima ≥ 90%", tone: "positive" },
+  { label: "Resolución autónoma", value: "94%", meta: "meta óptima ≥ 90%", tone: "positive" },
+  { label: "Satisfacción usuaria", value: "95%", meta: "meta óptima ≥ 90%", tone: "positive" },
+  { label: "Disponibilidad operativa", value: "99%", meta: "meta óptima ≥ 90%", tone: "positive" },
+  { label: "Trazabilidad completa", value: "98%", meta: "meta óptima ≥ 90%", tone: "positive" },
+];
+
 function casesInsideWindow(cases: OperationalCase[], start: number, end: number) {
   return cases.filter(item => {
     const timestamp = new Date(item.created_at).getTime();
@@ -497,6 +506,7 @@ function AdminWorkspace({
   const [contactCenterReport, setContactCenterReport] = useState<ContactCenterReport | null>(null);
   const [contactCenterLoading, setContactCenterLoading] = useState(false);
   const [contactCenterError, setContactCenterError] = useState("");
+  const [optimalModel, setOptimalModel] = useState(true);
 
   const realCases = useMemo(() => realTickets.map(ticketToOperationalCase), [realTickets]);
   const cases = useMemo(() => realCases, [realCases]);
@@ -663,6 +673,7 @@ function AdminWorkspace({
 
         {/* Right: Breadcrumbs & Status */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button type="button" role="switch" aria-checked={optimalModel} onClick={() => setOptimalModel(current => !current)} title="Alternar entre modelo óptimo y datos reales" style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 30, padding: "4px 9px", border: `1px solid ${optimalModel ? PBI.green : PBI.cardBorder}`, borderRadius: 999, background: optimalModel ? "#EAF6EF" : "#fff", color: optimalModel ? PBI.green : PBI.text2, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 800 }}><span aria-hidden style={{ position: "relative", width: 27, height: 14, borderRadius: 99, background: optimalModel ? PBI.green : "#A8B5C0" }}><i style={{ position: "absolute", top: 2, left: optimalModel ? 15 : 2, width: 10, height: 10, borderRadius: 99, background: "#fff", transition: "left .18s ease" }} /></span>{optimalModel ? "Modelo óptimo" : "Datos reales"}</button>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 8 }}>
             <span style={{ fontSize: 11, color: PBI.text3 }}>Operaciones</span>
             <ChevronDown size={12} color={PBI.text3} />
@@ -692,9 +703,10 @@ function AdminWorkspace({
             <>
               {activeSection === "overview" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {optimalModel && <OptimalModelBanner />}
                   {/* KPI Row */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
-                    {operationalModel.executive.map(k => <KpiCard key={k.label} kpi={k} />)}
+                    {(optimalModel ? OPTIMAL_EXECUTIVE_KPIS : operationalModel.executive).map(k => <KpiCard key={k.label} kpi={k} />)}
                   </div>
                   {/* Domain cards */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
@@ -850,6 +862,7 @@ function AdminWorkspace({
                   assets={assets}
                   contactCenter={contactCenterReport}
                   loadingChannels={contactCenterLoading}
+                  optimalModel={optimalModel}
                   onOpenTicket={openTicketDetail}
                 />
               )}
@@ -945,7 +958,11 @@ function AdminWorkspace({
 
 /* ═══════════════════════ COMPONENTES UI PBI ══════════════════════════ */
 
-function ReportsWorkspace({ cases, assets, contactCenter, loadingChannels, onOpenTicket }: { cases: OperationalCase[]; assets: UserAsset[]; contactCenter: ContactCenterReport | null; loadingChannels: boolean; onOpenTicket: (ticketId: string) => void }) {
+function OptimalModelBanner() {
+  return <div role="status" style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", border: `1px solid ${PBI.green}`, borderRadius: 3, background: "#EAF6EF", color: PBI.green }}><CheckCircle2 size={17} /><div><strong style={{ display: "block", fontSize: 12 }}>Modelo óptimo de gestión · simulación de metas</strong><span style={{ display: "block", marginTop: 2, fontSize: 10, color: PBI.text2 }}>Los KPI objetivo se muestran sobre 90%. Las gráficas, tablas, exportaciones y referencias “Real” conservan los datos efectivos del ITSM.</span></div></div>;
+}
+
+function ReportsWorkspace({ cases, assets, contactCenter, loadingChannels, optimalModel, onOpenTicket }: { cases: OperationalCase[]; assets: UserAsset[]; contactCenter: ContactCenterReport | null; loadingChannels: boolean; optimalModel: boolean; onOpenTicket: (ticketId: string) => void }) {
   const [period, setPeriod] = useState<ReportPeriod>("weekly");
   const [generatedAt, setGeneratedAt] = useState(() => Date.now());
   const config = REPORT_PERIODS[period];
@@ -978,6 +995,16 @@ function ReportsWorkspace({ cases, assets, contactCenter, loadingChannels, onOpe
   const resolverGroups = useMemo(() => groupByField(current, "assigned_technician", 8), [current]);
   const activeAssets = assets.filter(asset => asset.status === "active").length;
   const attentionAssets = assets.length - activeAssets;
+  const realResolutionPercent = current.length ? Math.round(resolved.length / current.length * 100) : 0;
+  const realNoEscalationPercent = current.length ? Math.round((current.length - escalated.length) / current.length * 100) : 0;
+  const optimalReportKpis = [
+    { label: "Gestión oportuna", value: "96%", meta: `Real: ${current.length} tickets recibidos`, tone: "positive" },
+    { label: "Resolución efectiva", value: "94%", meta: `Real actual: ${realResolutionPercent}%`, tone: "positive" },
+    { label: "Cumplimiento SLA", value: "97%", meta: `Real actual: ${slaPercent}%`, tone: "positive" },
+    { label: "Sin escalamiento", value: "93%", meta: `Real actual: ${realNoEscalationPercent}%`, tone: "positive" },
+    { label: "Calidad de respuesta", value: "95%", meta: "objetivo de gestión", tone: "positive" },
+    { label: "Trazabilidad completa", value: "99%", meta: "objetivo de gestión", tone: "positive" },
+  ];
   const rangeLabel = `${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeStyle: period === "daily" ? "short" : undefined, timeZone: SANTIAGO_TIME_ZONE }).format(new Date(start))} — ${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeStyle: period === "daily" ? "short" : undefined, timeZone: SANTIAGO_TIME_ZONE }).format(new Date(generatedAt))}`;
 
   function downloadCsv() {
@@ -993,6 +1020,7 @@ function ReportsWorkspace({ cases, assets, contactCenter, loadingChannels, onOpe
   }
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    {optimalModel && <OptimalModelBanner />}
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: 14, border: `1px solid ${PBI.cardBorder}`, borderRadius: 3, background: "#fff" }}>
       <div><SectionHeader title="Reportes operativos" subtitle="Consolidado de tickets, SLA, canales, áreas, resolución e inventario Forum." /><p style={{ margin: "5px 0 0", color: PBI.text3, fontSize: 11 }}>{rangeLabel} · Generado en horario de Santiago</p></div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1005,12 +1033,14 @@ function ReportsWorkspace({ cases, assets, contactCenter, loadingChannels, onOpe
     </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8 }}>
-      <KpiCard kpi={{ label: "Tickets recibidos", value: current.length.toString(), meta: reportDelta(current.length, previous.length), tone: "neutral" }} />
-      <KpiCard kpi={{ label: "Abiertos", value: open.length.toString(), meta: `${current.length ? Math.round(open.length / current.length * 100) : 0}% del período`, tone: open.length ? "warning" : "positive" }} />
-      <KpiCard kpi={{ label: "Resueltos", value: resolved.length.toString(), meta: `${current.length ? Math.round(resolved.length / current.length * 100) : 0}% del período`, tone: "positive" }} />
-      <KpiCard kpi={{ label: "Cumplimiento SLA", value: `${slaPercent}%`, meta: `${slaPercent - previousSlaPercent >= 0 ? "+" : ""}${slaPercent - previousSlaPercent} pts vs. anterior`, tone: slaPercent >= 90 ? "positive" : "critical" }} />
-      <KpiCard kpi={{ label: "Tiempo promedio", value: `${averageDuration(current)} min`, meta: "gestión del período", tone: "neutral" }} />
-      <KpiCard kpi={{ label: "Escalados", value: escalated.length.toString(), meta: `${current.length ? Math.round(escalated.length / current.length * 100) : 0}% del período`, tone: escalated.length ? "warning" : "positive" }} />
+      {(optimalModel ? optimalReportKpis : [
+        { label: "Tickets recibidos", value: current.length.toString(), meta: reportDelta(current.length, previous.length), tone: "neutral" },
+        { label: "Abiertos", value: open.length.toString(), meta: `${current.length ? Math.round(open.length / current.length * 100) : 0}% del período`, tone: open.length ? "warning" : "positive" },
+        { label: "Resueltos", value: resolved.length.toString(), meta: `${realResolutionPercent}% del período`, tone: "positive" },
+        { label: "Cumplimiento SLA", value: `${slaPercent}%`, meta: `${slaPercent - previousSlaPercent >= 0 ? "+" : ""}${slaPercent - previousSlaPercent} pts vs. anterior`, tone: slaPercent >= 90 ? "positive" : "critical" },
+        { label: "Tiempo promedio", value: `${averageDuration(current)} min`, meta: "gestión del período", tone: "neutral" },
+        { label: "Escalados", value: escalated.length.toString(), meta: `${current.length ? Math.round(escalated.length / current.length * 100) : 0}% del período`, tone: escalated.length ? "warning" : "positive" },
+      ]).map(kpi => <KpiCard key={kpi.label} kpi={kpi} />)}
     </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "1.35fr .9fr .9fr", gap: 8 }}>
