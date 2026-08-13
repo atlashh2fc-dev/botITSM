@@ -57,7 +57,12 @@ export async function POST(request: Request) {
   const emailInMessage = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0];
   const knownEmail = (body.userEmail ?? emailInMessage ?? sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
   const ticketQueryIntent = isTicketQueryMessage(userMessage);
-  const wantsTicketCreation = !ticketQueryIntent && isTicketCreationMessage(userMessage);
+  // A declared broken screen plus a replacement request is conclusive
+  // hardware damage, not a troubleshooting conversation. Handle it before
+  // the RAG/LLM layer so the user never gets bounced between monitor, cable,
+  // mouse or display playbooks after already stating the required action.
+  const physicalDisplayReplacement = isPhysicalDisplayReplacementRequest(userMessage, sessionContextForEngine);
+  const wantsTicketCreation = !ticketQueryIntent && (isTicketCreationMessage(userMessage) || physicalDisplayReplacement);
 
   if (knownEmail && sessionContextForEngine.userMemory?.email !== knownEmail) {
     const memory = await getUserMemory(knownEmail);
@@ -467,6 +472,34 @@ export async function POST(request: Request) {
         suggestedActions: ["Mantener contexto en ticket existente"],
         ticketDraft: existingTicket,
       }
+    : physicalDisplayReplacement
+    ? {
+        ...rawLlmResponse,
+        assistantMessage: [
+          "Entendido: reportas una pantalla dañada y solicitas su reemplazo.",
+          "Registraré el ticket de inmediato para TI Forum. Inventario evaluará la reposición y, si se aprueba, Terreno coordinará el cambio.",
+        ].join("\n\n"),
+        classification: "HARDWARE_ISSUE" as const,
+        priority: "P3" as const,
+        shouldCreateTicket: true,
+        shouldEscalate: true,
+        operationalStatuses: ["Detectando intención", "Preparando ticket"] as const,
+        suggestedActions: ["Daño físico de pantalla declarado", "Derivar a TI Forum"],
+        ticketDraft: {
+          ...rawLlmResponse.ticketDraft,
+          type: "HARDWARE_ISSUE" as const,
+          priority: "P3" as const,
+          category: "Reemplazo de pantalla",
+          description: `El usuario reporta una pantalla rota y solicita reemplazo. Mensaje: ${userMessage}`,
+          affectedSystem: "Pantalla / monitor",
+          affectedAsset: sessionContextForEngine.collectedFields?.activo ?? "Pantalla por identificar",
+          assignedTeam: "TI Forum",
+          nextAction: "Evaluar reposición con Inventario Forum; derivar a Terreno Forum tras aprobación.",
+          estimatedSla: "8 horas hábiles",
+          executedSteps: ["Daño físico de pantalla declarado por el usuario"],
+          status: "escalated" as const,
+        },
+      }
     : shouldHonorTicketCreation
     ? {
         ...rawLlmResponse,
@@ -645,6 +678,29 @@ function formatAssistantMessage(content: string) {
 
 function stripMarkdownBold(content: string) {
   return content.replace(/\*\*([^*]+)\*\*/g, "$1");
+}
+
+function isPhysicalDisplayReplacementRequest(message: string, context: SessionContext): boolean {
+  const normalize = (value: string) => value
+    .toLocaleLowerCase("es-CL")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const current = normalize(message);
+  const history = context.messages
+    .filter((entry) => entry.role === "user")
+    .map((entry) => normalize(entry.content))
+    .join(" ");
+  const material = `${history} ${current}`;
+
+  const mentionsDisplay = /\b(pantalla|monitor|display|lcd)\b/.test(material);
+  const physicalDamage = /\b(roto|rota|quebrado|quebrada|trizado|trizada|rajado|rajada|mancha|manchas|lineas|linea)\b/.test(material);
+  const replacementRequested = /\b(cambiar|cambien|cambio|reemplazar|reemplazo|renovar|nueva pantalla|otra pantalla)\b/.test(material);
+
+  return mentionsDisplay && physicalDamage && replacementRequested;
 }
 
 function buildChannelAwareMessage(userMessage: string, body: ChatRequest) {
