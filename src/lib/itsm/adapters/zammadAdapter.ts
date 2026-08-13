@@ -23,6 +23,7 @@ export const zammadITSMAdapter: ITSMAdapter = {
 
     const draft = input.draft;
     const customerEmail = normalizeEmail(draft.requesterEmail) ?? "omnicanal@geimser.cl";
+    const forumRouting = tenant.id === "forum" ? forumBotRouting(input) : undefined;
 
     const zammadTicket = await createZammadTicket({
       title: buildTitle(input),
@@ -31,9 +32,10 @@ export const zammadITSMAdapter: ITSMAdapter = {
       customerName: draft.requesterName,
       priority: draft.priority,
       status: draft.status,
-      // Forum se integra con su propia cola configurada. Los grupos funcionales
-      // de Geimser no necesariamente existen en el ITSM Forum.
-      group: tenant.id === "forum" ? tenant.zammadGroup : resolverGroupByIntent(draft.type),
+      // Forum deriva hardware directamente a TI. El resto conserva la cola
+      // configurada para el tenant, sin mezclar grupos del ITSM Geimser.
+      group: forumRouting?.group ?? (tenant.id === "forum" ? tenant.zammadGroup : resolverGroupByIntent(draft.type)),
+      tags: forumRouting?.tags,
     });
 
     const externalUrl = zammadTicketUrl(zammadTicket.id);
@@ -61,6 +63,31 @@ export const zammadITSMAdapter: ITSMAdapter = {
     };
   },
 };
+
+/**
+ * Clasificación mínima y determinística para Forum. Las etiquetas quedan
+ * almacenadas en Zammad, facilitan reportes y no dependen de Core Workflows.
+ */
+function forumBotRouting(input: ITSMCreateTicketInput): { group?: string; tags: string[] } {
+  const draft = input.draft;
+  const material = [
+    draft.category,
+    draft.description,
+    draft.affectedSystem,
+    draft.affectedAsset,
+    ...input.transcript.filter((message) => message.role === "user").map((message) => message.content),
+  ].filter(Boolean).join(" ").toLocaleLowerCase("es-CL");
+
+  const tags = ["canal_bot"];
+  if (draft.type !== "HARDWARE_ISSUE") return { tags };
+
+  tags.push("hardware");
+  if (/pantalla|monitor|displayport|display port|hdmi|vga/.test(material)) {
+    tags.push("pantalla");
+  }
+
+  return { group: "TI Forum", tags };
+}
 
 function normalizeEmail(email?: string): string | undefined {
   const value = email?.trim().toLowerCase();

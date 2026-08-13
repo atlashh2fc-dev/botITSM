@@ -196,6 +196,8 @@ export type CreateZammadTicketInput = {
   status?: "draft" | "created" | "resolved" | "escalated";
   /** Grupo resolutor real de Zammad (debe existir ya creado ahí). Si no se informa, cae a ZAMMAD_GROUP/"Users". */
   group?: string;
+  /** Etiquetas técnicas para automatización y trazabilidad dentro de Zammad. */
+  tags?: string[];
 };
 
 /** Caso resuelto en línea por el bot → ticket cerrado (4). Cualquier otro caso (escalado a grupo resolutor) → abierto (2). */
@@ -214,6 +216,7 @@ export async function createZammadTicket(input: CreateZammadTicketInput, tenant?
       customer_id: customer.id,
       priority_id: mapPriorityToZammad(input.priority),
       state_id: mapStatusToZammadState(input.status),
+      ...(input.tags?.length ? { tags: [...new Set(input.tags)] } : {}),
       article: {
         subject: input.title.slice(0, 200),
         body: input.body,
