@@ -208,7 +208,11 @@ export function mapStatusToZammadState(status?: string): number {
 export async function createZammadTicket(input: CreateZammadTicketInput, tenant?: Tenant): Promise<ZammadTicket> {
   const customer = await ensureCustomer(input.customerEmail, input.customerName, tenant);
 
-  return zammadFetch<ZammadTicket>(tenant, "/tickets", {
+  // Zammad 7 does not accept `tags` in the ticket creation payload. Create
+  // first, then attach every tag through its dedicated endpoint. This keeps
+  // the ticket creation atomic from the bot's perspective while preserving
+  // the tags used by Forum's routing triggers.
+  const ticket = await zammadFetch<ZammadTicket>(tenant, "/tickets", {
     method: "POST",
     body: JSON.stringify({
       title: input.title.slice(0, 200),
@@ -216,7 +220,6 @@ export async function createZammadTicket(input: CreateZammadTicketInput, tenant?
       customer_id: customer.id,
       priority_id: mapPriorityToZammad(input.priority),
       state_id: mapStatusToZammadState(input.status),
-      ...(input.tags?.length ? { tags: [...new Set(input.tags)] } : {}),
       article: {
         subject: input.title.slice(0, 200),
         body: input.body,
@@ -227,6 +230,16 @@ export async function createZammadTicket(input: CreateZammadTicketInput, tenant?
       },
     }),
   });
+
+  const tags = [...new Set((input.tags ?? []).map((tag) => tag.trim()).filter(Boolean))];
+  for (const tag of tags) {
+    await zammadFetch<true>(tenant, "/tags/add", {
+      method: "POST",
+      body: JSON.stringify({ item: tag, object: "Ticket", o_id: ticket.id }),
+    });
+  }
+
+  return ticket;
 }
 
 export type CreateZammadPhoneTicketInput = {
