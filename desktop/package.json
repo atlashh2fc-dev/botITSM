@@ -1,6 +1,6 @@
 {
   "name": "asistente-itsm-forum-desktop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Cliente de escritorio del Asistente ITSM Forum.",
   "author": "Geimser",
   "main": "main.cjs",
