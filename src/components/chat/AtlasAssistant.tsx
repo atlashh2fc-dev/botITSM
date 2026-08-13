@@ -422,7 +422,11 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   function openITSMLogin() {
     const url = new URL(tenant.botLoginUrl);
     url.searchParams.set("return_origin", window.location.origin);
-    setStatus("esperando login ITSM...");
+    const changingAccount = identityStatus === "authenticated";
+    if (changingAccount) {
+      url.searchParams.set("switch_account", "1");
+    }
+    setStatus(changingAccount ? "cambiando cuenta ITSM..." : "esperando login ITSM...");
     window.open(url.toString(), `${tenant.id}-itsm-login`, "popup=yes,width=520,height=640");
   }
 
