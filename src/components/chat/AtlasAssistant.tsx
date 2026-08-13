@@ -429,7 +429,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     }
     setStatus(changingAccount ? "cambiando cuenta ITSM..." : "esperando login ITSM...");
     window.open(url.toString(), `${tenant.id}-itsm-login`, "popup=yes,width=520,height=640");
-    startITSMIdentityPolling();
+    startITSMIdentityPolling(changingAccount ? selectedUserEmail : "");
   }
 
   function stopITSMIdentityPolling() {
@@ -438,9 +438,10 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     itsmIdentityPollRef.current = null;
   }
 
-  function startITSMIdentityPolling() {
+  function startITSMIdentityPolling(previousIdentityEmail = "") {
     stopITSMIdentityPolling();
     let attempts = 0;
+    const previousEmail = normalizeEmail(previousIdentityEmail);
 
     const refreshIdentity = async () => {
       attempts += 1;
@@ -450,7 +451,9 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
           cache: "no-store",
         });
         const payload = await response.json() as { authenticated?: boolean; user?: ITSMIdentity };
-        if (response.ok && payload.authenticated && payload.user?.email) {
+        const incomingEmail = normalizeEmail(payload.user?.email || "");
+        const isPreviousIdentity = Boolean(previousEmail && incomingEmail === previousEmail);
+        if (response.ok && payload.authenticated && incomingEmail && !isPreviousIdentity) {
           stopITSMIdentityPolling();
           applyITSMIdentity(payload.user);
           return;
