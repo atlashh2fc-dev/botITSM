@@ -524,6 +524,40 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     };
   }, [tenant.botLoginUrl]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const handoff = url.searchParams.get("itsm_handoff");
+    if (!handoff) return;
+
+    // Remove the credential from the visible URL before requesting it. The
+    // ITSM consumes it exactly once and keeps it valid for only five minutes.
+    url.searchParams.delete("itsm_handoff");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+
+    const consumeHandoff = async () => {
+      try {
+        const response = await fetch(
+          `${tenant.itsmBaseUrl}/geimser/bot/handoff?token=${encodeURIComponent(handoff)}`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity };
+        if (!response.ok || !payload.authenticated || !payload.user?.email) {
+          throw new Error("El cambio de cuenta expiró antes de confirmar la sesión.");
+        }
+
+        applyITSMIdentity(payload.user);
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: "geimser:itsm-identity", ...payload }, window.location.origin);
+          window.setTimeout(() => window.close(), 180);
+        }
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "No se pudo actualizar la cuenta ITSM.");
+      }
+    };
+
+    void consumeHandoff();
+  }, [tenant.itsmBaseUrl]);
+
   // Se restablece todo limpiamente
   function startNewChat() {
     if (isLoading) return;
