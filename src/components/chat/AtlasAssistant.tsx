@@ -254,6 +254,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const itsmIdentityPollRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (messages.length <= 1 && !ticket && !isLoading) return;
@@ -428,6 +429,42 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     }
     setStatus(changingAccount ? "cambiando cuenta ITSM..." : "esperando login ITSM...");
     window.open(url.toString(), `${tenant.id}-itsm-login`, "popup=yes,width=520,height=640");
+    startITSMIdentityPolling();
+  }
+
+  function stopITSMIdentityPolling() {
+    if (itsmIdentityPollRef.current === null) return;
+    window.clearInterval(itsmIdentityPollRef.current);
+    itsmIdentityPollRef.current = null;
+  }
+
+  function startITSMIdentityPolling() {
+    stopITSMIdentityPolling();
+    let attempts = 0;
+
+    const refreshIdentity = async () => {
+      attempts += 1;
+      try {
+        const response = await fetch(`${tenant.itsmBaseUrl}/geimser/bot/session`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = await response.json() as { authenticated?: boolean; user?: ITSMIdentity };
+        if (response.ok && payload.authenticated && payload.user?.email) {
+          stopITSMIdentityPolling();
+          applyITSMIdentity(payload.user);
+          return;
+        }
+      } catch {
+        // The popup callback is primary; polling supports browsers that do
+        // not deliver its postMessage event back to the assistant window.
+      }
+
+      if (attempts >= 80) stopITSMIdentityPolling();
+    };
+
+    void refreshIdentity();
+    itsmIdentityPollRef.current = window.setInterval(() => void refreshIdentity(), 1500);
   }
 
   function applyITSMIdentity(identity: ITSMIdentity) {
@@ -473,11 +510,15 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
       if (!event.data || event.data.type !== "geimser:itsm-identity") return;
       if (!event.data.authenticated || !event.data.user?.email) return;
 
+      stopITSMIdentityPolling();
       applyITSMIdentity(event.data.user as ITSMIdentity);
     }
 
     window.addEventListener("message", handleITSMIdentityMessage);
-    return () => window.removeEventListener("message", handleITSMIdentityMessage);
+    return () => {
+      window.removeEventListener("message", handleITSMIdentityMessage);
+      stopITSMIdentityPolling();
+    };
   }, [tenant.botLoginUrl]);
 
   // Se restablece todo limpiamente
