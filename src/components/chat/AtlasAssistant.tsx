@@ -453,7 +453,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
         const payload = await response.json() as { authenticated?: boolean; user?: ITSMIdentity };
         const incomingEmail = normalizeEmail(payload.user?.email || "");
         const isPreviousIdentity = Boolean(previousEmail && incomingEmail === previousEmail);
-        if (response.ok && payload.authenticated && incomingEmail && !isPreviousIdentity) {
+        if (response.ok && payload.authenticated && payload.user && incomingEmail && !isPreviousIdentity) {
           stopITSMIdentityPolling();
           applyITSMIdentity(payload.user);
           return;
