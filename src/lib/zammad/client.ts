@@ -97,6 +97,13 @@ const STATE_LABELS: Record<number, string> = {
   4: "cerrado",
   5: "fusionado",
   6: "pendiente de cierre",
+  7: "en terreno",
+  8: "pendiente de repuesto",
+  9: "autorizado para cambio",
+  10: "en ejecución",
+  11: "en validación",
+  12: "cerrado",
+  13: "cancelado",
 };
 
 const PRIORITY_LABELS: Record<number, string> = {
