@@ -505,8 +505,11 @@ function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): 
   const intro = customHeader
     ? customHeader.replace(/:$/, ".")
     : "Encontré este ticket a tu nombre.";
+  const subStateText = ticket.expanded?.geimser_sub_state ? formatSubState(ticket.expanded.geimser_sub_state) : '';
+  const stateDescription = subStateText ? `${ticket.state} (${subStateText})` : ticket.state;
+
   const base = [
-    `${intro} Es el #${ticket.number}, creado el ${createdDate}, y actualmente está ${ticket.state}.`,
+    `${intro} Es el #${ticket.number}, creado el ${createdDate}, y actualmente está ${stateDescription}.`,
     `Prioridad: ${ticket.priority}.`,
   ];
 
@@ -777,4 +780,14 @@ function cleanOperationalSentence(value: string): string {
     .replace(/[,\s]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function formatSubState(subState: string): string {
+  switch (subState) {
+    case 'pendiente_aprobacion_it': return 'Pendiente de Aprobación por IT';
+    case 'pendiente_reserva_bodega': return 'Aprobado por IT y Pendiente de Bodega';
+    case 'en_preparacion_terreno': return 'En preparación para instalación en Terreno';
+    case 'cancelado': return 'Cancelado';
+    default: return subState;
+  }
 }

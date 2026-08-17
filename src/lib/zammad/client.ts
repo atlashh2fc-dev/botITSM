@@ -45,6 +45,8 @@ export type ZammadExpandedTicket = ZammadTicket & {
   owner?: string;
   customer?: string;
   organization?: string | null;
+  geimser_sub_state?: string | null;
+  geimser_diagnosis?: string | null;
 };
 
 export type ZammadTicketSummary = {
