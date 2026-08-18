@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
     const prefix = `TELEPHONY_${tenant.id.toUpperCase()}_SIP_`;
     const extension = process.env[`${prefix}EXTENSION`]?.trim() || "6020";
     const password = process.env[`${prefix}PASSWORD`]?.trim();
-    const domain = process.env[`${prefix}DOMAIN`]?.trim() || "ws-atlas.geimser.cl";
-    const webSocketServer = process.env[`${prefix}WSS`]?.trim() || "wss://ws-atlas.geimser.cl:8089/ws";
+    const domain = process.env[`${prefix}DOMAIN`]?.trim() || "ws.demoitsm.cl";
+    const webSocketServer = process.env[`${prefix}WSS`]?.trim() || "wss://ws.demoitsm.cl:8089/ws";
 
     if (!password) throw new PhoneAgentConfigurationError("La credencial SIP del agente no está configurada.");
 

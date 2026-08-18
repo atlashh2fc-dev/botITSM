@@ -16,7 +16,7 @@ create table if not exists public.itsm_tenants (
 insert into public.itsm_tenants (id, name, primary_host)
 values
   ('geimser', 'Geimser', 'iabot.geimser.cl'),
-  ('forum', 'Forum', 'iabot.atlasitsm.geimser.cl')
+  ('forum', 'Forum', 'iabot.demoitsm.cl')
 on conflict (id) do update set name = excluded.name, primary_host = excluded.primary_host;
 
 do $$

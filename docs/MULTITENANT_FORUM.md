@@ -2,7 +2,7 @@
 
 El tenant se determina exclusivamente por el hostname recibido por el servidor.
 
-- Geimser: iabot.geimser.cl -> https://itsm.geimser.cl
+- Geimser: iabot.geimser.cl -> https://mda.demoitsm.cl
 - Forum: iabot.mda.demoitsm.cl -> https://mda.demoitsm.cl
 
 ## Variables de Vercel
@@ -11,7 +11,7 @@ Configurar en Production, sin prefijo NEXT_PUBLIC_:
 
     TENANT_GEIMSER_HOSTS=iabot.geimser.cl
     TENANT_FORUM_HOSTS=iabot.mda.demoitsm.cl
-    ZAMMAD_GEIMSER_BASE_URL=https://itsm.geimser.cl
+    ZAMMAD_GEIMSER_BASE_URL=https://mda.demoitsm.cl
     ZAMMAD_GEIMSER_API_TOKEN=<token-geimser>
     ZAMMAD_GEIMSER_GROUP=Users
     ZAMMAD_FORUM_BASE_URL=https://mda.demoitsm.cl

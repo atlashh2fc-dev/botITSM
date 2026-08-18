@@ -7,7 +7,7 @@ Fecha: 2026-06-12
 | Pieza | Archivo | Función |
 |---|---|---|
 | Cliente Zammad | `src/lib/zammad/client.ts` | REST API: buscar/crear customers, crear tickets, buscar por cliente o número |
-| Adapter live | `src/lib/itsm/adapters/zammadAdapter.ts` | Crea el ticket REAL en itsm.geimser.cl con transcript completo + copia local en Supabase (`ZAM-<número>`) |
+| Adapter live | `src/lib/itsm/adapters/zammadAdapter.ts` | Crea el ticket REAL en mda.demoitsm.cl con transcript completo + copia local en Supabase (`ZAM-<número>`) |
 | Gateway | `src/lib/itsm/itsmGateway.ts` | Provider `zammad` registrado; si Zammad falla degrada a demo (no se pierde la conversación) |
 | Consulta de tickets | `src/lib/itsm/ticketLookup.ts` | "¿cómo van mis tickets?", "estado del ticket 87008" → consulta Zammad y responde en el chat |
 | Memoria relacional | `src/services/memory.repository.ts` + tabla `bot_user_memory` | Perfil, área, tono y resumen episódico por usuario |
@@ -38,17 +38,17 @@ SUPABASE_SERVICE_ROLE_KEY=<dashboard Supabase → Settings → API>
 # LLM: si ya tienes MERCURY_API_KEY configurada en Vercel, no necesitas nada más.
 # ANTHROPIC_API_KEY es opcional (si se define, tiene prioridad sobre Mercury).
 ITSM_PROVIDER=zammad
-ZAMMAD_BASE_URL=https://itsm.geimser.cl
+ZAMMAD_BASE_URL=https://mda.demoitsm.cl
 ZAMMAD_API_TOKEN=<token "BotITSM-Omnicanal", ver .env.local>
 ZAMMAD_GROUP=Users
 ```
 
-El token Zammad se llama **BotITSM-Omnicanal** (permisos `ticket.agent` + `admin.user`); se puede revocar/regenerar en itsm.geimser.cl → Perfil → Token de acceso.
+El token Zammad se llama **BotITSM-Omnicanal** (permisos `ticket.agent` + `admin.user`); se puede revocar/regenerar en mda.demoitsm.cl → Perfil → Token de acceso.
 
 ## Prueba realizada
 
 - Customer `hugo.prueba@geimser.cl` (id 56) creado vía API.
-- Ticket **#87008** creado por el flujo del bot y visible en itsm.geimser.cl (estado nuevo, prioridad 2 normal).
+- Ticket **#87008** creado por el flujo del bot y visible en mda.demoitsm.cl (estado nuevo, prioridad 2 normal).
 - Búsqueda por cliente y por número verificadas.
 - Tabla `bot_user_memory` operativa en supabase-crimson-village.
 

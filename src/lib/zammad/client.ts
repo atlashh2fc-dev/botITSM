@@ -6,7 +6,7 @@
  *  - admin.user   : buscar/crear usuarios customer (reconocimiento omnicanal)
  *
  * Env:
- *  ZAMMAD_BASE_URL  ej. https://itsm.geimser.cl
+ *  ZAMMAD_BASE_URL  ej. https://mda.demoitsm.cl
  *  ZAMMAD_API_TOKEN token personal
  *  ZAMMAD_GROUP     grupo destino de tickets (default: Users)
  */

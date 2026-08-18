@@ -33,7 +33,7 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
     name: "Forum",
     // Public, non-secret endpoint. Keep the environment override for staged
     // migrations, but provide the production Forum URL as a safe default.
-    zammadBaseUrl: process.env.ZAMMAD_FORUM_BASE_URL ?? "https://mdatoshiba.geimser.cl",
+    zammadBaseUrl: process.env.ZAMMAD_FORUM_BASE_URL ?? "https://mda.demoitsm.cl",
     zammadApiToken: process.env.ZAMMAD_FORUM_API_TOKEN,
     zammadGroup: process.env.ZAMMAD_FORUM_GROUP || "Users",
     zammadCtiUrl: process.env.ZAMMAD_FORUM_CTI_URL,
@@ -44,7 +44,7 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
 
 const DEFAULT_HOSTS: Record<TenantId, string[]> = {
   geimser: ["iabot.geimser.cl"],
-  forum: ["iabot.atlasitsm.geimser.cl"],
+  forum: ["iabot.mda.demoitsm.cl"],
 };
 
 function hostsFor(tenant: TenantId) {

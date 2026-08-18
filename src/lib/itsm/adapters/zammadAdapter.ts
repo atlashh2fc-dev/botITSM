@@ -1,7 +1,7 @@
 /**
  * zammadAdapter.ts — Adapter LIVE contra Zammad (ITSM Geimser).
  *
- * Crea el ticket real en itsm.geimser.cl y guarda una copia local en Supabase
+ * Crea el ticket real en mda.demoitsm.cl y guarda una copia local en Supabase
  * (tabla tickets) con external_id / external_url para que el portal y el
  * dashboard reflejen lo mismo que el ITSM.
  */

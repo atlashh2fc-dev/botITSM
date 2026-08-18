@@ -13,20 +13,20 @@ const CLIENT_TENANTS: Record<TenantId, ClientTenant> = {
   geimser: {
     id: "geimser",
     name: "Geimser",
-    itsmBaseUrl: "https://itsm.geimser.cl",
-    botLoginUrl: "https://itsm.geimser.cl/geimser/bot/login",
+    itsmBaseUrl: "https://mda.demoitsm.cl",
+    botLoginUrl: "https://mda.demoitsm.cl/geimser/bot/login",
   },
   forum: {
     id: "forum",
     name: "Forum",
-    itsmBaseUrl: "https://mdatoshiba.geimser.cl",
-    botLoginUrl: "https://mdatoshiba.geimser.cl/geimser/bot/login",
+    itsmBaseUrl: "https://mda.demoitsm.cl",
+    botLoginUrl: "https://mda.demoitsm.cl/geimser/bot/login",
   },
 };
 
 const HOST_TENANTS: Record<string, TenantId> = {
   "iabot.geimser.cl": "geimser",
-  "iabot.atlasitsm.geimser.cl": "forum",
+  "iabot.mda.demoitsm.cl": "forum",
 };
 
 /**
