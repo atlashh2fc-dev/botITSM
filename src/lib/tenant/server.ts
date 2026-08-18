@@ -44,7 +44,7 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
 
 const DEFAULT_HOSTS: Record<TenantId, string[]> = {
   geimser: ["iabot.geimser.cl"],
-  forum: ["iabot.mda.demoitsm.cl"],
+  forum: ["iabot.demoitsm.cl"],
 };
 
 function hostsFor(tenant: TenantId) {

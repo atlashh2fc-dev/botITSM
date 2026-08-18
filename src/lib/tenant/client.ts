@@ -26,7 +26,7 @@ const CLIENT_TENANTS: Record<TenantId, ClientTenant> = {
 
 const HOST_TENANTS: Record<string, TenantId> = {
   "iabot.geimser.cl": "geimser",
-  "iabot.mda.demoitsm.cl": "forum",
+  "iabot.demoitsm.cl": "forum",
 };
 
 /**

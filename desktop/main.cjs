@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron main process is CommonJS. */
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require("electron");
 
-const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.mda.demoitsm.cl/asistente";
+const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.demoitsm.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
-  "https://iabot.mda.demoitsm.cl",
+  "https://iabot.demoitsm.cl",
   "https://mda.demoitsm.cl",
   "https://mda.demoitsm.cl",
 ]);

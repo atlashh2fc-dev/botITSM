@@ -3,14 +3,14 @@
 El tenant se determina exclusivamente por el hostname recibido por el servidor.
 
 - Geimser: iabot.geimser.cl -> https://mda.demoitsm.cl
-- Forum: iabot.mda.demoitsm.cl -> https://mda.demoitsm.cl
+- Forum: iabot.demoitsm.cl -> https://mda.demoitsm.cl
 
 ## Variables de Vercel
 
 Configurar en Production, sin prefijo NEXT_PUBLIC_:
 
     TENANT_GEIMSER_HOSTS=iabot.geimser.cl
-    TENANT_FORUM_HOSTS=iabot.mda.demoitsm.cl
+    TENANT_FORUM_HOSTS=iabot.demoitsm.cl
     ZAMMAD_GEIMSER_BASE_URL=https://mda.demoitsm.cl
     ZAMMAD_GEIMSER_API_TOKEN=<token-geimser>
     ZAMMAD_GEIMSER_GROUP=Users
@@ -26,7 +26,7 @@ LLM como secretos de servidor.
 
 1. Respaldar Supabase y ejecutar 20260804000000_multitenancy.sql.
 2. Desplegar el código en una rama o preview de Vercel con las variables anteriores.
-3. Añadir iabot.mda.demoitsm.cl al proyecto Vercel.
+3. Añadir iabot.demoitsm.cl al proyecto Vercel.
 4. En el DNS cPanel de geimser.cl, crear el CNAME que Vercel indique para
    iabot.atlasitsm.
 5. Verificar creación y consulta de un ticket Forum y confirmar que no aparece en
