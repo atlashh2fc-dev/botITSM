@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron main process is CommonJS. */
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require("electron");
 
-const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.atlasitsm.geimser.cl/asistente";
+const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.mda.demoitsm.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
-  "https://iabot.atlasitsm.geimser.cl",
-  "https://mdatoshiba.geimser.cl",
-  "https://atlasitsm.geimser.cl",
+  "https://iabot.mda.demoitsm.cl",
+  "https://mda.demoitsm.cl",
+  "https://mda.demoitsm.cl",
 ]);
 const COLLAPSED_SIZE = { width: 78, height: 78 };
 // Keep the installed assistant aligned with the compact support window used by

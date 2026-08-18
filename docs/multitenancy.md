@@ -5,7 +5,7 @@ El tenant se resuelve exclusivamente desde el hostname de cada solicitud:
 | Dominio | Tenant |
 | --- | --- |
 | `iabot.geimser.cl` | `geimser` |
-| `iabot.atlasitsm.geimser.cl` | `forum` |
+| `iabot.mda.demoitsm.cl` | `forum` |
 
 Nunca se acepta un tenant desde un query string, cookie o cuerpo de la petición.
 
