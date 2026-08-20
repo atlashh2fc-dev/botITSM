@@ -506,7 +506,9 @@ function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): 
     ? customHeader.replace(/:$/, ".")
     : "Encontré este ticket a tu nombre.";
   const subStateText = ticket.expanded?.geimser_sub_state ? formatSubState(ticket.expanded.geimser_sub_state) : '';
-  const stateDescription = subStateText ? `${ticket.state} (${subStateText})` : ticket.state;
+  const groupStage = formatGroupStage(ticket.expanded?.group);
+  const operationalStage = subStateText || groupStage;
+  const stateDescription = operationalStage ? `${ticket.state} (${operationalStage})` : ticket.state;
 
   const base = [
     `${intro} Es el #${ticket.number}, creado el ${createdDate}, y actualmente está ${stateDescription}.`,
@@ -529,6 +531,14 @@ function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): 
     message: base.join("\n\n"),
     requestedFields: operationalNotes.requestedFields,
   };
+}
+
+function formatGroupStage(group?: string): string {
+  const value = normalizeText(group ?? '');
+  if (value.includes('inventario forum')) return 'en revisión de Inventario Forum';
+  if (value.includes('terreno forum')) return 'en coordinación con Terreno Forum';
+  if (value.includes('ti forum')) return 'en revisión de TI Forum';
+  return '';
 }
 
 export function extractTicketQueryTopics(message: string, fallbackTopics: string[] = []): string[] {
