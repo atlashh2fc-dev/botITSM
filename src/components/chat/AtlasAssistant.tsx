@@ -244,6 +244,8 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   const [status, setStatus] = useState("en línea");
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [ticketResults, setTicketResults] = useState<TicketLookupSummary[]>([]);
+  const [quickTicketDescription, setQuickTicketDescription] = useState("");
+  const [welcomeName, setWelcomeName] = useState(() => selectedUserName || "Matias");
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [closed, setClosed] = useState(desktop || !standalone);
@@ -418,6 +420,32 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void sendMessage(input);
+  }
+
+  function handleQuickTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const description = quickTicketDescription.trim();
+    if (!description || isLoading) return;
+
+    const name = welcomeName.trim();
+    if (name) setSelectedUserName(name);
+
+    const directTicketContext: SessionContext = {
+      ...(context ?? {}),
+      sessionId: context?.sessionId ?? `session-${crypto.randomUUID()}`,
+      collectedFields: {
+        ...context?.collectedFields,
+        nombre: name || selectedUserName || undefined,
+      },
+      messages: context?.messages ?? [],
+      stepsExecuted: context?.stepsExecuted ?? [],
+    };
+
+    // Esta es la segunda vía de creación del portal: no obliga al usuario a
+    // recorrer una categoría cuando ya sabe qué debe solicitar. El texto
+    // explícito activa la creación directa en el mismo flujo seguro del bot.
+    setQuickTicketDescription("");
+    void sendMessage(`Quiero crear un ticket. Solicitud: ${description}`, null, directTicketContext);
   }
 
   function openITSMLogin() {
@@ -856,6 +884,52 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
                       />
                     ))}
                   </div>
+                  <form
+                    onSubmit={handleQuickTicket}
+                    className="mt-3 rounded-xl p-3"
+                    style={{
+                      border: "1px solid rgba(85, 244, 255, 0.22)",
+                      background: "linear-gradient(135deg, rgba(0, 68, 129, 0.18), rgba(15, 23, 42, 0.52))",
+                    }}
+                    aria-label="Crear ticket directo"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold" style={{ color: "#F8FAFC" }}>Crear ticket directo</span>
+                      <span className="text-[10px]" style={{ color: "rgba(226, 232, 240, 0.58)" }}>Opción rápida</span>
+                    </div>
+                    <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: "rgba(226, 232, 240, 0.65)" }}>
+                      Nombre para la bienvenida
+                      <input
+                        value={welcomeName}
+                        onChange={(event) => setWelcomeName(event.target.value)}
+                        disabled={isLoading}
+                        placeholder="Ej.: Matias"
+                        className="mt-1 h-8 w-full rounded-md px-2.5 text-xs outline-none"
+                        style={{ border: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(15, 23, 42, 0.65)", color: "#FFFFFF" }}
+                      />
+                    </label>
+                    <label className="block text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: "rgba(226, 232, 240, 0.65)" }}>
+                      Describe la solicitud
+                      <div className="mt-1 flex gap-2">
+                        <input
+                          value={quickTicketDescription}
+                          onChange={(event) => setQuickTicketDescription(event.target.value)}
+                          disabled={!canUseChat || isLoading}
+                          placeholder={!canUseChat ? "Inicia sesión con ITSM para continuar" : "Ej.: Solicito cambio de pantalla"}
+                          className="h-9 min-w-0 flex-1 rounded-md px-2.5 text-xs outline-none disabled:opacity-45"
+                          style={{ border: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(15, 23, 42, 0.65)", color: "#FFFFFF" }}
+                        />
+                        <button
+                          type="submit"
+                          disabled={!canUseChat || !quickTicketDescription.trim() || isLoading}
+                          className="shrink-0 rounded-md px-3 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                          style={{ background: "#55F4FF", color: "#020617" }}
+                        >
+                          Crear ticket
+                        </button>
+                      </div>
+                    </label>
+                  </form>
                 </div>
               ) : null}
 
