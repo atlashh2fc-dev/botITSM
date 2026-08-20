@@ -9,6 +9,8 @@ export type Tenant = {
   zammadBaseUrl?: string;
   zammadApiToken?: string;
   zammadGroup: string;
+  zammadGroups: string[];
+  assetGroups: string[];
   zammadCtiUrl?: string;
   telephonyFallbackEmail?: string;
   cmdbToken?: string;
@@ -24,6 +26,8 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
     zammadBaseUrl: process.env.ZAMMAD_GEIMSER_BASE_URL ?? process.env.ZAMMAD_BASE_URL,
     zammadApiToken: process.env.ZAMMAD_GEIMSER_API_TOKEN ?? process.env.ZAMMAD_API_TOKEN,
     zammadGroup: process.env.ZAMMAD_GEIMSER_GROUP ?? process.env.ZAMMAD_GROUP ?? "Users",
+    zammadGroups: configuredGroups("GEIMSER", process.env.ZAMMAD_GEIMSER_GROUP ?? process.env.ZAMMAD_GROUP ?? "Users"),
+    assetGroups: configuredAssetGroups("GEIMSER"),
     zammadCtiUrl: process.env.ZAMMAD_GEIMSER_CTI_URL,
     telephonyFallbackEmail: process.env.TELEPHONY_GEIMSER_FALLBACK_EMAIL,
     cmdbToken: process.env.GEIMSER_CMDB_TOKEN,
@@ -35,12 +39,38 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
     // migrations, but provide the production Forum URL as a safe default.
     zammadBaseUrl: process.env.ZAMMAD_FORUM_BASE_URL ?? "https://mda.demoitsm.cl",
     zammadApiToken: process.env.ZAMMAD_FORUM_API_TOKEN,
-    zammadGroup: process.env.ZAMMAD_FORUM_GROUP || "Users",
+    zammadGroup: process.env.ZAMMAD_FORUM_GROUP || "TI Forum",
+    zammadGroups: configuredGroups("FORUM", process.env.ZAMMAD_FORUM_GROUP || "TI Forum"),
+    assetGroups: configuredAssetGroups("FORUM"),
     zammadCtiUrl: process.env.ZAMMAD_FORUM_CTI_URL,
     telephonyFallbackEmail: process.env.TELEPHONY_FORUM_FALLBACK_EMAIL,
     cmdbToken: process.env.FORUM_CMDB_TOKEN,
   },
 };
+
+function commaSeparated(value?: string) {
+  return Array.from(new Set((value ?? "").split(",").map(item => item.trim()).filter(Boolean)));
+}
+
+function configuredGroups(prefix: "GEIMSER" | "FORUM", fallback: string) {
+  const groups = commaSeparated(process.env[`ZAMMAD_${prefix}_GROUPS`]);
+  return groups.length ? groups : [fallback];
+}
+
+function configuredAssetGroups(prefix: "GEIMSER" | "FORUM") {
+  return commaSeparated(process.env[`ZAMMAD_${prefix}_ASSET_GROUPS`]);
+}
+
+export function tenantAllowsZammadGroup(tenant: Tenant, group?: string) {
+  const normalized = group?.trim().toLocaleLowerCase("es-CL");
+  return Boolean(normalized && tenant.zammadGroups.some(allowed => allowed.toLocaleLowerCase("es-CL") === normalized));
+}
+
+export function tenantAllowsAssetGroup(tenant: Tenant, group?: string) {
+  if (tenant.assetGroups.length === 0) return false;
+  const normalized = group?.trim().toLocaleLowerCase("es-CL");
+  return Boolean(normalized && tenant.assetGroups.some(allowed => allowed.toLocaleLowerCase("es-CL") === normalized));
+}
 
 const DEFAULT_HOSTS: Record<TenantId, string[]> = {
   geimser: ["iabot.geimser.cl"],

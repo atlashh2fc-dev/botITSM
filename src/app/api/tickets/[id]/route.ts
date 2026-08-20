@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getTicketFullDetail } from "@/services/tickets.repository";
 import { withTenant } from "@/lib/tenant/context";
+import { withApiAuth } from "@/lib/auth/apiAuth";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
 export async function GET(request: Request, context: RouteContext) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
   const { id } = await context.params;
   const ticket = await getTicketFullDetail(decodeURIComponent(id));
 
@@ -16,5 +17,5 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   return NextResponse.json({ ticket });
-  });
+  }));
 }

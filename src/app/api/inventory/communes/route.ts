@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentTenant, withTenant } from "@/lib/tenant/context";
+import { withApiAuth } from "@/lib/auth/apiAuth";
 
 function configuration() {
   const tenant = currentTenant();
@@ -19,7 +20,7 @@ function headers(token: string) {
 }
 
 export async function GET(request: NextRequest) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
     const config = configuration();
     if (!config) return NextResponse.json({ error: "El mapa territorial no está configurado para este tenant." }, { status: 503 });
 
@@ -33,11 +34,11 @@ export async function GET(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: "No fue posible consultar el mapa territorial." }, { status: 502 });
     }
-  });
+  }));
 }
 
 export async function POST(request: NextRequest) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
     const config = configuration();
     if (!config) return NextResponse.json({ error: "El mapa territorial no está configurado para este tenant." }, { status: 503 });
 
@@ -56,11 +57,11 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: "No fue posible guardar la comuna del equipo." }, { status: 502 });
     }
-  });
+  }));
 }
 
 export async function DELETE(request: NextRequest) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
     const config = configuration();
     if (!config) return NextResponse.json({ error: "El mapa territorial no está configurado para este tenant." }, { status: 503 });
 
@@ -79,5 +80,5 @@ export async function DELETE(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: "No fue posible quitar la comuna del equipo." }, { status: 502 });
     }
-  });
+  }));
 }

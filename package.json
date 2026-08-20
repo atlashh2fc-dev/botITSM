@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
     "desktop:dev": "electron .",
     "desktop:build": "electron-builder --win nsis"
   },
@@ -35,6 +37,7 @@
     "eslint": "latest",
     "eslint-config-next": "latest",
     "tailwindcss": "latest",
+    "tsx": "4.20.5",
     "typescript": "latest"
   },
   "build": {
@@ -45,7 +48,10 @@
       "app": "desktop",
       "output": "installer"
     },
-    "files": ["**/*", "!node_modules/**/*"],
+    "files": [
+      "**/*",
+      "!node_modules/**/*"
+    ],
     "win": {
       "target": [
         "nsis"

@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { knowledgeBase } from "@/data/mock/knowledgeBase";
+import { withApiAuth } from "@/lib/auth/apiAuth";
 
 export const maxDuration = 30;
 
@@ -136,7 +137,8 @@ async function callMercury(
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
-  try {
+  return withApiAuth(request, { roles: ["agent"] }, async () => {
+   try {
     const body = (await request.json()) as FieldChatRequest;
     const { message = "", imageBase64, imageMime, history = [], zone, techRole } = body;
 
@@ -163,5 +165,6 @@ export async function POST(request: Request) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[field-chat]", msg);
     return NextResponse.json({ error: `Error: ${msg.slice(0, 300)}` }, { status: 500 });
-  }
+   }
+  });
 }

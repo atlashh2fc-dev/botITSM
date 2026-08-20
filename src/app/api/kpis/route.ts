@@ -8,9 +8,10 @@ import {
   listOperationalCases,
 } from "@/services/operations.repository";
 import { withTenant } from "@/lib/tenant/context";
+import { withApiAuth } from "@/lib/auth/apiAuth";
 
 export async function GET(request: Request) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
   const [kpis, volumeByDay, incidentsByType, priorities, heatmap, topIntents, technicians, knowledge, recentCases] =
     await Promise.all([
       getAdminKpis(),
@@ -35,5 +36,5 @@ export async function GET(request: Request) {
     knowledge,
     recentCases,
   });
-  });
+  }));
 }

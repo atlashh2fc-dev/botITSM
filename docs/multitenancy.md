@@ -12,6 +12,8 @@ Nunca se acepta un tenant desde un query string, cookie o cuerpo de la petición
 ## Invariantes
 
 - Toda lectura y escritura persistente incluye `tenant_id`.
+- Toda API operacional exige una cookie HttpOnly creada desde una assertion HMAC corta emitida por la sesión Zammad; identidad, roles y tenant no se aceptan desde el body.
+- Tickets e inventario se filtran además por allowlists `ZAMMAD_<TENANT>_GROUPS` y `ZAMMAD_<TENANT>_ASSET_GROUPS`.
 - Las credenciales de Zammad se resuelven por tenant. Forum nunca usa las variables heredadas de Geimser.
 - La aplicación solo accede a Supabase desde el servidor con `SUPABASE_SERVICE_ROLE_KEY`.
 - Las tablas del bot mantienen RLS activo y no entregan permisos a `anon` ni `authenticated`; las rutas API aplican el filtro de tenant.

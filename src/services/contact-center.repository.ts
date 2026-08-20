@@ -1,5 +1,6 @@
 import { currentTenant } from "@/lib/tenant/context";
 import { getTicketArticles, listZammadTickets, type ZammadExpandedTicket, type ZammadTicketArticle } from "@/lib/zammad/client";
+import { tenantAllowsZammadGroup } from "@/lib/tenant/server";
 
 export type ContactChannel = "bot" | "email" | "phone" | "portal" | "unclassified";
 
@@ -43,7 +44,8 @@ export async function getContactCenterReport(): Promise<ContactCenterReport> {
     return emptyReport();
   }
 
-  const tickets = await listZammadTickets(200, tenant);
+  const tickets = (await listZammadTickets(200, tenant))
+    .filter(ticket => tenantAllowsZammadGroup(tenant, ticket.group));
   const rows = await mapWithConcurrency(tickets, 6, async ticket => {
     const articles = await getTicketArticles(ticket.id, tenant).catch(() => []);
     return buildRow(ticket, articles);

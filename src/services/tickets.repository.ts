@@ -1,5 +1,6 @@
 import { fallbackTickets } from "@/data/mock/fallbackTickets";
 import type { Ticket, TicketDraft } from "@/lib/itsm/types";
+import { tenantAllowsZammadGroup } from "@/lib/tenant/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { currentTenant, requireCurrentTenant } from "@/lib/tenant/context";
 import {
@@ -89,7 +90,7 @@ export async function listTickets(): Promise<Ticket[]> {
 export async function getTicketFullDetail(ticketId: string): Promise<TicketDetail | null> {
   const baseTicket = (await listTickets()).find((ticket) => ticket.id === ticketId);
 
-  if (hasZammadConfig() && ticketId.toUpperCase().startsWith("ZAM-")) {
+  if (baseTicket && hasZammadConfig() && ticketId.toUpperCase().startsWith("ZAM-")) {
     const number = baseTicket?.externalId ?? ticketId.replace(/^ZAM-(?:GEIMSER|FORUM|ITSM)-/i, "");
     const zammadSummary = await findTicketByNumber(number).catch(() => null);
     if (zammadSummary) {
@@ -188,7 +189,8 @@ function ticketToFallbackTimeline(ticket: Ticket): TicketTimelineEntry[] {
 }
 
 async function listTicketsFromZammad(): Promise<Ticket[]> {
-  const rawTickets = await listZammadTickets(500);
+  const tenant = requireCurrentTenant();
+  const rawTickets = (await listZammadTickets(500)).filter(ticket => tenantAllowsZammadGroup(tenant, ticket.group));
   const organizations = await listZammadOrganizations();
   const organizationById = new Map(organizations.map((org) => [org.id, org]));
   const userIds = Array.from(new Set(rawTickets.map((ticket) => ticket.customer_id).filter(Boolean)));

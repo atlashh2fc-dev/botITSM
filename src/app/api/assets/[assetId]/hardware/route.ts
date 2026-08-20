@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentTenant, withTenant } from "@/lib/tenant/context";
+import { withApiAuth } from "@/lib/auth/apiAuth";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ assetId: string }> }) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
     const tenant = currentTenant();
     const { assetId } = await context.params;
     const baseUrl = tenant?.zammadBaseUrl?.replace(/\/+$/, "");
@@ -28,5 +29,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
     } catch {
       return NextResponse.json({ error: "No fue posible consultar el agente del equipo." }, { status: 502 });
     }
-  });
+  }));
 }

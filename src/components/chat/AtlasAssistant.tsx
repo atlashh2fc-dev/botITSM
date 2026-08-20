@@ -25,6 +25,7 @@ import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Tick
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
 import { ForumIcon, ForumLogo, SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
 import { getClientTenant, tenantStorageKey } from "@/lib/tenant/client";
+import { exchangeITSMAssertion } from "@/lib/auth/client";
 
 type ChatApiResponse = {
   response: ITSMResponse;
@@ -364,10 +365,6 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     setMessages((current) => [...clearSuggestedRepliesFromMessages(current), optimisticMessage]);
 
     const activeContext = removeSuggestedRepliesFromContext(overrideContext ?? context);
-    const knownEmail = normalizeEmail(selectedUserEmail || activeContext?.collectedFields?.correo || "");
-    const knownName = selectedUserName || activeContext?.collectedFields?.nombre || "";
-    const knownArea = selectedUserArea || activeContext?.collectedFields?.area || "";
-
     try {
       const response = await withMinimumDelay(fetch("/api/chat", {
         method: "POST",
@@ -377,9 +374,6 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
           sessionContext: activeContext,
           attachmentName: activeFile?.name,
           attachmentUrl: activeFile?.url,
-          userEmail: knownEmail || undefined,
-          userName: knownName || undefined,
-          userArea: knownArea || undefined,
         }),
       }));
 
@@ -478,12 +472,12 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
           credentials: "include",
           cache: "no-store",
         });
-        const payload = await response.json() as { authenticated?: boolean; user?: ITSMIdentity };
+        const payload = await response.json() as { authenticated?: boolean; user?: ITSMIdentity; assertion?: string };
         const incomingEmail = normalizeEmail(payload.user?.email || "");
         const isPreviousIdentity = Boolean(previousEmail && incomingEmail === previousEmail);
         if (response.ok && payload.authenticated && payload.user && incomingEmail && !isPreviousIdentity) {
           stopITSMIdentityPolling();
-          applyITSMIdentity(payload.user);
+          await applyITSMIdentity(payload.user, payload.assertion);
           return;
         }
       } catch {
@@ -498,11 +492,19 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     itsmIdentityPollRef.current = window.setInterval(() => void refreshIdentity(), 1500);
   }
 
-  function applyITSMIdentity(identity: ITSMIdentity) {
-    const email = normalizeEmail(identity.email);
+  async function applyITSMIdentity(identity: ITSMIdentity, assertion: unknown) {
+    const verified = await exchangeITSMAssertion(assertion);
+    await applyVerifiedITSMIdentity(verified, identity);
+  }
+
+  async function applyVerifiedITSMIdentity(
+    verified: { email: string; name: string },
+    identity: ITSMIdentity,
+  ) {
+    const email = normalizeEmail(verified.email);
     if (!email || !emailPattern.test(email)) return;
 
-    const name = identity.name || [identity.firstname, identity.lastname].filter(Boolean).join(" ") || identity.login || email;
+    const name = verified.name || identity.name || [identity.firstname, identity.lastname].filter(Boolean).join(" ") || identity.login || email;
     const area = identity.area || identity.organization || "";
     const nextIdentity = { ...identity, email, name, area };
     const newContext: SessionContext = {
@@ -542,7 +544,8 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
       if (!event.data.authenticated || !event.data.user?.email) return;
 
       stopITSMIdentityPolling();
-      applyITSMIdentity(event.data.user as ITSMIdentity);
+      void applyITSMIdentity(event.data.user as ITSMIdentity, event.data.assertion)
+        .catch(error => setStatus(error instanceof Error ? error.message : "Sesión ITSM inválida."));
     }
 
     window.addEventListener("message", handleITSMIdentityMessage);
@@ -568,12 +571,12 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
           `${tenant.itsmBaseUrl}/geimser/bot/handoff?token=${encodeURIComponent(handoff)}`,
           { cache: "no-store" },
         );
-        const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity };
+        const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity; assertion?: string };
         if (!response.ok || !payload.authenticated || !payload.user?.email) {
           throw new Error("El cambio de cuenta expiró antes de confirmar la sesión.");
         }
 
-        applyITSMIdentity(payload.user);
+        await applyITSMIdentity(payload.user, payload.assertion);
         if (window.opener && !window.opener.closed) {
           window.opener.postMessage({ type: "geimser:itsm-identity", ...payload }, window.location.origin);
           window.setTimeout(() => window.close(), 180);

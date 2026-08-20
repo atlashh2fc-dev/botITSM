@@ -1,6 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { currentTenant } from "@/lib/tenant/context";
-import type { Tenant } from "@/lib/tenant/server";
+import { tenantAllowsAssetGroup, type Tenant } from "@/lib/tenant/server";
 
 export type UserAsset = {
   id: string;
@@ -75,7 +75,9 @@ export async function getUserAssets(email: string): Promise<UserAsset[]> {
   const tenant = currentTenant();
   if (tenant) {
     const assets = await getZammadInventoryAssets(tenant);
-    return assets.filter((asset) => asset.user_email.toLowerCase() === email.toLowerCase());
+    return assets
+      .filter(asset => assetBelongsToTenant(asset, tenant))
+      .filter((asset) => asset.user_email.toLowerCase() === email.toLowerCase());
   }
 
   const supabase = getSupabaseServerClient();
@@ -102,7 +104,7 @@ export async function getUserAssets(email: string): Promise<UserAsset[]> {
 export async function getAllITSMAssets(): Promise<UserAsset[]> {
   const tenant = currentTenant();
   const zammadAssets = await getZammadInventoryAssets(tenant);
-  if (tenant) return zammadAssets;
+  if (tenant) return zammadAssets.filter(asset => assetBelongsToTenant(asset, tenant));
   if (zammadAssets.length > 0) return zammadAssets;
 
   const supabase = getSupabaseServerClient();
@@ -122,6 +124,11 @@ export async function getAllITSMAssets(): Promise<UserAsset[]> {
   }
 
   return [];
+}
+
+function assetBelongsToTenant(asset: UserAsset, tenant: Tenant) {
+  const group = typeof asset.details.grupo === "string" ? asset.details.grupo : undefined;
+  return tenantAllowsAssetGroup(tenant, group);
 }
 
 async function getZammadInventoryAssets(tenant?: Tenant): Promise<UserAsset[]> {

@@ -13,8 +13,8 @@ const CLIENT_TENANTS: Record<TenantId, ClientTenant> = {
   geimser: {
     id: "geimser",
     name: "Geimser",
-    itsmBaseUrl: "https://mda.demoitsm.cl",
-    botLoginUrl: "https://mda.demoitsm.cl/geimser/bot/login",
+    itsmBaseUrl: "https://itsm.geimser.cl",
+    botLoginUrl: "https://itsm.geimser.cl/geimser/bot/login",
   },
   forum: {
     id: "forum",

@@ -2,6 +2,7 @@ import type { ChatMessage, SessionContext } from "@/lib/itsm/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireCurrentTenant } from "@/lib/tenant/context";
 import type { Json } from "@/types/database";
+import { requireCurrentITSMIdentity } from "@/lib/auth/apiAuth";
 
 const inMemoryMessages = new Map<string, ChatMessage[]>();
 const inMemoryContexts = new Map<string, SessionContext>();
@@ -15,11 +16,23 @@ export async function persistChatTurn(
   channel = "portal-web",
 ) {
   const tenant = requireCurrentTenant();
+  const identity = requireCurrentITSMIdentity();
   const supabase = getSupabaseServerClient();
   const isClosed = outcome === "resolved" || outcome === "escalated";
   const now = new Date().toISOString();
 
   if (supabase) {
+    const { data: existingSession, error: ownershipError } = await supabase
+      .from("chat_sessions")
+      .select("user_email")
+      .eq("tenant_id", tenant.id)
+      .eq("id", context.sessionId)
+      .maybeSingle();
+    if (ownershipError) throw new Error(`No se pudo validar la sesión de chat: ${ownershipError.message}`);
+    if (existingSession?.user_email && existingSession.user_email.toLowerCase() !== identity.email) {
+      throw new Error("La sesión de chat no pertenece al usuario autenticado.");
+    }
+
     const richSession = await supabase.from("chat_sessions").upsert({
       id: context.sessionId,
       tenant_id: tenant.id,
@@ -29,7 +42,7 @@ export async function persistChatTurn(
       active_article_id: context.activeArticleId ?? null,
       detected_intent: context.detectedIntent ?? null,
       priority: context.priority ?? null,
-      user_email: context.collectedFields?.correo?.toLowerCase() ?? context.userMemory?.email ?? null,
+      user_email: identity.email,
       updated_at: now,
       ...(isClosed ? { closed_at: now } : {}),
     });
@@ -44,7 +57,7 @@ export async function persistChatTurn(
       });
 
       if (basicSession.error) {
-        persistInMemory(tenant.id, context, messages);
+        persistInMemory(tenant.id, identity.email, context, messages);
         return;
       }
     }
@@ -62,20 +75,30 @@ export async function persistChatTurn(
     );
 
     if (insertedMessages.error) {
-      persistInMemory(tenant.id, context, messages);
+      persistInMemory(tenant.id, identity.email, context, messages);
     }
 
     return;
   }
 
-  persistInMemory(tenant.id, context, messages);
+  persistInMemory(tenant.id, identity.email, context, messages);
 }
 
 export async function listSessionMessages(sessionId: string) {
   const tenant = requireCurrentTenant();
+  const identity = requireCurrentITSMIdentity();
   const supabase = getSupabaseServerClient();
 
   if (supabase) {
+    const { data: ownedSession } = await supabase
+      .from("chat_sessions")
+      .select("id")
+      .eq("tenant_id", tenant.id)
+      .eq("id", sessionId)
+      .eq("user_email", identity.email)
+      .maybeSingle();
+    if (!ownedSession) return [];
+
     const { data } = await supabase
       .from("chat_messages")
       .select("id, role, content, metadata, created_at")
@@ -94,10 +117,10 @@ export async function listSessionMessages(sessionId: string) {
     );
   }
 
-  return inMemoryMessages.get(memoryKey(tenant.id, sessionId)) ?? [];
+  return inMemoryMessages.get(memoryKey(tenant.id, identity.email, sessionId)) ?? [];
 }
 
-export async function getPersistedSessionContext(sessionId: string) {
+export async function getPersistedSessionContext(sessionId: string, authenticatedEmail: string) {
   const tenant = requireCurrentTenant();
   const supabase = getSupabaseServerClient();
 
@@ -107,11 +130,13 @@ export async function getPersistedSessionContext(sessionId: string) {
       .select("context")
       .eq("tenant_id", tenant.id)
       .eq("id", sessionId)
+      .eq("user_email", authenticatedEmail.trim().toLowerCase())
       .maybeSingle();
 
     if (isSessionContext(data?.context)) {
       return data.context;
     }
+    if (!data) return undefined;
 
     const { data: snapshot } = await supabase
       .from("chat_messages")
@@ -130,18 +155,18 @@ export async function getPersistedSessionContext(sessionId: string) {
     }
   }
 
-  return inMemoryContexts.get(memoryKey(tenant.id, sessionId));
+  return inMemoryContexts.get(memoryKey(tenant.id, authenticatedEmail, sessionId));
 }
 
-function persistInMemory(tenantId: string, context: SessionContext, messages: ChatMessage[]) {
-  const key = memoryKey(tenantId, context.sessionId);
+function persistInMemory(tenantId: string, email: string, context: SessionContext, messages: ChatMessage[]) {
+  const key = memoryKey(tenantId, email, context.sessionId);
   const current = inMemoryMessages.get(key) ?? [];
   inMemoryMessages.set(key, [...current, ...messages]);
   inMemoryContexts.set(key, context);
 }
 
-function memoryKey(tenantId: string, sessionId: string) {
-  return `${tenantId}:${sessionId}`;
+function memoryKey(tenantId: string, email: string, sessionId: string) {
+  return `${tenantId}:${email.trim().toLowerCase()}:${sessionId}`;
 }
 
 function buildContextSnapshotMessage(tenantId: string, context: SessionContext) {

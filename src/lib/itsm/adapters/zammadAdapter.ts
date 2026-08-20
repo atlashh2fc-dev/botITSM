@@ -1,7 +1,7 @@
 /**
- * zammadAdapter.ts — Adapter LIVE contra Zammad (ITSM Geimser).
+ * zammadAdapter.ts — Adapter LIVE contra el Zammad aislado de cada tenant.
  *
- * Crea el ticket real en mda.demoitsm.cl y guarda una copia local en Supabase
+ * Crea el ticket real en el backend permitido del tenant y guarda una copia local en Supabase
  * (tabla tickets) con external_id / external_url para que el portal y el
  * dashboard reflejen lo mismo que el ITSM.
  */
@@ -22,7 +22,10 @@ export const zammadITSMAdapter: ITSMAdapter = {
     }
 
     const draft = input.draft;
-    const customerEmail = normalizeEmail(draft.requesterEmail) ?? "omnicanal@geimser.cl";
+    const customerEmail = normalizeEmail(draft.requesterEmail);
+    if (!customerEmail) {
+      throw new Error(`La identidad autenticada de ${tenant.name} no tiene un correo válido.`);
+    }
     const forumRouting = tenant.id === "forum" ? forumBotRouting(input) : undefined;
 
     const zammadTicket = await createZammadTicket({

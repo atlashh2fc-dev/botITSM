@@ -10,7 +10,7 @@
  *  ZAMMAD_API_TOKEN token personal
  *  ZAMMAD_GROUP     grupo destino de tickets (default: Users)
  */
-import type { Tenant } from "@/lib/tenant/server";
+import { tenantAllowsZammadGroup, type Tenant } from "@/lib/tenant/server";
 import { currentTenant } from "@/lib/tenant/context";
 
 export type ZammadUser = {
@@ -215,6 +215,11 @@ export function mapStatusToZammadState(status?: string): number {
 }
 
 export async function createZammadTicket(input: CreateZammadTicketInput, tenant?: Tenant): Promise<ZammadTicket> {
+  const active = tenant ?? currentTenant();
+  const targetGroup = input.group?.trim() || active?.zammadGroup || process.env.ZAMMAD_GROUP?.trim() || "Users";
+  if (active && !tenantAllowsZammadGroup(active, targetGroup)) {
+    throw new Error(`El grupo resolutor ${targetGroup} no pertenece al tenant ${active.name}.`);
+  }
   const customer = await ensureCustomer(input.customerEmail, input.customerName, tenant);
 
   // Zammad 7 does not accept `tags` in the ticket creation payload. Create
@@ -225,7 +230,7 @@ export async function createZammadTicket(input: CreateZammadTicketInput, tenant?
     method: "POST",
     body: JSON.stringify({
       title: input.title.slice(0, 200),
-      group: input.group?.trim() || (tenant ?? currentTenant())?.zammadGroup || process.env.ZAMMAD_GROUP?.trim() || "Users",
+      group: targetGroup,
       customer_id: customer.id,
       priority_id: mapPriorityToZammad(input.priority),
       state_id: mapStatusToZammadState(input.status),
@@ -417,7 +422,8 @@ export async function searchTicketsByCustomer(email: string, limit = 5, tenant?:
     unique.set(ticket.id, ticket);
   });
 
-  return [...unique.values()]
+  const scoped = await filterTicketsForTenant([...unique.values()], tenant);
+  return scoped
     .sort((a, b) => new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime())
     .slice(0, limit)
     .map((ticket) => toSummary(ticket, tenant));
@@ -449,7 +455,8 @@ export async function searchTodayTicketsByCustomer(email: string, tenant?: Tenan
     if (pageTickets.some((ticket) => dateKeyInChile(ticket.created_at) < today)) break;
   }
 
-  return [...unique.values()]
+  const scoped = await filterTicketsForTenant([...unique.values()], tenant);
+  return scoped
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .map((ticket) => toSummary(ticket, tenant));
 }
@@ -496,7 +503,23 @@ export async function findTicketByNumberForCustomer(number: string, email: strin
   if (!ticket || !user) return null;
 
   const expanded = await getZammadTicket(ticket.id, tenant).catch(() => null);
-  return expanded?.customer_id === user.id ? ticket : null;
+  const active = tenant ?? currentTenant();
+  return expanded?.customer_id === user.id
+    && (!active || tenantAllowsZammadGroup(active, expanded.group))
+    ? ticket
+    : null;
+}
+
+async function filterTicketsForTenant(tickets: ZammadTicket[], tenant?: Tenant) {
+  const active = tenant ?? currentTenant();
+  if (!active) return tickets;
+  const expanded = await Promise.all(tickets.map(ticket => getZammadTicket(ticket.id, tenant).catch(() => null)));
+  const allowedIds = new Set(
+    expanded
+      .filter((ticket): ticket is ZammadExpandedTicket => Boolean(ticket && tenantAllowsZammadGroup(active, ticket.group)))
+      .map(ticket => ticket.id),
+  );
+  return tickets.filter(ticket => allowedIds.has(ticket.id));
 }
 
 /** Artículos/comentarios del ticket, incluyendo notas internas para entender la última gestión operativa. */

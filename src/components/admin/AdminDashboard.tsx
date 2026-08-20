@@ -49,6 +49,7 @@ import type { TicketDetail } from "@/services/tickets.repository";
 import type { UserAsset } from "@/services/assets.repository";
 import type { ContactCenterReport } from "@/services/contact-center.repository";
 import type { AdminKpi, ChartPoint, OperationalCase } from "@/types/operational";
+import { exchangeITSMAssertion, getBotITSMSession } from "@/lib/auth/client";
 
 /* ─── Paleta Forum ITSM ─────────────────────────────────────────────── */
 const PBI = {
@@ -110,10 +111,15 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
       if (!event.data || event.data.type !== "geimser:itsm-identity") return;
       if (!event.data.authenticated || event.data.tenant !== tenant.id || !event.data.user?.email) return;
 
-      if (active) {
-        setIdentity(event.data.user as ITSMIdentity);
-        setAccessError("");
-      }
+      void exchangeITSMAssertion(event.data.assertion)
+        .then(user => {
+          if (!active) return;
+          setIdentity(user);
+          setAccessError("");
+        })
+        .catch(error => {
+          if (active) setAccessError(error instanceof Error ? error.message : "Sesión ITSM inválida.");
+        });
     }
 
     window.addEventListener("message", acceptEmbeddedIdentity);
@@ -123,14 +129,20 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
 
     async function loadIdentity() {
       try {
+        const existingSession = await getBotITSMSession();
+        if (existingSession) {
+          if (active) setIdentity(existingSession);
+          return;
+        }
         const itsmBaseUrl = currentItsmBaseUrl();
         const response = await fetch(`${itsmBaseUrl}/geimser/bot/session`, {
           credentials: "include",
           cache: "no-store",
         });
-        const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity };
+        const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity; assertion?: string };
         if (!response.ok || !payload.authenticated || !payload.user?.email) throw new Error("Sesión ITSM no disponible.");
-        if (active) setIdentity(payload.user);
+        const user = await exchangeITSMAssertion(payload.assertion);
+        if (active) setIdentity(user);
       } catch {
         if (active) setAccessError("No encontramos una sesión ITSM válida. Abre este panel desde el ITSM.");
       }
@@ -581,9 +593,12 @@ function AdminWorkspace({
 
   useEffect(() => {
     if (activeSection !== "contact-center" && activeSection !== "reports") return;
-    void loadContactCenter();
+    const initial = window.setTimeout(() => { void loadContactCenter(); }, 0);
     const interval = window.setInterval(() => { void loadContactCenter(); }, 60_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
   }, [activeSection, loadContactCenter]);
 
   async function openTicketDetail(ticketId: string) {
@@ -1422,7 +1437,10 @@ function CommuneInventoryModal({ onClose }: { onClose: () => void }) {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";

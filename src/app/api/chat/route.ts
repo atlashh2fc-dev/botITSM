@@ -7,8 +7,9 @@ import { generateITSMResponse } from "@/lib/llm";
 import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.repository";
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
 import { extractTicketNumber, isTicketCreationMessage, isTicketLookupAlternativeMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
-import { addTicketNote, findTicketByNumber } from "@/lib/zammad/client";
+import { addTicketNote, findTicketByNumberForCustomer } from "@/lib/zammad/client";
 import { withTenant } from "@/lib/tenant/context";
+import { requireCurrentITSMIdentity, withApiAuth } from "@/lib/auth/apiAuth";
 
 type ChatRequest = {
   userMessage: string;
@@ -17,24 +18,29 @@ type ChatRequest = {
   attachmentName?: string;
   attachmentUrl?: string;
   sourceChannel?: "portal-web" | "field-copilot" | string;
-  userEmail?: string;
-  userName?: string;
-  userArea?: string;
   fieldRole?: string;
   fieldZone?: string;
   audioNoteName?: string;
 };
 
 export async function POST(request: Request) {
-  return withTenant(request, async () => {
+  return withApiAuth(request, { roles: ["customer", "agent"] }, async () => withTenant(request, async () => {
+  const identity = requireCurrentITSMIdentity();
   const body = (await request.json()) as ChatRequest;
   const userMessage = body.userMessage?.trim();
 
-  if (!userMessage) {
+  if (!userMessage || userMessage.length > 4_000) {
     return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 });
   }
 
-  const sessionContext = body.sessionContext ?? (body.sessionId ? await getPersistedSessionContext(body.sessionId) : undefined) ?? createSessionContext();
+  const requestedSessionId = validSessionId(body.sessionId ?? body.sessionContext?.sessionId);
+  const persistedContext = requestedSessionId
+    ? await getPersistedSessionContext(requestedSessionId, identity.email)
+    : undefined;
+  const sessionContext = bindContextToIdentity(
+    persistedContext ?? sanitizeClientContext(body.sessionContext) ?? createSessionContext(),
+    identity,
+  );
   const channel = body.sourceChannel === "field-copilot" ? "field-copilot" : "portal-web";
   
   const now = new Date().toISOString();
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
 
   // ── Reconocimiento de usuario + Memoria Relacional ──────────────────────
   const emailInMessage = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0];
-  const knownEmail = (body.userEmail ?? emailInMessage ?? sessionContext.collectedFields?.correo ?? sessionContext.userMemory?.email)?.toLowerCase();
+  const knownEmail = identity.email;
   const ticketQueryIntent = isTicketQueryMessage(userMessage);
   // A declared broken screen plus a replacement request is conclusive
   // hardware damage, not a troubleshooting conversation. Handle it before
@@ -72,14 +78,14 @@ export async function POST(request: Request) {
         ...sessionContextForEngine.collectedFields,
         correo: sessionContextForEngine.collectedFields?.correo ?? memory.email,
         nombre: sessionContextForEngine.collectedFields?.nombre ?? memory.name ?? undefined,
-        area: sessionContextForEngine.collectedFields?.area ?? memory.area ?? body.userArea,
+        area: sessionContextForEngine.collectedFields?.area ?? memory.area ?? undefined,
       };
     } else {
       sessionContextForEngine.collectedFields = {
         ...sessionContextForEngine.collectedFields,
         correo: sessionContextForEngine.collectedFields?.correo ?? knownEmail,
-        nombre: sessionContextForEngine.collectedFields?.nombre ?? body.userName,
-        area: sessionContextForEngine.collectedFields?.area ?? body.userArea,
+        nombre: identity.name,
+        area: sessionContextForEngine.collectedFields?.area,
       };
     }
   }
@@ -92,7 +98,8 @@ export async function POST(request: Request) {
 
     if (contactUpdate.hasAny) {
       const ticketNumber = sessionContext.ticketFollowUp.ticketNumber;
-      const ticketId = sessionContext.ticketFollowUp.ticketId ?? (await findTicketByNumber(ticketNumber))?.id;
+      const ownedTicket = await findTicketByNumberForCustomer(ticketNumber, identity.email);
+      const ticketId = ownedTicket?.id;
       const noteBody = [
         `Datos actualizados por el usuario para el ticket #${ticketNumber}:`,
         contactUpdate.email ? `Correo: ${contactUpdate.email}` : undefined,
@@ -113,7 +120,7 @@ export async function POST(request: Request) {
 
       const assistantText = noteSaved
         ? `Perfecto, actualicé el ticket #${ticketNumber} con los datos que pidió soporte: ${formatCapturedContactData(contactUpdate)}.`
-        : `Perfecto, dejo estos datos asociados al seguimiento del ticket #${ticketNumber}: ${formatCapturedContactData(contactUpdate)}. Si necesitas, puedo ayudarte a agregar otro dato al mismo caso.`;
+        : `No pude validar que el ticket #${ticketNumber} pertenezca a tu cuenta ITSM, por lo que no agregué información. Puedes revisar el número e intentarlo nuevamente.`;
 
       const assistantChatMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -129,15 +136,17 @@ export async function POST(request: Request) {
       const nextContext: SessionContext = {
         ...sessionContextForEngine,
         messages: [...sessionContextForEngine.messages, assistantChatMessage],
-        ticketFollowUp: {
-          ...sessionContext.ticketFollowUp,
-          ticketId,
-          status: "updated",
-          updatedAt: new Date().toISOString(),
-        },
+        ticketFollowUp: noteSaved
+          ? {
+              ...sessionContext.ticketFollowUp,
+              ticketId,
+              status: "updated",
+              updatedAt: new Date().toISOString(),
+            }
+          : sessionContext.ticketFollowUp,
       };
 
-      if (knownEmail) {
+      if (knownEmail && noteSaved) {
         await upsertUserMemory(knownEmail, {
           episodicEvent: `Actualizó datos solicitados para ticket #${ticketNumber}.`,
         });
@@ -648,7 +657,49 @@ export async function POST(request: Request) {
     sessionContext: nextContext,
     knowledgeMatches,
   });
-  });
+  }));
+}
+
+function validSessionId(value?: string) {
+  const normalized = value?.trim();
+  return normalized && /^[a-zA-Z0-9][a-zA-Z0-9_-]{7,127}$/.test(normalized) ? normalized : undefined;
+}
+
+function sanitizeClientContext(context?: SessionContext): SessionContext | undefined {
+  if (!context || !validSessionId(context.sessionId)) return undefined;
+  const messages = Array.isArray(context.messages)
+    ? context.messages.slice(-100).filter(message => typeof message.content === "string" && message.content.length <= 8_000)
+    : [];
+  return {
+    sessionId: context.sessionId,
+    collectedFields: {},
+    messages,
+    stepsExecuted: [],
+  };
+}
+
+function bindContextToIdentity(
+  context: SessionContext,
+  identity: ReturnType<typeof requireCurrentITSMIdentity>,
+): SessionContext {
+  const email = identity.email;
+  const userMemory = context.userMemory?.email.toLowerCase() === email ? context.userMemory : undefined;
+  const ticketDraft = context.ticketDraft
+    ? { ...context.ticketDraft, requesterEmail: email, requesterName: identity.name }
+    : undefined;
+  return {
+    ...context,
+    collectedFields: {
+      ...context.collectedFields,
+      correo: email,
+      nombre: identity.name,
+    },
+    userMemory,
+    ticketDraft,
+    lastTicketLookup: context.lastTicketLookup
+      ? { ...context.lastTicketLookup, email }
+      : undefined,
+  };
 }
 
 function appendTicketConfirmation(content: string, ticket: Pick<Ticket, "id">) {
