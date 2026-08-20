@@ -507,7 +507,8 @@ function formatTicketDetail(ticket: ZammadTicketDetail, customHeader?: string): 
     : "Encontré este ticket a tu nombre.";
   const subStateText = ticket.expanded?.geimser_sub_state ? formatSubState(ticket.expanded.geimser_sub_state) : '';
   const groupStage = formatGroupStage(ticket.expanded?.group);
-  const operationalStage = subStateText || groupStage;
+  const terminalState = /^(cerrado|closed|cancelado|canceled)$/i.test(ticket.state.trim());
+  const operationalStage = subStateText || (terminalState ? '' : groupStage);
   const stateDescription = operationalStage ? `${ticket.state} (${operationalStage})` : ticket.state;
 
   const base = [
