@@ -14,17 +14,22 @@ export const TELEPHONY_HANGUP_CAUSES = [
 export type TelephonyHangupCause = (typeof TELEPHONY_HANGUP_CAUSES)[number];
 
 export type TelephonyEvent = {
-  version: 1;
+  version: 2;
+  source: "asterisk-ami";
   eventId: string;
   callId: string;
+  linkedId: string;
   event: TelephonyEventType;
   direction: "in" | "out";
   from: string;
   to: string;
+  context: string;
+  channel: string;
+  trunk: string;
   occurredAt: string;
   answeringNumber?: string;
   agentName?: string;
-  queue?: string;
+  queue: string;
   cause?: TelephonyHangupCause;
   durationSeconds?: number;
 };
@@ -35,7 +40,9 @@ export function parseTelephonyEvent(value: unknown): TelephonyEvent {
   if (!value || typeof value !== "object") throw new TelephonyPayloadError("Payload JSON requerido.");
   const input = value as Record<string, unknown>;
 
-  if (input.version !== 1) throw new TelephonyPayloadError("Versión de evento no soportada.");
+  if (input.version !== 2) throw new TelephonyPayloadError("Versión de evento no soportada; se requiere evidencia v2.");
+  const source = requiredString(input.source, "source");
+  if (source !== "asterisk-ami") throw new TelephonyPayloadError("Origen telefónico no soportado.");
   const event = requiredString(input.event, "event");
   if (!TELEPHONY_EVENT_TYPES.includes(event as TelephonyEventType)) {
     throw new TelephonyPayloadError("Evento telefónico no soportado.");
@@ -59,17 +66,22 @@ export function parseTelephonyEvent(value: unknown): TelephonyEvent {
   }
 
   return {
-    version: 1,
+    version: 2,
+    source: "asterisk-ami",
     eventId: bounded(requiredString(input.eventId, "eventId"), 160, "eventId"),
     callId: bounded(requiredString(input.callId, "callId"), 160, "callId"),
+    linkedId: bounded(requiredString(input.linkedId, "linkedId"), 160, "linkedId"),
     event: event as TelephonyEventType,
     direction,
     from: bounded(requiredString(input.from, "from"), 80, "from"),
     to: bounded(requiredString(input.to, "to"), 80, "to"),
+    context: bounded(requiredString(input.context, "context"), 160, "context"),
+    channel: bounded(requiredString(input.channel, "channel"), 240, "channel"),
+    trunk: bounded(requiredString(input.trunk, "trunk"), 160, "trunk"),
     occurredAt: new Date(occurredAt).toISOString(),
     answeringNumber: boundedOptional(optionalString(input.answeringNumber), 120, "answeringNumber"),
     agentName: boundedOptional(optionalString(input.agentName), 160, "agentName"),
-    queue: boundedOptional(optionalString(input.queue), 120, "queue"),
+    queue: bounded(requiredString(input.queue, "queue"), 120, "queue"),
     cause: cause as TelephonyHangupCause | undefined,
     durationSeconds: durationSeconds === undefined ? undefined : Math.floor(durationSeconds),
   };

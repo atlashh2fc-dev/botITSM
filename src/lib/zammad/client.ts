@@ -314,7 +314,6 @@ export type ZammadPhoneArticleInput = {
   eventId: string;
   subject: string;
   body: string;
-  durationSeconds?: number;
 };
 
 /** Agrega el resultado final de la llamada como nota telefónica del ticket. */
@@ -337,9 +336,9 @@ export async function createZammadPhoneArticle(
       type: "phone",
       internal: false,
       sender: "Agent",
-      ...(input.durationSeconds !== undefined
-        ? { time_unit: Math.max(1, Math.ceil(input.durationSeconds / 60)).toString() }
-        : {}),
+      // Do not send time_unit here. Zammad interprets it as Time Accounting
+      // and rejects otherwise valid ticket agents with 403. Duration remains
+      // recorded explicitly in the article body.
     }),
   });
 }
