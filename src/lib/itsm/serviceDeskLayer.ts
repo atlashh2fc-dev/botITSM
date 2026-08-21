@@ -447,7 +447,6 @@ function resolveNotebookDisplayTurn(params: {
 
   // 3. Transición desde run_first_check a isolate_component (aislar con monitor externo)
   if (currentStage === "isolate_component") {
-    const isNegative = isNegativeResponse(current);
     const isPositive = isPositiveResponse(current);
 
     if (isPositive) {
@@ -1164,7 +1163,7 @@ function resolveNotebookSlownessTurn(params: {
   symptoms: ServiceDeskSymptom[];
   history: ChatMessage[];
 }): ServiceDeskTurnCore {
-  const { current, allUserText, previousDiagnostic, assistantHistory, playbook, symptoms, history } = params;
+  const { current, previousDiagnostic, playbook, symptoms, history } = params;
   const currentStage = previousDiagnostic?.stage ?? "identify_asset";
 
   // Buscar si el último mensaje del usuario tiene adjunto
@@ -1556,7 +1555,6 @@ function resolvePrinterTurn(params: {
 
   // 3. Transición desde run_first_check a isolate_component (aislar cola de impresión y cable lógico)
   if (currentStage === "isolate_component") {
-    const isNegative = isNegativeResponse(current);
     const isPositive = isPositiveResponse(current);
     const prevProblemType = previousDiagnostic?.facts.printerProblemType;
 

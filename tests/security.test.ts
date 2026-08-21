@@ -16,9 +16,10 @@ import { POST as postChat } from "@/app/api/chat/route";
 import { GET as getContactCenter } from "@/app/api/contact-center/route";
 import { POST as postFieldChat } from "@/app/api/field-chat/route";
 import { GET as getKpis } from "@/app/api/kpis/route";
-import { GET as getCommunes, POST as postCommune, DELETE as deleteCommune } from "@/app/api/inventory/communes/route";
+import { GET as getCommunes, POST as postCommune, DELETE as deleteCommune, scopeInventoryPayloadForTenant } from "@/app/api/inventory/communes/route";
 import { GET as getTicketDetail } from "@/app/api/tickets/[id]/route";
 import { GET as getTickets, POST as postTicket } from "@/app/api/tickets/route";
+import { GET as getITSMSession, POST as exchangeITSMSession } from "@/app/api/auth/itsm/session/route";
 
 const FORUM_SECRET = "forum-test-secret-that-is-at-least-32-characters";
 const GEIMSER_SECRET = "geimser-test-secret-that-is-at-least-32-characters";
@@ -60,6 +61,38 @@ test("bot session cannot be replayed on the other tenant", () => {
   const session = createITSMSessionToken(identity, 2_000_000_000);
   assert.equal(verifyITSMSessionToken(session.token, "forum", 2_000_000_100).subject, "42");
   assert.throws(() => verifyITSMSessionToken(session.token, "geimser", 2_000_000_100), ITSMAuthenticationError);
+});
+
+test("authenticated demo smoke exchanges assertion, persists HttpOnly cookie and reaches agent API", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const exchange = await exchangeITSMSession(new Request("https://iabot.demoitsm.cl/api/auth/itsm/session", {
+    method: "POST",
+    headers: {
+      Host: "iabot.demoitsm.cl",
+      Origin: "https://iabot.demoitsm.cl",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ assertion: assertion({ roles: ["agent"], iat: now, exp: now + 120 }) }),
+  }));
+  assert.equal(exchange.status, 200);
+  const setCookie = exchange.headers.get("set-cookie") ?? "";
+  assert.match(setCookie, /atlas_itsm_session=/);
+  assert.match(setCookie, /HttpOnly/i);
+  assert.match(setCookie, /SameSite=None/i);
+  assert.match(setCookie, /Secure/i);
+  const cookie = setCookie.split(";", 1)[0];
+
+  const session = await getITSMSession(new Request("https://iabot.demoitsm.cl/api/auth/itsm/session", {
+    headers: { Host: "iabot.demoitsm.cl", Cookie: cookie },
+  }));
+  assert.equal(session.status, 200);
+  assert.equal((await session.json()).user.email, "user@forum.cl");
+
+  const operational = await getKpis(new Request("https://iabot.demoitsm.cl/api/kpis", {
+    headers: { Host: "iabot.demoitsm.cl", Cookie: cookie },
+  }));
+  assert.equal(operational.status, 200);
+  assert.match(operational.headers.get("cache-control") ?? "", /private, no-store/);
 });
 
 test("anonymous operational APIs reject before executing their handlers", async () => {
@@ -121,6 +154,22 @@ const forumTenant: Tenant = {
   zammadGroups: ["TI Forum"],
   assetGroups: ["Forum"],
 };
+
+test("commune inventory removes foreign-tenant assets and assignments", () => {
+  const scoped = scopeInventoryPayloadForTenant({
+    communes: ["Santiago"],
+    assets: [
+      { id: 1, group: "Forum" },
+      { id: 2, group: "Geimser" },
+    ],
+    assignments: [
+      { asset: { id: 1, group: "Forum" } },
+      { asset: { id: 2, group: "Geimser" } },
+    ],
+  }, forumTenant);
+  assert.deepEqual(scoped.assets?.map(asset => asset.id), [1]);
+  assert.deepEqual(scoped.assignments?.map(assignment => assignment.asset?.id), [1]);
+});
 
 test("ticket lookup requires both authenticated customer ownership and tenant group", async () => {
   const originalFetch = globalThis.fetch;

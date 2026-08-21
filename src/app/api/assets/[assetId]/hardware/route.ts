@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentTenant, withTenant } from "@/lib/tenant/context";
 import { withApiAuth } from "@/lib/auth/apiAuth";
+import { getAllITSMAssets } from "@/services/assets.repository";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ assetId: string }> }) {
   return withApiAuth(request, { roles: ["agent"] }, async () => withTenant(request, async () => {
@@ -14,6 +15,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
     }
 
     try {
+      const allowedAssets = await getAllITSMAssets();
+      if (!allowedAssets.some(asset => String(asset.id) === String(assetId))) {
+        return NextResponse.json({ error: "Equipo no encontrado para este tenant." }, { status: 404 });
+      }
       const response = await fetch(`${baseUrl}/geimser/remote/assets/${encodeURIComponent(assetId)}/hardware`, {
         method: "POST",
         headers: {

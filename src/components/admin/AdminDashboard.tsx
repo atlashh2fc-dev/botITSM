@@ -87,7 +87,24 @@ type ITSMIdentity = {
   firstname?: string;
   lastname?: string;
   login?: string;
+  roles?: Array<"admin" | "agent" | "customer">;
 };
+
+function requireOperationalIdentity(identity: ITSMIdentity) {
+  if (!identity.roles?.some(role => role === "admin" || role === "agent")) {
+    throw new Error("Tu cuenta ITSM no tiene permisos de agente para este dashboard.");
+  }
+  return identity;
+}
+
+function describeIdentityError(error: unknown) {
+  if (error instanceof TypeError && /fetch/i.test(error.message)) {
+    return "No pudimos validar tu sesión con el ITSM. Abre nuevamente el dashboard desde el ITSM o reintenta cuando la conexión esté disponible.";
+  }
+  return error instanceof Error
+    ? error.message
+    : "No encontramos una sesión ITSM válida. Abre este panel desde el ITSM.";
+}
 
 const FORUM_PHONE_AGENT_EMAILS = new Set(
   (process.env.NEXT_PUBLIC_TELEPHONY_FORUM_AGENT_EMAILS || "admin@atlas.local")
@@ -112,13 +129,14 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
       if (!event.data.authenticated || event.data.tenant !== tenant.id || !event.data.user?.email) return;
 
       void exchangeITSMAssertion(event.data.assertion)
+        .then(requireOperationalIdentity)
         .then(user => {
           if (!active) return;
           setIdentity(user);
           setAccessError("");
         })
         .catch(error => {
-          if (active) setAccessError(error instanceof Error ? error.message : "Sesión ITSM inválida.");
+          if (active) setAccessError(describeIdentityError(error));
         });
     }
 
@@ -131,7 +149,7 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
       try {
         const existingSession = await getBotITSMSession();
         if (existingSession) {
-          if (active) setIdentity(existingSession);
+          if (active) setIdentity(requireOperationalIdentity(existingSession));
           return;
         }
         const itsmBaseUrl = currentItsmBaseUrl();
@@ -141,10 +159,10 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
         });
         const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity; assertion?: string };
         if (!response.ok || !payload.authenticated || !payload.user?.email) throw new Error("Sesión ITSM no disponible.");
-        const user = await exchangeITSMAssertion(payload.assertion);
+        const user = requireOperationalIdentity(await exchangeITSMAssertion(payload.assertion));
         if (active) setIdentity(user);
-      } catch {
-        if (active) setAccessError("No encontramos una sesión ITSM válida. Abre este panel desde el ITSM.");
+      } catch (error) {
+        if (active) setAccessError(describeIdentityError(error));
       }
     }
 
@@ -171,6 +189,7 @@ export function AdminDashboard({ initialSection = "overview" }: { initialSection
         {tenant.id === "forum" ? <ForumIcon size={36} /> : <AtlasHexLogo size={36} />}
         <p style={{ fontWeight: 700, fontSize: 16, color: PBI.text1, margin: "14px 0 6px" }}>Verificando sesión ITSM</p>
         <p style={{ fontSize: 13, color: PBI.text2, margin: 0 }}>{accessError || "Conectando con tu sesión activa…"}</p>
+        {accessError ? <button type="button" onClick={() => window.location.reload()} style={{ marginTop: 16, border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, padding: "7px 12px", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Reintentar sesión</button> : null}
       </section>
     </main>
   );
@@ -489,6 +508,41 @@ function TopNavItem({ item, active, onClick }: { item: { id: string; label: stri
   );
 }
 
+const TICKET_DEPENDENT_SECTIONS = new Set([
+  "overview",
+  "realtime",
+  "incidents",
+  "requests",
+  "access",
+  "analytics",
+  "field",
+  "cases",
+]);
+
+function isTicketDependentSection(section: string) {
+  return TICKET_DEPENDENT_SECTIONS.has(section);
+}
+
+function DashboardDataState({
+  title,
+  actionLabel,
+  onAction,
+  error = false,
+}: {
+  title: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  error?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
+      {error ? <ShieldAlert size={40} color={PBI.red} /> : <RefreshCw size={34} color={PBI.text3} />}
+      <p style={{ fontWeight: 600, fontSize: 14, color: error ? PBI.red : PBI.text1, margin: 0, textAlign: "center" }}>{title}</p>
+      {actionLabel && onAction ? <button type="button" onClick={onAction} style={{ border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, padding: "7px 12px", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{actionLabel}</button> : null}
+    </div>
+  );
+}
+
 function AdminWorkspace({
   initialSection,
   userEmail,
@@ -501,6 +555,9 @@ function AdminWorkspace({
   const [activeSection, setActiveSection] = useState(initialSection);
   const [realTickets, setRealTickets] = useState<ITSMDemoTicket[]>([]);
   const [ticketSource, setTicketSource] = useState<"cargando" | "zammad" | "supabase" | "demo">("cargando");
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [ticketsError, setTicketsError] = useState("");
+  const [ticketsReload, setTicketsReload] = useState(0);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [ticketDetail, setTicketDetail] = useState<TicketDetail | null>(null);
   const [ticketDetailLoading, setTicketDetailLoading] = useState(false);
@@ -542,19 +599,26 @@ function AdminWorkspace({
   useEffect(() => {
     let active = true;
     async function load() {
+      setTicketsLoading(true);
+      setTicketsError("");
       try {
         const res = await fetch("/api/tickets", { cache: "no-store" });
-        if (!res.ok) throw new Error();
-        const payload = (await res.json()) as { tickets?: ITSMDemoTicket[]; source?: "zammad" | "supabase" | "memory" };
+        const responseBody = await res.json().catch(() => ({})) as { error?: string; tickets?: ITSMDemoTicket[]; source?: "zammad" | "supabase" | "memory" };
+        if (!res.ok) throw new Error(responseBody.error || "No fue posible consultar los tickets del ITSM.");
         if (!active) return;
-        setRealTickets(payload.tickets ?? []);
-        setTicketSource(payload.source === "zammad" ? "zammad" : payload.source === "supabase" ? "supabase" : "demo");
-      } catch { if (!active) return; setTicketSource("demo"); }
+        setRealTickets(responseBody.tickets ?? []);
+        setTicketSource(responseBody.source === "zammad" ? "zammad" : responseBody.source === "supabase" ? "supabase" : "demo");
+      } catch (error) {
+        if (!active) return;
+        setTicketsError(error instanceof Error ? error.message : "No fue posible consultar los tickets del ITSM.");
+      } finally {
+        if (active) setTicketsLoading(false);
+      }
     }
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
     const iv = window.setInterval(load, 15000);
-    return () => { active = false; window.clearInterval(iv); };
-  }, []);
+    return () => { active = false; window.clearTimeout(initial); window.clearInterval(iv); };
+  }, [ticketsReload]);
 
   const loadAssets = useCallback(async () => {
     setAssetsLoading(true);
@@ -686,10 +750,10 @@ function AdminWorkspace({
             <ChevronDown size={12} color={PBI.text3} />
             <span style={{ fontSize: 11, color: PBI.text1, fontWeight: 600 }}>{sectionTitle[activeSection]}</span>
           </div>
-          <PbiBadge color={ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : PBI.amber}>
-            {ticketSource === "zammad" ? `${realTickets.length} tickets` : ticketSource === "supabase" ? `${realTickets.length} tickets` : "demo"}
+          <PbiBadge color={ticketsError ? PBI.red : ticketSource === "zammad" || ticketSource === "supabase" ? PBI.green : PBI.amber}>
+            {ticketsLoading ? "cargando" : ticketsError ? "sin conexión" : ticketSource === "zammad" ? `${realTickets.length} tickets` : ticketSource === "supabase" ? `${realTickets.length} tickets` : "demo"}
           </PbiBadge>
-          <button style={{ background: "none", border: "none", cursor: "pointer", color: PBI.text2, padding: "4px" }}>
+          <button type="button" onClick={() => setTicketsReload(value => value + 1)} disabled={ticketsLoading} aria-label="Actualizar tickets" title="Actualizar tickets" style={{ background: "none", border: "none", cursor: ticketsLoading ? "wait" : "pointer", color: PBI.text2, padding: "4px", opacity: ticketsLoading ? .55 : 1 }}>
             <RefreshCw size={13} />
           </button>
         </div>
@@ -700,7 +764,11 @@ function AdminWorkspace({
 
         {/* ── Cuerpo ── */}
         <main style={{ flex: 1, padding: 16, overflowY: "auto" }}>
-          {activeSection !== "inventory" && cases.length === 0 ? (
+          {isTicketDependentSection(activeSection) && ticketsLoading ? (
+            <DashboardDataState title="Cargando tickets desde ITSM…" />
+          ) : isTicketDependentSection(activeSection) && ticketsError ? (
+            <DashboardDataState title={ticketsError} actionLabel="Reintentar" onAction={() => setTicketsReload(value => value + 1)} error />
+          ) : isTicketDependentSection(activeSection) && cases.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
               <Ticket size={40} color={PBI.text3} />
               <p style={{ fontWeight: 600, fontSize: 14, color: PBI.text1, margin: 0 }}>Sin tickets reales en ITSM</p>

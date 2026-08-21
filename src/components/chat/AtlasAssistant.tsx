@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
   Minus,
   PackageCheck,
   Paperclip,
+  RefreshCw,
   RotateCcw,
   Send,
   ShieldCheck,
@@ -25,7 +26,7 @@ import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Tick
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
 import { ForumIcon, ForumLogo, SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
 import { getClientTenant, tenantStorageKey } from "@/lib/tenant/client";
-import { exchangeITSMAssertion } from "@/lib/auth/client";
+import { exchangeITSMAssertion, getBotITSMSession } from "@/lib/auth/client";
 
 type ChatApiResponse = {
   response: ITSMResponse;
@@ -46,8 +47,6 @@ type TicketLookupSummary = {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const requireITSMLogin = process.env.NEXT_PUBLIC_REQUIRE_ITSM_LOGIN !== "false";
-
 type ITSMIdentity = {
   id?: number;
   login?: string;
@@ -241,8 +240,8 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   });
   const [selectedUserName, setSelectedUserName] = useState(() => storedIdentity?.name || readStoredSessionContext()?.collectedFields?.nombre || "");
   const [selectedUserArea, setSelectedUserArea] = useState(() => storedIdentity?.area || storedIdentity?.organization || readStoredSessionContext()?.collectedFields?.area || "");
-  const [identityStatus, setIdentityStatus] = useState<"anonymous" | "authenticated">(() => storedIdentity?.email ? "authenticated" : "anonymous");
-  const [status, setStatus] = useState("en línea");
+  const [identityStatus, setIdentityStatus] = useState<"checking" | "anonymous" | "authenticated">("checking");
+  const [status, setStatus] = useState("validando sesión ITSM...");
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [ticketResults, setTicketResults] = useState<TicketLookupSummary[]>([]);
   const [quickTicketDescription, setQuickTicketDescription] = useState("");
@@ -258,6 +257,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const itsmIdentityPollRef = useRef<number | null>(null);
+  const authenticatedRef = useRef(false);
 
   useEffect(() => {
     if (messages.length <= 1 && !ticket && !isLoading) return;
@@ -293,7 +293,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
   }, [input]);
 
   const hasConversation = useMemo(() => messages.length > 1, [messages.length]);
-  const canUseChat = !requireITSMLogin || identityStatus === "authenticated";
+  const canUseChat = identityStatus === "authenticated";
 
   useEffect(() => {
     if (!desktop) return;
@@ -338,7 +338,11 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     const activeFile = fileToAttach !== undefined ? fileToAttach : attachedFile;
     if (!cleanMessage && !activeFile) return;
     if (isLoading) return;
-    if (requireITSMLogin && identityStatus !== "authenticated") {
+    if (identityStatus !== "authenticated") {
+      if (identityStatus === "checking") {
+        setStatus("validando sesión ITSM...");
+        return;
+      }
       setStatus("login ITSM requerido");
       openITSMLogin();
       return;
@@ -377,7 +381,23 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
         }),
       }));
 
-      if (!response.ok) throw new Error("Error de red");
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({})) as { error?: string };
+        if (response.status === 401) {
+          authenticatedRef.current = false;
+          setIdentityStatus("anonymous");
+          clearStoredIdentity();
+          clearStoredSessionContext();
+          setContext(undefined);
+          setSelectedUserEmail("");
+          setSelectedUserName("");
+          setSelectedUserArea("");
+          setMessages([initialMessage]);
+          setTicket(null);
+          setTicketResults([]);
+        }
+        throw new Error(errorPayload.error || "No fue posible completar la solicitud.");
+      }
 
       const payload = (await response.json()) as ChatApiResponse;
 
@@ -395,13 +415,15 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
         setTicketResults(payload.tickets);
         setStatus(payload.tickets.length === 1 ? "ticket actualizado" : "tickets encontrados");
       }
-    } catch {
+    } catch (error) {
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Tuve un problema procesando esto. Escríbeme nuevamente qué ocurre y lo retomamos.",
+          content: error instanceof Error
+            ? error.message
+            : "Tuve un problema procesando esto. Escríbeme nuevamente qué ocurre y lo retomamos.",
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -492,24 +514,15 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     itsmIdentityPollRef.current = window.setInterval(() => void refreshIdentity(), 1500);
   }
 
-  async function applyITSMIdentity(identity: ITSMIdentity, assertion: unknown) {
-    const verified = await exchangeITSMAssertion(assertion);
-    await applyVerifiedITSMIdentity(verified, identity);
-  }
-
-  async function applyVerifiedITSMIdentity(
-    verified: { email: string; name: string },
-    identity: ITSMIdentity,
-  ) {
+  const applyVerifiedITSMIdentity = useCallback((verified: { email: string; name: string }) => {
     const email = normalizeEmail(verified.email);
     if (!email || !emailPattern.test(email)) return;
 
-    const name = verified.name || identity.name || [identity.firstname, identity.lastname].filter(Boolean).join(" ") || identity.login || email;
-    const area = identity.area || identity.organization || "";
-    const nextIdentity = { ...identity, email, name, area };
+    const name = verified.name || email;
+    const nextIdentity: ITSMIdentity = { email, name };
     const newContext: SessionContext = {
       sessionId: `session-${crypto.randomUUID()}`,
-      collectedFields: { correo: email, nombre: name, area: area || undefined },
+      collectedFields: { correo: email, nombre: name },
       messages: [],
       stepsExecuted: [],
     };
@@ -521,10 +534,11 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
       content: `Listo, quedaste conectado con ITSM como ${name} (${email}).\n\nPuedo revisar tus tickets actuales o registrar uno nuevo a tu nombre.`,
     };
 
+    authenticatedRef.current = true;
     setIdentityStatus("authenticated");
     setSelectedUserEmail(email);
     setSelectedUserName(name);
-    setSelectedUserArea(area);
+    setSelectedUserArea("");
     setContext(newContext);
     setMessages([greetingMsg]);
     setInput("");
@@ -535,7 +549,62 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     setStatus("sesión ITSM activa");
     storeIdentity(nextIdentity);
     storeSessionContext(newContext);
-  }
+  }, []);
+
+  const applyITSMIdentity = useCallback(async (_identity: ITSMIdentity, assertion: unknown) => {
+    const verified = await exchangeITSMAssertion(assertion);
+    applyVerifiedITSMIdentity(verified);
+  }, [applyVerifiedITSMIdentity]);
+
+  useEffect(() => {
+    let active = true;
+    void getBotITSMSession()
+      .then(user => {
+        if (!active) return;
+        if (!user) {
+          if (authenticatedRef.current) return;
+          setIdentityStatus(current => current === "authenticated" ? current : "anonymous");
+          setStatus(current => current === "sesión ITSM activa" ? current : "login ITSM requerido");
+          clearStoredIdentity();
+          clearStoredSessionContext();
+          setContext(undefined);
+          setMessages([initialMessage]);
+          setSelectedUserEmail("");
+          setSelectedUserName("");
+          setSelectedUserArea("");
+          setTicket(null);
+          setTicketResults([]);
+          return;
+        }
+
+        const stored = readStoredIdentity();
+        if (normalizeEmail(stored?.email || "") === normalizeEmail(user.email)) {
+          const canonicalIdentity: ITSMIdentity = { email: user.email, name: user.name };
+          setSelectedUserEmail(user.email);
+          setSelectedUserName(user.name);
+          authenticatedRef.current = true;
+          setIdentityStatus("authenticated");
+          setStatus("sesión ITSM activa");
+          storeIdentity(canonicalIdentity);
+          return;
+        }
+        applyVerifiedITSMIdentity(user);
+      })
+      .catch(() => {
+        if (!active) return;
+        if (authenticatedRef.current) return;
+        setIdentityStatus(current => current === "authenticated" ? current : "anonymous");
+        setStatus("No fue posible validar la sesión ITSM.");
+        clearStoredIdentity();
+        clearStoredSessionContext();
+        setContext(undefined);
+        setMessages([initialMessage]);
+        setSelectedUserEmail("");
+        setSelectedUserName("");
+        setSelectedUserArea("");
+      });
+    return () => { active = false; };
+  }, [applyVerifiedITSMIdentity]);
 
   useEffect(() => {
     function handleITSMIdentityMessage(event: MessageEvent) {
@@ -553,7 +622,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
       window.removeEventListener("message", handleITSMIdentityMessage);
       stopITSMIdentityPolling();
     };
-  }, [tenant.botLoginUrl]);
+  }, [applyITSMIdentity, tenant.botLoginUrl]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -587,7 +656,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
     };
 
     void consumeHandoff();
-  }, [tenant.itsmBaseUrl]);
+  }, [applyITSMIdentity, tenant.itsmBaseUrl]);
 
   // Se restablece todo limpiamente
   function startNewChat() {
@@ -815,20 +884,22 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
         <div className="flex min-w-0 items-center gap-1.5" style={{ color: "rgba(203, 213, 225, 0.72)" }}>
           {identityStatus === "authenticated" ? (
             <ShieldCheck size={12} style={{ color: "#2FE56F" }} aria-hidden />
+          ) : identityStatus === "checking" ? (
+            <RefreshCw size={12} style={{ color: "#55F4FF" }} aria-hidden />
           ) : (
             <UserRound size={12} style={{ color: "#55F4FF" }} aria-hidden />
           )}
-          <span className="shrink-0">{identityStatus === "authenticated" ? "ITSM" : "Login"}</span>
+          <span className="shrink-0">{identityStatus === "authenticated" ? "ITSM" : identityStatus === "checking" ? "Sesión" : "Login"}</span>
           <span className="min-w-0 truncate font-semibold" style={{ color: "#F8FAFC" }}>
             {identityStatus === "authenticated"
               ? selectedUserName || selectedUserEmail
-              : "sesión requerida"}
+              : identityStatus === "checking" ? "validando…" : "sesión requerida"}
           </span>
         </div>
         <button
           type="button"
           onClick={openITSMLogin}
-          disabled={isLoading}
+          disabled={isLoading || identityStatus === "checking"}
           className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
           style={{
             border: identityStatus === "authenticated" ? "1px solid rgba(47, 229, 111, 0.2)" : "1px solid rgba(85, 244, 255, 0.28)",
@@ -837,7 +908,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
           }}
         >
           <LogIn size={12} aria-hidden />
-          {identityStatus === "authenticated" ? "cambiar" : "iniciar"}
+          {identityStatus === "authenticated" ? "cambiar" : identityStatus === "checking" ? "validando" : "iniciar"}
         </button>
       </div>
 
@@ -1638,6 +1709,11 @@ function readStoredIdentity() {
 function storeIdentity(identity: ITSMIdentity) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(tenantStorageKey("sonda-itsm-identity"), JSON.stringify(identity));
+}
+
+function clearStoredIdentity() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(tenantStorageKey("sonda-itsm-identity"));
 }
 
 function readStoredSessionContext() {
