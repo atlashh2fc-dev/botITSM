@@ -218,6 +218,7 @@ type ForumDesktopBridge = {
   setExpanded: (expanded: boolean) => void;
   onOpen: (callback: () => void) => () => void;
   onCollapse: (callback: () => void) => () => void;
+  onAuthHandoff: (callback: (token: string) => void) => () => void;
 };
 
 function getForumDesktopBridge() {
@@ -476,6 +477,7 @@ export function SondaAssistant({
   function openITSMLogin() {
     const url = new URL(tenant.botLoginUrl);
     url.searchParams.set("return_origin", window.location.origin);
+    if (desktop) url.searchParams.set("desktop", "1");
     const changingAccount = identityStatus === "authenticated";
     if (changingAccount) {
       url.searchParams.set("switch_account", "1");
@@ -666,6 +668,36 @@ export function SondaAssistant({
 
     void consumeHandoff();
   }, [applyITSMIdentity, tenant.itsmBaseUrl]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    const bridge = getForumDesktopBridge();
+    if (!bridge?.onAuthHandoff) return;
+
+    return bridge.onAuthHandoff((handoff) => {
+      if (!/^[A-Za-z0-9_-]{32,512}$/.test(handoff)) {
+        setStatus("El ITSM devolvió una autenticación inválida.");
+        return;
+      }
+
+      void (async () => {
+        try {
+          const response = await fetch(
+            `${tenant.itsmBaseUrl}/geimser/bot/handoff?token=${encodeURIComponent(handoff)}`,
+            { cache: "no-store" },
+          );
+          const payload = (await response.json()) as { authenticated?: boolean; user?: ITSMIdentity; assertion?: string };
+          if (!response.ok || !payload.authenticated || !payload.user?.email) {
+            throw new Error("El login expiró antes de volver al asistente.");
+          }
+          stopITSMIdentityPolling();
+          await applyITSMIdentity(payload.user, payload.assertion);
+        } catch (error) {
+          setStatus(error instanceof Error ? error.message : "No se pudo confirmar el login ITSM.");
+        }
+      })();
+    });
+  }, [applyITSMIdentity, desktop, tenant.itsmBaseUrl]);
 
   // Se restablece todo limpiamente
   function startNewChat() {

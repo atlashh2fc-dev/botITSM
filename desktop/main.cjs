@@ -2,6 +2,8 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require("electron");
 
 const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.demoitsm.cl/asistente";
+const BOT_ORIGIN = new URL(BOT_URL).origin;
+const AUTH_PROTOCOL = "forumitsm";
 const TRUSTED_ORIGINS = new Set([
   "https://iabot.demoitsm.cl",
   // Previously distributed Forum installers remain supported and constrained
@@ -28,6 +30,31 @@ let mainWindow;
 let tray;
 let isQuitting = false;
 let isAssistantExpanded = false;
+let pendingAuthHandoff = "";
+
+function authHandoffFromUrl(candidate) {
+  if (typeof candidate !== "string" || !candidate.toLowerCase().startsWith(`${AUTH_PROTOCOL}://`)) return "";
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.hostname !== "auth") return "";
+    const token = parsed.searchParams.get("token") || "";
+    return /^[A-Za-z0-9_-]{32,512}$/.test(token) ? token : "";
+  } catch {
+    return "";
+  }
+}
+
+function deliverAuthHandoff(candidate) {
+  const token = authHandoffFromUrl(candidate);
+  if (!token) return false;
+  pendingAuthHandoff = token;
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.send("forum-auth:handoff", token);
+    pendingAuthHandoff = "";
+    showAssistant();
+  }
+  return true;
+}
 
 function createTrayIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
@@ -100,34 +127,32 @@ function createWindow() {
   mainWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // The ITSM login uses postMessage back to this window, so it stays inside
-    // Electron as a constrained child window instead of opening in a browser.
+    // Google authentication runs in the user's browser. The final callback
+    // returns to this executable through a one-time custom-protocol handoff.
     if (isTrusted(url)) {
-      return {
-        action: "allow",
-        overrideBrowserWindowOptions: {
-          width: 520,
-          height: 640,
-          autoHideMenuBar: true,
-          parent: mainWindow,
-          modal: true,
-          webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
-        },
-      };
+      void shell.openExternal(url);
+      return { action: "deny" };
     }
     void shell.openExternal(url);
     return { action: "deny" };
   });
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!isTrusted(url)) {
+    if (new URL(url).origin !== BOT_ORIGIN) {
       event.preventDefault();
       void shell.openExternal(url);
     }
   });
 
   mainWindow.webContents.on("will-redirect", (event, url) => {
-    if (!isTrusted(url)) event.preventDefault();
+    if (new URL(url).origin !== BOT_ORIGIN) event.preventDefault();
+  });
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (!pendingAuthHandoff) return;
+    mainWindow.webContents.send("forum-auth:handoff", pendingAuthHandoff);
+    pendingAuthHandoff = "";
+    showAssistant();
   });
 
   mainWindow.on("minimize", (event) => {
@@ -174,7 +199,15 @@ function createTray() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", showAssistant);
+  app.setAsDefaultProtocolClient(AUTH_PROTOCOL);
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    deliverAuthHandoff(url);
+  });
+  app.on("second-instance", (_event, commandLine) => {
+    const handled = commandLine.some(deliverAuthHandoff);
+    if (!handled) showAssistant();
+  });
 
   app.whenReady().then(() => {
     if (process.platform === "win32") {
@@ -183,6 +216,7 @@ if (!app.requestSingleInstanceLock()) {
 
     createWindow();
     createTray();
+    process.argv.some(deliverAuthHandoff);
     ipcMain.on("forum-window:set-expanded", (_event, expanded) => setAssistantExpanded(expanded));
     screen.on("display-added", () => setAssistantExpanded(isAssistantExpanded));
     screen.on("display-removed", () => setAssistantExpanded(isAssistantExpanded));

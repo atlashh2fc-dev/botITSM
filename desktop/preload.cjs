@@ -13,4 +13,9 @@ contextBridge.exposeInMainWorld("forumDesktop", {
     ipcRenderer.on("forum-window:collapse", listener);
     return () => ipcRenderer.removeListener("forum-window:collapse", listener);
   },
+  onAuthHandoff: (callback) => {
+    const listener = (_event, token) => callback(token);
+    ipcRenderer.on("forum-auth:handoff", listener);
+    return () => ipcRenderer.removeListener("forum-auth:handoff", listener);
+  },
 });
