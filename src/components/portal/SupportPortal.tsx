@@ -13,6 +13,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { SondaAssistant } from "@/components/chat/AtlasAssistant";
+import type { TenantId } from "@/lib/tenant/hosts";
 
 const desktopFiles = [
   { label: "Mesa de Ayuda", type: "folder" },
@@ -38,9 +39,9 @@ const dockApps = [
   { label: "Terminal", icon: "/dock-icons/terminal.png", open: true },
 ];
 
-export function SupportPortal() {
+export function SupportPortal({ tenantId }: { tenantId: TenantId }) {
   return (
-    <main className="mac-real-desktop" aria-label="Escritorio macOS SONDA">
+    <main className="mac-real-desktop" aria-label={`Escritorio macOS ${tenantId === "forum" ? "Forum" : "SONDA"}`}>
       <header className="mac-real-menu">
         <div className="mac-real-menu-left">
           <span className="apple-mark" aria-hidden>Apple</span>
@@ -150,7 +151,7 @@ export function SupportPortal() {
       </nav>
 
       <div className="chat-corner-anchor">
-        <SondaAssistant />
+        <SondaAssistant tenantId={tenantId} />
       </div>
     </main>
   );

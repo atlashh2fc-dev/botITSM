@@ -1,6 +1,6 @@
 "use client";
 
-import type { TenantId } from "@/lib/tenant/server";
+import { resolveBuiltInTenantIdByHost, type TenantId } from "@/lib/tenant/hosts";
 
 export type ClientTenant = {
   id: TenantId;
@@ -24,18 +24,35 @@ const CLIENT_TENANTS: Record<TenantId, ClientTenant> = {
   },
 };
 
-const HOST_TENANTS: Record<string, TenantId> = {
-  "iabot.geimser.cl": "geimser",
-  "iabot.demoitsm.cl": "forum",
-};
+export function resolveClientTenant(hostname: string): ClientTenant | null {
+  const tenantId = resolveBuiltInTenantIdByHost(hostname);
+  return tenantId ? CLIENT_TENANTS[tenantId] : null;
+}
 
 /**
  * Client-side companion to the server tenant resolver. The host is the only
  * input: query strings and browser storage never select an ITSM tenant.
  */
-export function getClientTenant(): ClientTenant {
-  const host = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
-  return CLIENT_TENANTS[HOST_TENANTS[host] ?? "geimser"];
+export function getClientTenant(serverTenantId?: TenantId): ClientTenant {
+  // Client components are pre-rendered without request headers. Preserve the
+  // existing placeholder only for callers not yet supplied a server hint. The
+  // assistant surfaces pass the host-derived hint and never render another
+  // tenant's branding while hydration is pending.
+  if (typeof window === "undefined") return CLIENT_TENANTS[serverTenantId ?? "geimser"];
+
+  const tenant = resolveClientTenant(window.location.hostname);
+  if (!tenant) throw new ClientTenantResolutionError(window.location.hostname);
+  if (serverTenantId && tenant.id !== serverTenantId) {
+    throw new ClientTenantResolutionError(window.location.hostname);
+  }
+  return tenant;
+}
+
+export class ClientTenantResolutionError extends Error {
+  constructor(hostname: string) {
+    super(`Dominio no registrado para este portal ITSM: ${hostname}`);
+    this.name = "ClientTenantResolutionError";
+  }
 }
 
 /** Prevent a browser profile from reusing one tenant's local chat/session in another tenant. */

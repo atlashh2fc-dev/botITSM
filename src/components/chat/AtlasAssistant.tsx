@@ -26,6 +26,7 @@ import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Tick
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
 import { ForumIcon, ForumLogo, SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
 import { getClientTenant, tenantStorageKey } from "@/lib/tenant/client";
+import type { TenantId } from "@/lib/tenant/hosts";
 import { exchangeITSMAssertion, getBotITSMSession } from "@/lib/auth/client";
 
 type ChatApiResponse = {
@@ -223,8 +224,16 @@ function getForumDesktopBridge() {
   return (window as Window & { forumDesktop?: ForumDesktopBridge }).forumDesktop;
 }
 
-export function SondaAssistant({ standalone = false, desktop = false }: { standalone?: boolean; desktop?: boolean }) {
-  const tenant = getClientTenant();
+export function SondaAssistant({
+  standalone = false,
+  desktop = false,
+  tenantId,
+}: {
+  standalone?: boolean;
+  desktop?: boolean;
+  tenantId?: TenantId;
+}) {
+  const tenant = getClientTenant(tenantId);
   const isForum = tenant.id === "forum";
   const brandName = isForum ? "Forum" : "SONDA";
   const storedIdentity = readStoredIdentity();
@@ -919,7 +928,7 @@ export function SondaAssistant({ standalone = false, desktop = false }: { standa
             <div className="space-y-3.5">
               {messages.map((message) => (
                 <div key={message.id} data-chat-role={message.role}>
-                  <Bubble message={message} onReply={(reply) => sendMessage(reply)} />
+                  <Bubble message={message} isForum={isForum} onReply={(reply) => sendMessage(reply)} />
                 </div>
               ))}
 
@@ -1263,7 +1272,7 @@ function SmartActionCard({
   );
 }
 
-function Bubble({ message, onReply }: { message: ChatMessage; onReply?: (message: string) => void }) {
+function Bubble({ message, isForum, onReply }: { message: ChatMessage; isForum: boolean; onReply?: (message: string) => void }) {
   const isUser = message.role === "user";
 
   const welcomeIds = ["sonda-welcome", "sonda-welcome-personal", "atlas-welcome", "atlas-welcome-personal"];
@@ -1292,7 +1301,7 @@ function Bubble({ message, onReply }: { message: ChatMessage; onReply?: (message
             background: "rgba(85, 244, 255, 0.06)",
           }}
         >
-          {getClientTenant().id === "forum" ? <ForumIcon size={14} /> : <SondaIcon size={14} />}
+          {isForum ? <ForumIcon size={14} /> : <SondaIcon size={14} />}
         </span>
       ) : null}
 

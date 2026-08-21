@@ -1,6 +1,8 @@
 /** Server-only tenant resolution. Tenant identity always comes from the host,
  * never from a browser supplied query/body parameter. */
-export type TenantId = "geimser" | "forum";
+import { configuredTenantHosts, normalizeTenantHost, TENANT_IDS, type TenantId } from "@/lib/tenant/hosts";
+
+export type { TenantId } from "@/lib/tenant/hosts";
 
 export type Tenant = {
   id: TenantId;
@@ -72,21 +74,17 @@ export function tenantAllowsAssetGroup(tenant: Tenant, group?: string) {
   return Boolean(normalized && tenant.assetGroups.some(allowed => allowed.toLocaleLowerCase("es-CL") === normalized));
 }
 
-const DEFAULT_HOSTS: Record<TenantId, string[]> = {
-  geimser: ["iabot.geimser.cl"],
-  forum: ["iabot.demoitsm.cl"],
-};
-
 function hostsFor(tenant: TenantId) {
   const configured = process.env["TENANT_" + tenant.toUpperCase() + "_HOSTS"];
-  return (configured ? configured.split(",") : DEFAULT_HOSTS[tenant])
-    .map((host) => host.trim().toLowerCase())
-    .filter(Boolean);
+  return configuredTenantHosts(tenant, configured);
 }
 
 export function getTenantByHost(hostHeader: string | null): Tenant | null {
-  const host = (hostHeader ?? "").split(":")[0].trim().toLowerCase();
-  const tenantId = (Object.keys(TENANTS) as TenantId[]).find((id) => hostsFor(id).includes(host));
+  const host = normalizeTenantHost(hostHeader);
+  const matches = TENANT_IDS.filter((tenantId) => hostsFor(tenantId).includes(host));
+  // A missing or conflicting host assignment is unsafe: never choose a tenant
+  // based on iteration order when configuration overlaps.
+  const tenantId = matches.length === 1 ? matches[0] : null;
   return tenantId ? { ...TENANTS[tenantId], host } : null;
 }
 

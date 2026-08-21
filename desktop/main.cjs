@@ -4,7 +4,10 @@ const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = 
 const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.demoitsm.cl/asistente";
 const TRUSTED_ORIGINS = new Set([
   "https://iabot.demoitsm.cl",
-  "https://mda.demoitsm.cl",
+  // Previously distributed Forum installers remain supported and constrained
+  // to the same tenant rather than being interpreted as Geimser.
+  "https://iabot.mda.demoitsm.cl",
+  "https://iabot.atlasitsm.geimser.cl",
   "https://mda.demoitsm.cl",
 ]);
 const COLLAPSED_SIZE = { width: 78, height: 78 };

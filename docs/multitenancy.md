@@ -6,6 +6,12 @@ El tenant se resuelve exclusivamente desde el hostname de cada solicitud:
 | --- | --- |
 | `iabot.geimser.cl` | `geimser` |
 | `iabot.demoitsm.cl` | `forum` |
+| `iabot.mda.demoitsm.cl` | `forum` (desktop legacy) |
+| `iabot.atlasitsm.geimser.cl` | `forum` (desktop legacy) |
+
+Los hosts configurados con `TENANT_<TENANT>_HOSTS` extienden estos aliases
+incorporados; no los reemplazan. Un host desconocido o configurado para ambos
+tenants no selecciona tenant y la solicitud falla de forma cerrada.
 
 Nunca se acepta un tenant desde un query string, cookie o cuerpo de la petición.
 
