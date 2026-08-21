@@ -29,6 +29,19 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  // Emergency-safe boundary: inbound telephony ingestion is disabled unless
+  // the tenant is explicitly enabled. This prevents a noisy or looping PBX
+  // bridge from creating tickets and notification storms by default.
+  const ingestEnabled = process.env[`TELEPHONY_${tenant.id.toUpperCase()}_INGEST_ENABLED`]
+    ?.trim()
+    .toLowerCase() === "true";
+  if (!ingestEnabled) {
+    return NextResponse.json(
+      { error: "Ingesta telefónica temporalmente deshabilitada." },
+      { status: 503, headers: { "Retry-After": "300" } },
+    );
+  }
+
   const rawBody = await request.text();
   if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
     return NextResponse.json({ error: "Payload demasiado grande." }, { status: 413 });
