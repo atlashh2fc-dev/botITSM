@@ -42,6 +42,27 @@ deterministic.
 `supabase/schema.sql` is explicitly marked as a legacy snapshot. The ordered
 migration directory is the only deployment and recreation source of truth.
 
+The local CLI configuration disables seeding and has an empty `sql_paths`
+array because this repository has no committed seed dataset. A missing seed
+file must never be silently introduced into `db reset` or Preview Branch
+creation; enabling seeding requires committing and reviewing the referenced
+files in the same change.
+
+The only edits to already-recorded migration files are replay guards:
+
+- `20260526154234` conditionally creates the pre-existing `chat_sessions`
+  shape before its original `ALTER TABLE` statements.
+- `20260612120000` conditionally creates the pre-existing `tickets` shape
+  before its original `ALTER TABLE` statements.
+- `20260810175405` changes only `CREATE TABLE` and `CREATE INDEX` statements to
+  `IF NOT EXISTS` so the production history can safely record that legacy ID.
+
+These guards do not represent new production DDL and the first two historical
+migrations must not be manually re-executed. On the inspected production
+history, only `20260810175405` is expected to run once through the reviewed
+`db push --include-all` sequence; it is a no-op against the existing telephony
+objects apart from reasserting the original RLS, grants, and RPC definitions.
+
 ## Security and integrity contract
 
 The hardening migration:

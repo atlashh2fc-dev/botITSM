@@ -22,6 +22,31 @@ for path in "${required_files[@]}"; do
   fi
 done
 
+seed_enabled="$(awk '
+  /^\[db\.seed\]$/ { in_seed = 1; next }
+  /^\[/ { in_seed = 0 }
+  in_seed && /^enabled[[:space:]]*=/ {
+    value = $0
+    sub(/^[^=]*=[[:space:]]*/, "", value)
+    print value
+    exit
+  }
+' supabase/config.toml)"
+seed_paths="$(awk '
+  /^\[db\.seed\]$/ { in_seed = 1; next }
+  /^\[/ { in_seed = 0 }
+  in_seed && /^sql_paths[[:space:]]*=/ {
+    value = $0
+    sub(/^[^=]*=[[:space:]]*/, "", value)
+    print value
+    exit
+  }
+' supabase/config.toml)"
+if [[ "$seed_enabled" != "false" || "$seed_paths" != "[]" ]]; then
+  printf 'db.seed must remain disabled with no paths unless seed files are committed\n' >&2
+  exit 1
+fi
+
 baseline_md5="$(perl -0pe 's/\n\z//' \
   supabase/migrations/20260612150917_bot_itsm_schema_and_memory.sql | md5 -q)"
 if [[ "$baseline_md5" != "d67468fc8a5362425879f0911bbf83ee" ]]; then
@@ -54,7 +79,7 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     exit 1
   fi
 
-  supabase db reset --local --no-seed
+  supabase db reset --local
   psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
     --file supabase/tests/itsm_security_contract.sql
 else
