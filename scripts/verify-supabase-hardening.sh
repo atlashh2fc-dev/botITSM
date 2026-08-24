@@ -11,6 +11,7 @@ required_files=(
   supabase/migrations/20260810175405_telephony_call_ingestion.sql
   supabase/migrations/20260810180030_telephony_call_ingestion.sql
   supabase/migrations/20260824173719_harden_itsm_foreign_key_indexes.sql
+  supabase/migrations/20260824183557_remove_duplicate_knowledge_tenant_index.sql
   supabase/rollback/20260824173719_harden_itsm_foreign_key_indexes.sql
   supabase/tests/itsm_security_contract.sql
   supabase/tests/itsm_migration_history_contract.sql

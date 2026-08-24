@@ -92,6 +92,11 @@ begin
     select 1 from pg_indexes
     where schemaname = 'public'
       and tablename = 'knowledge_articles'
+      and indexname = 'knowledge_articles_tenant_idx'
+  ) or exists (
+    select 1 from pg_indexes
+    where schemaname = 'public'
+      and tablename = 'knowledge_articles'
       and indexname = 'knowledge_articles_tenant_id_idx'
   ) or not exists (
     select 1 from pg_indexes

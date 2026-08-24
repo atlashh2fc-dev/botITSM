@@ -84,6 +84,11 @@ The hardening migration:
 - Keeps the telephony claim functions as `SECURITY INVOKER`, with an empty
   `search_path`, and executable only by `service_role`.
 
+The follow-up migration `20260824183557` removes the duplicate
+`knowledge_articles_tenant_id_idx`; multitenancy had already created the
+equivalent `knowledge_articles_tenant_idx`. The canonical index is retained and
+no rows or constraints are changed.
+
 The SQL contract in `supabase/tests/itsm_security_contract.sql` fails on missing
 tables, open browser grants, broad server grants, unsafe RPC definitions,
 missing indexes, unvalidated tenant foreign keys, or cross-tenant rows.
