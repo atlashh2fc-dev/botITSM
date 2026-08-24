@@ -1269,6 +1269,22 @@ function InventoryWorkspace({
           </button>
         </div>
 
+        <div aria-label="Indicadores rápidos de inventario" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(108px, 1fr))", gap: 7, marginBottom: 12 }}>
+          {[
+            ["Equipos", totalAssets, PBI.blue],
+            ["Operativos", assets.filter(asset => asset.status === "active").length, PBI.green],
+            ["All-in-One", inventoryTotals.allInOne, PBI.purple],
+            ["Torres", inventoryTotals.tower, PBI.blue],
+            ["Sin pantalla", inventoryTotals.withoutMonitor, inventoryTotals.withoutMonitor ? PBI.red : PBI.green],
+            ["Pendientes", inventoryTotals.pending, inventoryTotals.pending ? PBI.amber : PBI.green],
+          ].map(([label, value, color]) => (
+            <div key={String(label)} style={{ minWidth: 0, border: `1px solid ${PBI.cardBorder}`, borderTop: `3px solid ${color}`, borderRadius: 3, background: "#fff", padding: "7px 9px" }}>
+              <p style={{ margin: 0, color: PBI.text3, fontSize: 10, fontWeight: 800, letterSpacing: .35, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</p>
+              <strong style={{ display: "block", marginTop: 2, color: PBI.text1, fontSize: 22, lineHeight: 1.1 }}>{value}</strong>
+            </div>
+          ))}
+        </div>
+
         {loading ? (
           <p style={{ margin: "24px 0", color: PBI.text2, fontSize: 12 }}>Cargando inventario ITSM...</p>
         ) : error ? (
