@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
+import { parsePhoneSessionTtl } from "@/lib/telephony/agentSessionPolicy";
 import type { TenantId } from "@/lib/tenant/server";
 
 export const PHONE_SESSION_COOKIE = "atlas_phone_session";
@@ -11,8 +12,6 @@ export const PHONE_SESSION_COOKIE_OPTIONS = {
   sameSite: "strict" as const,
   path: "/api/telephony/agent",
 };
-const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
-
 type PhoneSession = {
   tenantId: TenantId;
   email: string;
@@ -41,6 +40,15 @@ function activationToken(tenantId: TenantId): string {
     throw new PhoneAgentConfigurationError("La activación del softphone no está configurada.");
   }
   return token;
+}
+
+function sessionTtlSeconds(tenantId: TenantId): number {
+  const configured = process.env[`TELEPHONY_${tenantId.toUpperCase()}_AGENT_SESSION_TTL_SECONDS`]?.trim();
+  try {
+    return parsePhoneSessionTtl(configured);
+  } catch {
+    throw new PhoneAgentConfigurationError("La duración de la sesión del softphone no es válida.");
+  }
 }
 
 function constantTimeEqual(left: string, right: string): boolean {
@@ -82,19 +90,20 @@ export function createPhoneSession(tenantId: TenantId, email: string): {
     throw new Error("Correo de agente inválido.");
   }
 
+  const ttlSeconds = sessionTtlSeconds(tenantId);
   const payload: PhoneSession = {
     tenantId,
     email: normalizedEmail,
-    expiresAt: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+    expiresAt: Math.floor(Date.now() / 1000) + ttlSeconds,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  return { token: `${encoded}.${sign(encoded, tenantId)}`, maxAge: SESSION_TTL_SECONDS };
+  return { token: `${encoded}.${sign(encoded, tenantId)}`, maxAge: ttlSeconds };
 }
 
 export function requirePhoneSession(request: NextRequest, tenantId: TenantId): PhoneSession {
   const token = request.cookies.get(PHONE_SESSION_COOKIE)?.value ?? "";
   const [encoded, suppliedSignature, extra] = token.split(".");
-  if (!encoded || !suppliedSignature || extra) throw new PhoneAgentUnauthorizedError();
+  if (!encoded || encoded.length > 2_048 || !suppliedSignature || extra) throw new PhoneAgentUnauthorizedError();
 
   const expectedSignature = sign(encoded, tenantId);
   if (!constantTimeEqual(expectedSignature, suppliedSignature)) throw new PhoneAgentUnauthorizedError();
@@ -108,7 +117,10 @@ export function requirePhoneSession(request: NextRequest, tenantId: TenantId): P
 
   if (
     payload.tenantId !== tenantId
-    || !payload.email
+    || typeof payload.email !== "string"
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)
+    || payload.email !== payload.email.trim().toLowerCase()
+    || !Number.isSafeInteger(payload.expiresAt)
     || payload.expiresAt <= Math.floor(Date.now() / 1000)
   ) {
     throw new PhoneAgentUnauthorizedError();

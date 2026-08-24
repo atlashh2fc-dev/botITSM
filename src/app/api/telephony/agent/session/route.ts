@@ -8,6 +8,12 @@ import {
   requireAssignedPhoneAgent,
   verifyPhoneActivationToken,
 } from "@/lib/telephony/agentAuth";
+import {
+  checkPhoneActivationRateLimit,
+  clearPhoneActivationFailures,
+  isSameOriginPhoneMutation,
+  recordPhoneActivationFailure,
+} from "@/lib/telephony/activationRateLimit";
 import { requireTenant, TenantResolutionError } from "@/lib/tenant/server";
 
 export const runtime = "nodejs";
@@ -28,22 +34,50 @@ async function readActivationBody(request: NextRequest): Promise<{ accessCode?: 
   return null;
 }
 
+function rateLimited(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: "Demasiados intentos de activación. Intenta nuevamente más tarde." },
+    {
+      status: 429,
+      headers: {
+        "Cache-Control": "no-store",
+        "Retry-After": String(Math.max(1, retryAfterSeconds)),
+      },
+    },
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const tenant = requireTenant(request);
     if (tenant.id !== "forum") {
       return NextResponse.json({ error: "Telefonía de agentes no habilitada para este portal." }, { status: 404 });
     }
+    if (!isSameOriginPhoneMutation(request)) {
+      return NextResponse.json({ error: "Origen de solicitud no autorizado." }, { status: 403 });
+    }
 
     const body = await readActivationBody(request);
     if (!body?.accessCode || !body.email) {
       return NextResponse.json({ error: "Código y correo son obligatorios." }, { status: 400 });
     }
+    const attempt = checkPhoneActivationRateLimit(request, tenant.id, body.email);
+    if (!attempt.allowed) return rateLimited(attempt.retryAfterSeconds);
+
     if (!verifyPhoneActivationToken(tenant.id, body.accessCode)) {
+      const failure = recordPhoneActivationFailure(request, tenant.id, body.email);
+      if (!failure.allowed) return rateLimited(failure.retryAfterSeconds);
       return NextResponse.json({ error: "Código de activación inválido." }, { status: 401 });
     }
 
-    const assignedEmail = requireAssignedPhoneAgent(tenant.id, body.email);
+    let assignedEmail: string;
+    try {
+      assignedEmail = requireAssignedPhoneAgent(tenant.id, body.email);
+    } catch (error) {
+      recordPhoneActivationFailure(request, tenant.id, body.email);
+      throw error;
+    }
+    clearPhoneActivationFailures(request, tenant.id, body.email);
     const session = createPhoneSession(tenant.id, assignedEmail);
     const response = NextResponse.json({ ok: true });
     response.cookies.set(PHONE_SESSION_COOKIE, session.token, {
@@ -66,7 +100,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  if (!isSameOriginPhoneMutation(request)) {
+    return NextResponse.json({ error: "Origen de solicitud no autorizado." }, { status: 403 });
+  }
   const response = NextResponse.json({ ok: true });
   response.cookies.set(PHONE_SESSION_COOKIE, "", {
     ...PHONE_SESSION_COOKIE_OPTIONS,

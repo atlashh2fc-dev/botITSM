@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Portal de soporte inteligente | SONDA",
+  title: "Portal de soporte inteligente | ITSM",
   description: "Plataforma enterprise de soporte ITSM asistida por inteligencia operacional.",
 };
 
