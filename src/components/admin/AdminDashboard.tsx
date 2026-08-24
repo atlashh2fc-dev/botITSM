@@ -723,7 +723,7 @@ function AdminWorkspace({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
       {/* ── Top bar with centered nav ── */}
       <header style={{
         height: 52, background: PBI.headerBg, borderBottom: `1px solid ${PBI.headerBor}`,
@@ -760,10 +760,10 @@ function AdminWorkspace({
       </header>
 
       {/* ══ CONTENIDO PRINCIPAL ══ */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {/* ── Cuerpo ── */}
-        <main style={{ flex: 1, padding: 16, overflowY: "auto" }}>
+        <main style={{ padding: "16px 16px 0", overflowY: "visible" }}>
           {isTicketDependentSection(activeSection) && ticketsLoading ? (
             <DashboardDataState title="Cargando tickets desde ITSM…" />
           ) : isTicketDependentSection(activeSection) && ticketsError ? (

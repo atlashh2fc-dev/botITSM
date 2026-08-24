@@ -43,7 +43,13 @@ const TENANTS: Record<TenantId, Omit<Tenant, "host">> = {
     zammadApiToken: process.env.ZAMMAD_FORUM_API_TOKEN,
     zammadGroup: process.env.ZAMMAD_FORUM_GROUP || "TI Forum",
     zammadGroups: configuredGroups("FORUM", process.env.ZAMMAD_FORUM_GROUP || "TI Forum"),
-    assetGroups: configuredAssetGroups("FORUM"),
+    // Forum mantiene sus agentes remotos en este grupo dedicado. El valor
+    // predeterminado evita que el inventario se vea vacío cuando la variable
+    // opcional aún no fue cargada en Vercel, sin abrir datos de otro tenant.
+    assetGroups: Array.from(new Set([
+      ...configuredAssetGroups("FORUM", ["Equipos Forum"]),
+      "Equipos Forum",
+    ])),
     zammadCtiUrl: process.env.ZAMMAD_FORUM_CTI_URL,
     telephonyFallbackEmail: process.env.TELEPHONY_FORUM_FALLBACK_EMAIL,
     cmdbToken: process.env.FORUM_CMDB_TOKEN,
@@ -59,8 +65,9 @@ function configuredGroups(prefix: "GEIMSER" | "FORUM", fallback: string) {
   return groups.length ? groups : [fallback];
 }
 
-function configuredAssetGroups(prefix: "GEIMSER" | "FORUM") {
-  return commaSeparated(process.env[`ZAMMAD_${prefix}_ASSET_GROUPS`]);
+function configuredAssetGroups(prefix: "GEIMSER" | "FORUM", fallback: string[] = []) {
+  const configured = commaSeparated(process.env[`ZAMMAD_${prefix}_ASSET_GROUPS`]);
+  return configured.length ? configured : fallback;
 }
 
 export function tenantAllowsZammadGroup(tenant: Tenant, group?: string) {
