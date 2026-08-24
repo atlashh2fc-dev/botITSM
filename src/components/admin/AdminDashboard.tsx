@@ -1248,22 +1248,12 @@ function InventoryWorkspace({
   };
 
   return (
-    <div style={{ display: "flex", flex: 1, flexDirection: "column", gap: 12, minHeight: "calc(100dvh - 84px)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <SectionHeader title="Inventario" subtitle="Equipos registrados en el ITSM, su estado y datos tecnicos para soporte." />
-        <button type="button" onClick={() => setCommuneMapOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 36, border: `1px solid ${PBI.blue}`, borderRadius: 4, background: "#fff", color: PBI.blue, padding: "0 13px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 800 }}>
-          <MapPinned size={16} /> Mapa por comunas
-        </button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-        <KpiCard kpi={{ label: "Equipos registrados", value: totalAssets.toString(), meta: "en inventario ITSM", tone: "neutral" }} />
-        <KpiCard kpi={{ label: "All-in-One", value: inventoryTotals.allInOne.toString(), meta: "equipos integrados", tone: "neutral" }} />
-        <KpiCard kpi={{ label: "PC de torre", value: inventoryTotals.tower.toString(), meta: "gabinetes detectados", tone: "positive" }} />
-        <KpiCard kpi={{ label: "Sin pantalla detectada", value: inventoryTotals.withoutMonitor.toString(), meta: inventoryTotals.pending ? `${inventoryTotals.pending} pendiente${inventoryTotals.pending === 1 ? "" : "s"} de ficha` : "fichas consultadas", tone: inventoryTotals.withoutMonitor ? "warning" : "positive" }} />
-      </div>
-
+    <div style={{ display: "flex", flex: 1, flexDirection: "column", gap: 12, minHeight: 0 }}>
       <PbiPanel title="Consulta rapida de inventario" icon={Database}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button type="button" onClick={() => setCommuneMapOpen(true)} aria-label="Abrir mapa por comunas" title="Mapa por comunas" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", width: 36, border: `1px solid ${PBI.blue}`, borderRadius: 3, background: "#fff", color: PBI.blue, cursor: "pointer" }}>
+            <MapPinned size={16} />
+          </button>
           <input
             value={query}
             onChange={event => onQueryChange(event.target.value)}
