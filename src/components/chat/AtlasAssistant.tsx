@@ -1050,7 +1050,7 @@ export function SondaAssistant({
 
               {isLoading ? <TypingIndicator isForum={isForum} /> : null}
               {ticketResults.length ? <TicketStatusResults tickets={ticketResults} /> : null}
-              {ticket ? <RegisteredCase ticket={ticket} /> : null}
+              {ticket ? <RegisteredCase ticket={ticket} isForum={isForum} /> : null}
             </div>
           </div>
 
@@ -1488,7 +1488,7 @@ function formatTicketUpdate(value: string) {
   return new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-function RegisteredCase({ ticket }: { ticket: Ticket }) {
+function RegisteredCase({ ticket, isForum }: { ticket: Ticket; isForum: boolean }) {
   const isLinkedToITSM = Boolean(ticket.externalUrl || ticket.externalId || ticket.id.startsWith("ZAM-"));
   const statusLabel = ticket.status === "resolved"
     ? "Caso resuelto"
@@ -1597,7 +1597,7 @@ function RegisteredCase({ ticket }: { ticket: Ticket }) {
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate" style={{ color: "#FFFFFF" }}>{ticket.attachmentName}</p>
               <p className="text-[10.5px] italic mt-0.5 leading-4" style={{ color: "rgba(255,255,255,0.7)" }}>
-                {ticket.attachmentAnalysis || "Análisis técnico completado por soporte SONDA"}
+                {ticket.attachmentAnalysis || `Análisis técnico completado por soporte ${isForum ? "Forum" : "SONDA"}`}
               </p>
             </div>
           </div>

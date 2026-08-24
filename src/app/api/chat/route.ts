@@ -8,7 +8,7 @@ import { getPersistedSessionContext, persistChatTurn } from "@/services/chat.rep
 import { getUserMemory, upsertUserMemory } from "@/services/memory.repository";
 import { extractTicketNumber, isTicketCreationMessage, isTicketLookupAlternativeMessage, isTicketLookupCorrectionMessage, isTicketQueryMessage, resolveTicketQuery, type TicketQueryResult } from "@/lib/itsm/ticketLookup";
 import { addTicketNote, findTicketByNumberForCustomer } from "@/lib/zammad/client";
-import { withTenant } from "@/lib/tenant/context";
+import { requireCurrentTenant, withTenant } from "@/lib/tenant/context";
 import { requireCurrentITSMIdentity, withApiAuth } from "@/lib/auth/apiAuth";
 
 type ChatRequest = {
@@ -25,6 +25,9 @@ type ChatRequest = {
 
 export async function POST(request: Request) {
   return withApiAuth(request, { roles: ["customer", "agent"] }, async () => withTenant(request, async () => {
+  const activeTenant = requireCurrentTenant();
+  const supportBrand = activeTenant.id === "forum" ? "Forum" : "SONDA";
+  const fallbackRequesterEmail = activeTenant.id === "forum" ? "sin-datos@forum.cl" : "sin-datos@sonda.cl";
   const identity = requireCurrentITSMIdentity();
   const body = (await request.json()) as ChatRequest;
   const userMessage = body.userMessage?.trim();
@@ -236,7 +239,7 @@ export async function POST(request: Request) {
           classification: "SERVICE_REQUEST",
           priority: sessionContext.priority ?? "P4",
           requiredFields: queryResult.needsEmail ? ["correo"] : [],
-          suggestedActions: ["Consulta de tickets en ITSM Geimser"],
+          suggestedActions: [`Consulta de tickets en ITSM ${supportBrand}`],
           operationalStatuses: ["Consultando base de conocimiento"],
           shouldCreateTicket: false,
           shouldEscalate: false,
@@ -265,7 +268,7 @@ export async function POST(request: Request) {
         description: "Caso cerrado por confirmación del usuario tras aplicar descartes automáticos.",
         status: "resolved" as const,
         requesterName: sessionContext.collectedFields?.nombre || "Sin identificar",
-        requesterEmail: sessionContext.collectedFields?.correo || "sin-datos@sonda.cl",
+        requesterEmail: sessionContext.collectedFields?.correo || fallbackRequesterEmail,
         executedSteps: ["Reinicio", "Confirmación de usuario"],
         nextAction: "Cerrar caso",
         assignedTeam: "Atlas IA",
@@ -280,13 +283,13 @@ export async function POST(request: Request) {
         assignedTeam: draft.assignedTeam || "Atlas IA",
         estimatedSla: draft.estimatedSla || "8 horas hábiles",
         requesterName: draft.requesterName || sessionContext.collectedFields?.nombre || "Sin identificar",
-        requesterEmail: draft.requesterEmail || sessionContext.collectedFields?.correo || "sin-datos@sonda.cl",
+        requesterEmail: draft.requesterEmail || sessionContext.collectedFields?.correo || fallbackRequesterEmail,
       };
 
       const assistantChatMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Caso cerrado:\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte SONDA.",
+        content: `Caso cerrado:\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte ${supportBrand}.`,
         createdAt: new Date().toISOString(),
         metadata: {
           intent: resolvedDraft.type,
@@ -572,6 +575,7 @@ export async function POST(request: Request) {
       : llmResponse.ticketDraft,
     sessionContextForEngine,
     knownEmail,
+    fallbackRequesterEmail,
   );
 
   const fullTranscript = [...sessionContextForEngine.messages, assistantChatMessage];
@@ -809,6 +813,7 @@ function enrichRequesterDraft(
   draft: TicketDraft,
   context: SessionContext,
   knownEmail?: string,
+  fallbackRequesterEmail = "sin-datos@sonda.cl",
 ) {
   const fields = context.collectedFields ?? {};
   const memory = context.userMemory;
@@ -820,7 +825,7 @@ function enrichRequesterDraft(
     ?? knownEmail
     ?? fields.correo
     ?? memory?.email
-    ?? "sin-datos@sonda.cl";
+    ?? fallbackRequesterEmail;
   const businessArea = normalizePendingValue(draft.businessArea)
     ?? fields.area
     ?? memory?.area

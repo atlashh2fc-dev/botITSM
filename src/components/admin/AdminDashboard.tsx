@@ -182,6 +182,7 @@ export function AdminDashboard({ initialSection = "overview", tenantId }: { init
       <AdminWorkspace
         initialSection={initialSection}
         userEmail={identity.email ?? ""}
+        tenantName={tenant.id === "forum" ? "Forum" : "SONDA"}
         phoneEnabled={tenant.id === "forum" && FORUM_PHONE_AGENT_EMAILS.has((identity.email ?? "").trim().toLowerCase())}
       />
     );
@@ -550,10 +551,12 @@ function DashboardDataState({
 function AdminWorkspace({
   initialSection,
   userEmail,
+  tenantName,
   phoneEnabled,
 }: {
   initialSection: string;
   userEmail: string;
+  tenantName: string;
   phoneEnabled: boolean;
 }) {
   const [activeSection, setActiveSection] = useState(initialSection);
@@ -998,7 +1001,7 @@ function AdminWorkspace({
 
               {activeSection === "configuration" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <SectionHeader title="Gobernanza y Configuración" subtitle="Configuración operativa bajo el modelo ITIL v4 — SONDA Centro de Operaciones" />
+                  <SectionHeader title="Gobernanza y Configuración" subtitle={`Configuración operativa bajo el modelo ITIL v4 — ${tenantName} Centro de Operaciones`} />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                     {[
                       { title: "Taxonomía ITIL", body: "Categorización automatizada con 8 intents estándar y más de 30 categorías de servicio.", color: PBI.blue },

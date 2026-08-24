@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { getClientTenant } from "@/lib/tenant/client";
+import type { TenantId } from "@/lib/tenant/hosts";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,18 +123,19 @@ const C = {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-function createWelcomeMessage(): Message {
+function createWelcomeMessage(brandName: string): Message {
   return {
     id: "welcome",
     role: "assistant",
-    content: `**Copiloto Técnico SONDA** listo para asistirte.\n\nPuedes:\n- Describir una falla con texto\n- 📷 Fotografiar el equipo o error y lo analizo\n- Preguntar sobre procedimientos SONDA\n\n¿Qué falla estás enfrentando hoy?`,
+    content: `**Copiloto Técnico ${brandName}** listo para asistirte.\n\nPuedes:\n- Describir una falla con texto\n- 📷 Fotografiar el equipo o error y lo analizo\n- Preguntar sobre procedimientos ${brandName}\n\n¿Qué falla estás enfrentando hoy?`,
     createdAt: new Date().toISOString(),
   };
 }
 
-export function TecnicoCopilot() {
+export function TecnicoCopilot({ tenantId }: { tenantId?: TenantId }) {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>(() => [createWelcomeMessage()]);
+  const brandName = getClientTenant(tenantId).id === "forum" ? "Forum" : "SONDA";
+  const [messages, setMessages] = useState<Message[]>(() => [createWelcomeMessage(brandName)]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [imageData, setImageData] = useState<{ base64: string; mime: string; preview: string } | null>(null);
@@ -344,7 +347,7 @@ export function TecnicoCopilot() {
             Copiloto Técnico
           </p>
           <p style={{ margin: "3px 0 0", fontSize: 11, color: C.accent, lineHeight: 1 }}>
-            ● En línea · Base de Conocimiento SONDA activa
+            ● En línea · Base de Conocimiento {brandName} activa
           </p>
         </div>
 
@@ -576,7 +579,7 @@ export function TecnicoCopilot() {
         </div>
 
         <p style={{ margin: "6px 0 0", fontSize: 11, color: C.textMuted, textAlign: "center" }}>
-          Shift+Enter para nueva línea · El copiloto usa la base de conocimiento SONDA
+          Shift+Enter para nueva línea · El copiloto usa la base de conocimiento {brandName}
         </p>
       </div>
 

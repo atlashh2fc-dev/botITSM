@@ -31,7 +31,9 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { SondaIcon } from "@/components/shared/BrandMark";
+import { ForumIcon, SondaIcon } from "@/components/shared/BrandMark";
+import { getClientTenant } from "@/lib/tenant/client";
+import type { TenantId } from "@/lib/tenant/hosts";
 import type { ITSMResponse, SessionContext, Ticket } from "@/lib/itsm/types";
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
 
@@ -114,7 +116,8 @@ const openTicketExamples = [
   { id: "REQ-2026-10840", title: "Instalación agente EDR", priority: "P3" },
 ];
 
-export function FieldCopilotApp() {
+export function FieldCopilotApp({ tenantId }: { tenantId?: TenantId }) {
+  const isForum = getClientTenant(tenantId).id === "forum";
   const [mounted, setMounted] = useState(false);
   const [technician, setTechnician] = useState<TechnicianSession | null>(null);
   const [view, setView] = useState<"home" | "diagnostic">("home");
@@ -180,11 +183,11 @@ export function FieldCopilotApp() {
   }
 
   if (!mounted) {
-    return <FieldBootScreen />;
+    return <FieldBootScreen isForum={isForum} />;
   }
 
   if (!technician) {
-    return <FieldLogin onLogin={handleLogin} />;
+    return <FieldLogin isForum={isForum} onLogin={handleLogin} />;
   }
 
   return (
@@ -194,6 +197,7 @@ export function FieldCopilotApp() {
           <FieldHome
             technician={technician}
             history={history}
+            isForum={isForum}
             onLogout={handleLogout}
             onStartDiagnostic={startDiagnostic}
           />
@@ -210,12 +214,12 @@ export function FieldCopilotApp() {
   );
 }
 
-function FieldBootScreen() {
+function FieldBootScreen({ isForum }: { isForum: boolean }) {
   return (
     <main className="grid min-h-dvh place-items-center bg-[#111827] px-5 py-8 text-white">
       <section className="w-full max-w-[440px] rounded-[28px] border border-white/10 bg-white/5 px-6 py-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
         <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-white/15 bg-white/10">
-          <SondaIcon size={24} />
+          <TenantFieldIcon size={24} isForum={isForum} />
         </span>
         <p className="mt-4 text-sm font-bold">Field IT Copilot</p>
         <p className="mt-1 text-xs text-blue-100">Validando sesión segura</p>
@@ -224,9 +228,10 @@ function FieldBootScreen() {
   );
 }
 
-function FieldLogin({ onLogin }: { onLogin: (technician: TechnicianSession) => void }) {
-  const [selectedEmail, setSelectedEmail] = useState(demoTechnicians[0].email);
-  const selected = demoTechnicians.find((item) => item.email === selectedEmail) ?? demoTechnicians[0];
+function FieldLogin({ isForum, onLogin }: { isForum: boolean; onLogin: (technician: TechnicianSession) => void }) {
+  const technicians = useMemo(() => tenantTechnicians(isForum), [isForum]);
+  const [selectedEmail, setSelectedEmail] = useState(technicians[0].email);
+  const selected = technicians.find((item) => item.email === selectedEmail) ?? technicians[0];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -239,7 +244,7 @@ function FieldLogin({ onLogin }: { onLogin: (technician: TechnicianSession) => v
         <div className="bg-[#12315A] px-6 pb-7 pt-6 text-white">
           <div className="flex items-center justify-between">
             <span className="grid size-11 place-items-center rounded-2xl border border-white/15 bg-white/10">
-              <SondaIcon size={23} />
+              <TenantFieldIcon size={23} isForum={isForum} />
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-100">
               <LockKeyhole size={12} />
@@ -263,7 +268,7 @@ function FieldLogin({ onLogin }: { onLogin: (technician: TechnicianSession) => v
               onChange={(event) => setSelectedEmail(event.target.value)}
               className="mt-2 h-12 w-full rounded-xl border border-[#CAD5E2] bg-white px-3 text-sm font-semibold outline-none focus:border-[#0F6CBD]"
             >
-              {demoTechnicians.map((item) => (
+              {technicians.map((item) => (
                 <option key={item.email} value={item.email}>
                   {item.name} · {item.role}
                 </option>
@@ -303,11 +308,13 @@ function LoginSignal({ icon: Icon, label, value }: { icon: typeof UserRound; lab
 function FieldHome({
   technician,
   history,
+  isForum,
   onLogout,
   onStartDiagnostic,
 }: {
   technician: TechnicianSession;
   history: FieldTurn[];
+  isForum: boolean;
   onLogout: () => void;
   onStartDiagnostic: (seed?: string) => void;
 }) {
@@ -317,7 +324,7 @@ function FieldHome({
         <div className="flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/10">
-              <SondaIcon size={20} />
+              <TenantFieldIcon size={20} isForum={isForum} />
             </span>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-blue-100">Hola, {technician.name.split(" ")[0]}</p>
@@ -787,6 +794,18 @@ function createFieldContext(technician: TechnicianSession): SessionContext {
     messages: [],
     stepsExecuted: [],
   };
+}
+
+function TenantFieldIcon({ size, isForum }: { size: number; isForum: boolean }) {
+  return isForum ? <ForumIcon size={size} /> : <SondaIcon size={size} />;
+}
+
+function tenantTechnicians(isForum: boolean) {
+  if (!isForum) return demoTechnicians;
+  return demoTechnicians.map(technician => ({
+    ...technician,
+    email: technician.email.replace(/@sonda\.cl$/i, "@forum.cl"),
+  }));
 }
 
 function readJson<T>(key: string): T | null {
