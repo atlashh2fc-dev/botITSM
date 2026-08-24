@@ -1,7 +1,7 @@
 -- Durable, tenant-scoped ingestion state for Asterisk call events.
 -- Browser roles stay denied: events are accepted only by the signed server API
 -- and written with the service-role client.
-create table public.telephony_calls (
+create table if not exists public.telephony_calls (
   tenant_id text not null references public.itsm_tenants(id),
   call_id text not null,
   direction text not null check (direction in ('in', 'out')),
@@ -27,7 +27,7 @@ create table public.telephony_calls (
   primary key (tenant_id, call_id)
 );
 
-create table public.telephony_events (
+create table if not exists public.telephony_events (
   tenant_id text not null references public.itsm_tenants(id),
   event_id text not null,
   call_id text not null,
@@ -46,11 +46,11 @@ create table public.telephony_events (
     on delete cascade
 );
 
-create index telephony_calls_tenant_started_idx
+create index if not exists telephony_calls_tenant_started_idx
   on public.telephony_calls (tenant_id, started_at desc);
-create index telephony_calls_tenant_status_idx
+create index if not exists telephony_calls_tenant_status_idx
   on public.telephony_calls (tenant_id, status, started_at desc);
-create index telephony_events_call_idx
+create index if not exists telephony_events_call_idx
   on public.telephony_events (tenant_id, call_id, occurred_at);
 
 alter table public.telephony_calls enable row level security;

@@ -1,5 +1,19 @@
 -- Omnicanal Zammad + capas de memoria (aplicada en supabase-crimson-village el 2026-06-12)
 
+-- Production already had this table when the migration was applied. Creating
+-- the pre-existing shape conditionally lets a fresh database replay the same
+-- history without changing an existing environment.
+create table if not exists public.tickets (
+  id text primary key,
+  type text not null,
+  priority text not null check (priority in ('P1', 'P2', 'P3', 'P4')),
+  category text not null,
+  description text not null,
+  status text not null default 'created',
+  payload jsonb not null,
+  created_at timestamptz not null default now()
+);
+
 alter table public.chat_sessions add column if not exists user_email text;
 
 alter table public.tickets
