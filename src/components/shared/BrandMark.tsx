@@ -1,9 +1,6 @@
-/**
- * BrandMark — Logo oficial SONDA
- * Wordmark SONDA® — tipografía bold, fondo negro
- */
+/** BrandMark — identidad visual del tenant Geimser. */
 
-/* ─── Logo SONDA® — Wordmark SVG ─────────────────────────────────── */
+/* ─── Wordmark Geimser ────────────────────────────────────────────── */
 export function SondaLogo({
   width = 120,
   inverted = false,
@@ -23,7 +20,7 @@ export function SondaLogo({
       height={h}
       viewBox="0 0 320 100"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="SONDA"
+      aria-label="Geimser"
       role="img"
     >
       {bgColor !== "transparent" && (
@@ -32,31 +29,18 @@ export function SondaLogo({
 
       <text
         x="14"
-        y="76"
+        y="71"
         fontFamily="'Arial Black', 'Arial', 'Helvetica Neue', 'Impact', sans-serif"
         fontWeight="900"
-        fontSize="72"
+        fontSize="56"
         letterSpacing="0"
         fill={textColor}
         dominantBaseline="auto"
       >
-        <tspan>S</tspan>
-        <tspan fill={accentColor}>ON</tspan>
-        <tspan>DA</tspan>
+        <tspan fill={accentColor}>G</tspan>
+        <tspan>EIMSER</tspan>
       </text>
 
-      {/* Punto registrado ® pequeño */}
-      <text
-        x="302"
-        y="36"
-        fontFamily="'Arial', 'Helvetica Neue', sans-serif"
-        fontWeight="400"
-        fontSize="22"
-        fill={textColor}
-        opacity="0.85"
-      >
-        ®
-      </text>
     </svg>
   );
 }
@@ -74,15 +58,14 @@ export function SondaBotIcon({
       src="/sonda-chatbot-icon.svg"
       width={width}
       height={height}
-      aria-label="SONDA"
-      alt="SONDA"
+      aria-label="Geimser"
+      alt="Geimser"
       style={{ display: "block", objectFit: "contain" }}
     />
   );
 }
 
-/* ─── Isotipo cuadrado pequeño para favicons / avatares ─────────────
-   Cuadrado negro con "S" blanca — versión compacta del logo          */
+/* ─── Isotipo cuadrado pequeño para favicons / avatares ───────────── */
 export function SondaIcon({ size = 32 }: { size?: number }) {
   return (
     <svg
@@ -90,10 +73,10 @@ export function SondaIcon({ size = 32 }: { size?: number }) {
       height={size}
       viewBox="0 0 40 40"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="SONDA"
+      aria-label="Geimser"
       role="img"
     >
-      <rect width="40" height="40" rx="4" fill="#000000" />
+      <rect width="40" height="40" rx="4" fill="#12213F" />
       <text
         x="20"
         y="30"
@@ -101,10 +84,10 @@ export function SondaIcon({ size = 32 }: { size?: number }) {
         fontFamily="'Arial Black', 'Arial', 'Helvetica Neue', sans-serif"
         fontWeight="900"
         fontSize="26"
-        fill="#FFFFFF"
+        fill="#00A9E0"
         letterSpacing="0"
       >
-        S
+        G
       </text>
     </svg>
   );
@@ -166,7 +149,6 @@ export function BrandMark({
 }
 
 /* ─── Alias para compatibilidad hacia atrás ─────────────────────── */
-/** @deprecated Usa SondaLogo o SondaIcon en su lugar */
 export function AtlasHexLogo({ size = 36 }: { size?: number }) {
   return <SondaIcon size={size} />;
 }

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Portal de soporte inteligente | SONDA",
-  description: "Plataforma enterprise de soporte ITSM asistida por inteligencia operacional.",
+  title: "Portal de soporte inteligente | ITSM",
+  description: "Panel operativo conectado a su tenant ITSM.",
 };
 
 export default function RootLayout({
