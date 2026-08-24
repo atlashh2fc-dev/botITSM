@@ -723,7 +723,7 @@ function AdminWorkspace({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", fontFamily: "'Outfit', 'Plus Jakarta Sans', 'Segoe UI', sans-serif", background: PBI.pageBg }}>
       {/* ── Top bar with centered nav ── */}
       <header style={{
         height: 52, background: PBI.headerBg, borderBottom: `1px solid ${PBI.headerBor}`,
@@ -760,10 +760,10 @@ function AdminWorkspace({
       </header>
 
       {/* ══ CONTENIDO PRINCIPAL ══ */}
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {/* ── Cuerpo ── */}
-        <main style={{ padding: "16px 16px 0", overflowY: "visible" }}>
+        <main style={{ flex: 1, padding: 16, overflowY: "auto" }}>
           {isTicketDependentSection(activeSection) && ticketsLoading ? (
             <DashboardDataState title="Cargando tickets desde ITSM…" />
           ) : isTicketDependentSection(activeSection) && ticketsError ? (
@@ -1248,7 +1248,7 @@ function InventoryWorkspace({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", flex: 1, flexDirection: "column", gap: 12, minHeight: "calc(100dvh - 84px)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <SectionHeader title="Inventario" subtitle="Equipos registrados en el ITSM, su estado y datos tecnicos para soporte." />
         <button type="button" onClick={() => setCommuneMapOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 36, border: `1px solid ${PBI.blue}`, borderRadius: 4, background: "#fff", color: PBI.blue, padding: "0 13px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 800 }}>
@@ -1333,7 +1333,7 @@ function InventoryWorkspace({
         )}
       </PbiPanel>
 
-      <PbiPanel title="Matriz de control técnico" icon={PackageSearch}>
+      <PbiPanel title="Matriz de control técnico" icon={PackageSearch} fill>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           <InventoryFilterButton active={inventoryGridFilter === "all"} onClick={() => setInventoryGridFilter("all")} label={`Todos (${inventoryRows.length})`} />
           <InventoryFilterButton active={inventoryGridFilter === "without-monitor"} onClick={() => setInventoryGridFilter("without-monitor")} label={`Sin pantalla (${inventoryTotals.withoutMonitor})`} tone={inventoryTotals.withoutMonitor ? PBI.red : undefined} />
@@ -1926,9 +1926,9 @@ function DomainCard({ title, icon: Icon, metrics, accent }: {
   );
 }
 
-function PbiPanel({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: ReactNode }) {
+function PbiPanel({ title, icon: Icon, children, fill = false }: { title: string; icon: typeof Activity; children: ReactNode; fill?: boolean }) {
   return (
-    <div style={{ background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, padding: 14 }}>
+    <div style={{ background: PBI.cardBg, border: `1px solid ${PBI.cardBorder}`, borderRadius: 2, padding: 14, ...(fill ? { flex: 1, display: "flex", flexDirection: "column" } : {}) }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${PBI.cardBorder}` }}>
         <Icon size={13} color={PBI.text3} />
         <p style={{ fontWeight: 600, fontSize: 12, color: PBI.text1, margin: 0 }}>{title}</p>
