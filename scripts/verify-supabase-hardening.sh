@@ -7,6 +7,7 @@ cd "$repo_root"
 required_files=(
   supabase/config.toml
   supabase/migrations/20260612150917_bot_itsm_schema_and_memory.sql
+  supabase/migrations/20260804000000_multitenancy.sql
   supabase/migrations/20260810175405_telephony_call_ingestion.sql
   supabase/migrations/20260810180030_telephony_call_ingestion.sql
   supabase/migrations/20260824173719_harden_itsm_foreign_key_indexes.sql
@@ -58,6 +59,13 @@ legacy_telephony="supabase/migrations/20260810175405_telephony_call_ingestion.sq
 if ! grep -q 'create table if not exists public.telephony_calls' "$legacy_telephony" \
   || ! grep -q 'create table if not exists public.telephony_events' "$legacy_telephony"; then
   printf 'Legacy telephony migration is not safe to replay\n' >&2
+  exit 1
+fi
+
+multitenancy="supabase/migrations/20260804000000_multitenancy.sql"
+if ! grep -q "current_primary_key is distinct from 'PRIMARY KEY (tenant_id, email)'" \
+  "$multitenancy"; then
+  printf 'Multitenancy migration can rebuild the production primary key during replay\n' >&2
   exit 1
 fi
 

@@ -60,8 +60,26 @@ alter table public.bot_user_memory alter column tenant_id set not null;
 alter table public.demo_users alter column tenant_id set not null;
 
 -- Values that are meaningful only inside one tenant may be reused by Forum.
-alter table public.bot_user_memory drop constraint if exists bot_user_memory_pkey;
-alter table public.bot_user_memory add primary key (tenant_id, email);
+-- Production received this migration before its version was recorded. Keep the
+-- replay a no-op when the compound primary key is already present; an
+-- unconditional DROP/ADD would take an avoidable exclusive lock.
+do $$
+declare
+  current_primary_key text;
+begin
+  select pg_get_constraintdef(oid)
+    into current_primary_key
+  from pg_constraint
+  where conrelid = 'public.bot_user_memory'::regclass
+    and contype = 'p';
+
+  if current_primary_key is distinct from 'PRIMARY KEY (tenant_id, email)' then
+    alter table public.bot_user_memory
+      drop constraint if exists bot_user_memory_pkey;
+    alter table public.bot_user_memory
+      add primary key (tenant_id, email);
+  end if;
+end $$;
 alter table public.demo_users drop constraint if exists demo_users_email_key;
 create unique index if not exists demo_users_tenant_email_idx on public.demo_users (tenant_id, email);
 alter table public.sla_rules drop constraint if exists sla_rules_priority_key;

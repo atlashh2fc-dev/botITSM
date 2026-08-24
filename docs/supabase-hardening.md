@@ -24,6 +24,12 @@ Production records these ITSM migrations:
 | `20260810175405` | `telephony_call_ingestion` | Legacy Git version; absent from the inspected production history. |
 | `20260810180030` | `telephony_call_ingestion` | Production version. Its original SQL was byte-for-byte identical to the legacy Git file: 5,571 bytes and MD5 `0dad664af03fca3ae7d609cf784554c7`. |
 
+Production also contains the complete physical result of
+`20260804000000_multitenancy` (tenant registry, non-null tenant columns,
+compound key and tenant indexes), but that version is absent from migration
+history. Its compound-primary-key transition is therefore guarded so replay is
+a no-op instead of dropping and rebuilding the already-correct key.
+
 Both telephony IDs are intentionally retained. The legacy SQL is now
 idempotent, and the production ID is a compatibility marker that asserts the
 tables already exist. This gives three safe paths:
@@ -117,8 +123,9 @@ production. Only one operator should perform the migration push.
    do not export unrelated shared-project data into this repository.
 3. Run the migration-history contract against production and record the result.
 4. Run `supabase db push --dry-run --include-all`. For the inspected production
-   history, the expected pending versions are the idempotent legacy telephony ID
-   `20260810175405` and the new hardening migration `20260824173719`.
+   history, the expected pending versions are the replay-safe multitenancy ID
+   `20260804000000`, the idempotent legacy telephony ID `20260810175405`, and
+   the new hardening migration `20260824173719`.
 5. Apply only after the dry-run matches that expectation. Do not seed, reset,
    repair history, or run unrelated migrations in the same window.
 6. Immediately run `itsm_security_contract.sql`, then the authenticated bot,
