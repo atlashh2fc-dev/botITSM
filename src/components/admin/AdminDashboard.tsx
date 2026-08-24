@@ -44,6 +44,7 @@ import {
 import { AtlasHexLogo, ForumIcon } from "@/components/shared/BrandMark";
 import { AgentSoftphone } from "@/components/telephony/AgentSoftphone";
 import { getClientTenant } from "@/lib/tenant/client";
+import type { TenantId } from "@/lib/tenant/hosts";
 import type { Ticket as ITSMDemoTicket } from "@/lib/itsm/types";
 import type { TicketDetail } from "@/services/tickets.repository";
 import type { UserAsset } from "@/services/assets.repository";
@@ -114,8 +115,11 @@ const FORUM_PHONE_AGENT_EMAILS = new Set(
 );
 
 /* ─── Helpers de datos (sin cambios funcionales) ───────────────────── */
-export function AdminDashboard({ initialSection = "overview" }: { initialSection?: string }) {
-  const tenant = getClientTenant();
+export function AdminDashboard({ initialSection = "overview", tenantId }: { initialSection?: string; tenantId?: TenantId }) {
+  // El host se resuelve en el servidor y se entrega al cliente. Sin esta pista
+  // el HTML inicial se renderiza como Geimser y el navegador lo rehidrata como
+  // Forum, provocando el error React #418 y una pantalla de carga intermitente.
+  const tenant = getClientTenant(tenantId);
   const [identity, setIdentity] = useState<ITSMIdentity | null>(null);
   const [accessError, setAccessError] = useState("");
 
