@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'self' https://mda.demoitsm.cl https://mda.demoitsm.cl",
+            value: "frame-ancestors 'self' https://itsm.geimser.cl https://mda.demoitsm.cl",
           },
         ],
       },
