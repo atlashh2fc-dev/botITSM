@@ -25,6 +25,7 @@ import {
 import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Ticket } from "@/lib/itsm/types";
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
 import { ForumIcon, ForumLogo, SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
+import { InternalChatPanel } from "@/components/chat/InternalChatPanel";
 import { getClientTenant, tenantStorageKey } from "@/lib/tenant/client";
 import type { TenantId } from "@/lib/tenant/hosts";
 import { exchangeITSMAssertion, getBotITSMSession } from "@/lib/auth/client";
@@ -259,6 +260,7 @@ export function SondaAssistant({
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [closed, setClosed] = useState(desktop || !standalone);
+  const [showInternalChat, setShowInternalChat] = useState(false);
 
   // Adjuntos
   const [attachedFile, setAttachedFile] = useState<{ name: string; url: string } | null>(null);
@@ -865,6 +867,16 @@ export function SondaAssistant({
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowInternalChat(true)}
+            title="Conversaciones internas"
+            className={`grid size-8 place-items-center rounded-lg transition-all duration-200${desktop ? " desktop-no-drag" : ""}`}
+            style={{ border: "1px solid rgba(148, 163, 184, 0.16)", background: "rgba(255, 255, 255, 0.04)", color: "#55F4FF" }}
+            aria-label="Conversaciones internas"
+          >
+            <MessageSquareText size={14} aria-hidden />
+          </button>
           {(!standalone || desktop) ? <button
             type="button"
             onClick={startNewChat}
@@ -1250,6 +1262,7 @@ export function SondaAssistant({
           </div>
         </>
       ) : null}
+      {showInternalChat ? <InternalChatPanel onClose={() => setShowInternalChat(false)} /> : null}
     </section>
   );
 }
