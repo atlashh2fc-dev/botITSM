@@ -1,7 +1,7 @@
 {
-  "name": "asistente-itsm-forum-desktop",
-  "version": "0.1.8",
-  "description": "Cliente de escritorio del Asistente ITSM Forum.",
+  "name": "asistente-itsm-geimser-desktop",
+  "version": "0.1.9",
+  "description": "Cliente de escritorio del Asistente ITSM GEIMSER.",
   "author": "Geimser",
   "main": "main.cjs",
   "private": true

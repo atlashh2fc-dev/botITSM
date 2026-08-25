@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron main process is CommonJS. */
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require("electron");
 
-const BOT_URL = process.env.FORUM_BOT_URL || "https://iabot.demoitsm.cl/asistente";
+const BOT_URL = process.env.GEIMSER_BOT_URL || "https://iabot.geimser.cl/asistente";
 const BOT_ORIGIN = new URL(BOT_URL).origin;
 const AUTH_PROTOCOL = "forumitsm";
 const TRUSTED_ORIGINS = new Set([
+  "https://iabot.geimser.cl",
   "https://iabot.demoitsm.cl",
   // Previously distributed Forum installers remain supported and constrained
   // to the same tenant rather than being interpreted as Geimser.
@@ -58,9 +59,8 @@ function deliverAuthHandoff(candidate) {
 
 function createTrayIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <rect width="32" height="32" rx="8" fill="#004481"/>
-    <rect x="2" y="2" width="28" height="28" rx="6" fill="none" stroke="#5BBEFF" stroke-width="2"/>
-    <text x="16" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="18" fill="#fff">F</text>
+    <rect width="32" height="32" rx="8" fill="#12213F"/>
+    <text x="16" y="23" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="18" fill="#55F4FF">G</text>
   </svg>`;
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`);
 }
@@ -112,7 +112,7 @@ function createWindow() {
     skipTaskbar: true,
     show: false,
     backgroundColor: "#00000000",
-    title: "Asistente ITSM Forum",
+    title: "Asistente ITSM GEIMSER",
     webPreferences: {
       preload: `${__dirname}/preload.cjs`,
       contextIsolation: true,
@@ -181,7 +181,7 @@ function createWindow() {
 
 function createTray() {
   tray = new Tray(createTrayIcon());
-  tray.setToolTip("Asistente ITSM Forum");
+  tray.setToolTip("Asistente ITSM GEIMSER");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Abrir asistente", click: showAssistant },
     { type: "separator" },

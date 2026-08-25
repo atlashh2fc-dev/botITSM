@@ -1,7 +1,7 @@
 {
   "name": "agente-ia-itsm-enterprise",
-  "version": "0.1.8",
-  "description": "Cliente de escritorio del Asistente ITSM Forum.",
+  "version": "0.1.9",
+  "description": "Cliente de escritorio del Asistente ITSM GEIMSER.",
   "author": "Geimser",
   "private": true,
   "main": "desktop/main.cjs",
@@ -42,8 +42,8 @@
   },
   "build": {
     "appId": "cl.geimser.forumitsm",
-    "productName": "Asistente ITSM Forum",
-    "artifactName": "Asistente-ITSM-Forum-Setup-${version}.${ext}",
+    "productName": "Asistente ITSM GEIMSER",
+    "artifactName": "Asistente-ITSM-GEIMSER-Setup-${version}.${ext}",
     "directories": {
       "app": "desktop",
       "output": "installer"
@@ -54,7 +54,7 @@
     ],
     "protocols": [
       {
-        "name": "Asistente ITSM Forum",
+        "name": "Asistente ITSM GEIMSER",
         "schemes": [
           "forumitsm"
         ]

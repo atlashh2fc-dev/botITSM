@@ -3,7 +3,7 @@ import { getTenantByHost } from "@/lib/tenant/server";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
-/** Minimal surface for the installed desktop client: only the Forum assistant. */
+/** Minimal surface for the installed desktop client: only the GEIMSER assistant. */
 export default async function AssistantPage({
   searchParams,
 }: {
@@ -18,7 +18,7 @@ export default async function AssistantPage({
   return (
     <main
       data-desktop-assistant={isDesktopClient ? "true" : undefined}
-      aria-label="Asistente ITSM Forum"
+      aria-label="Asistente ITSM GEIMSER"
       style={{ minHeight: "100dvh", overflow: "hidden", background: isDesktopClient ? "transparent" : "#07101d", display: isDesktopClient ? "grid" : undefined, placeItems: isDesktopClient ? "center" : undefined }}
     >
       <GeimserAssistant standalone desktop={isDesktopClient} tenantId={tenant.id} />
