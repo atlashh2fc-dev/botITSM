@@ -12,7 +12,7 @@ import {
   Settings,
   Wifi,
 } from "lucide-react";
-import { SondaAssistant } from "@/components/chat/AtlasAssistant";
+import { GeimserAssistant } from "@/components/chat/AtlasAssistant";
 import type { TenantId } from "@/lib/tenant/hosts";
 
 const desktopFiles = [
@@ -41,7 +41,7 @@ const dockApps = [
 
 export function SupportPortal({ tenantId }: { tenantId: TenantId }) {
   return (
-    <main className="mac-real-desktop" aria-label={`Escritorio macOS ${tenantId === "forum" ? "Forum" : "SONDA"}`}>
+    <main className="mac-real-desktop" aria-label={`Escritorio macOS ${tenantId === "forum" ? "Forum" : "GEIMSER"}`}>
       <header className="mac-real-menu">
         <div className="mac-real-menu-left">
           <span className="apple-mark" aria-hidden>Apple</span>
@@ -86,7 +86,7 @@ export function SupportPortal({ tenantId }: { tenantId: TenantId }) {
             <div className="finder-toolbar">
               <button type="button" aria-label="Atras">‹</button>
               <button type="button" aria-label="Adelante">›</button>
-              <div className="finder-title">Mesa de Ayuda SONDA</div>
+              <div className="finder-title">Mesa de Ayuda GEIMSER</div>
               <div className="finder-search">
                 <Search size={13} aria-hidden />
                 <span>Buscar</span>
@@ -101,7 +101,7 @@ export function SupportPortal({ tenantId }: { tenantId: TenantId }) {
               <a><LayoutDashboard size={16} aria-hidden /> Tickets</a>
               <a><Cloud size={16} aria-hidden /> iCloud Drive</a>
               <span className="sidebar-label">Ubicaciones</span>
-              <a><HardDrive size={16} aria-hidden /> SONDA-MacBook</a>
+              <a><HardDrive size={16} aria-hidden /> GEIMSER-MacBook</a>
               <a><Settings size={16} aria-hidden /> Sistemas</a>
             </nav>
 
@@ -151,7 +151,7 @@ export function SupportPortal({ tenantId }: { tenantId: TenantId }) {
       </nav>
 
       <div className="chat-corner-anchor">
-        <SondaAssistant tenantId={tenantId} />
+        <GeimserAssistant tenantId={tenantId} />
       </div>
     </main>
   );

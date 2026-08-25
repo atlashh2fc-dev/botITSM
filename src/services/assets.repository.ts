@@ -35,7 +35,7 @@ type ITSMInventoryAsset = {
 const MOCK_ASSETS: UserAsset[] = [
   {
     id: "asset-1",
-    user_email: "lilian.leon@sonda.cl",
+    user_email: "lilian.leon@geimser.cl",
     asset_name: "Mouse HP Cableado de Escritorio",
     asset_type: "mouse",
     asset_tag: "ACT-MOU-HP-LILIAN",
@@ -44,7 +44,7 @@ const MOCK_ASSETS: UserAsset[] = [
   },
   {
     id: "asset-2",
-    user_email: "lilian.leon@sonda.cl",
+    user_email: "lilian.leon@geimser.cl",
     asset_name: "HP EliteBook 840 G8",
     asset_type: "notebook",
     asset_tag: "ACT-LAP-HP-LILIAN",
@@ -53,7 +53,7 @@ const MOCK_ASSETS: UserAsset[] = [
   },
   {
     id: "asset-3",
-    user_email: "francisco.martinez@sonda.cl",
+    user_email: "francisco.martinez@geimser.cl",
     asset_name: "Mouse Inalámbrico Logitech MX Master",
     asset_type: "mouse",
     asset_tag: "ACT-MOU-LOG-FRAN",
@@ -62,7 +62,7 @@ const MOCK_ASSETS: UserAsset[] = [
   },
   {
     id: "asset-4",
-    user_email: "francisco.martinez@sonda.cl",
+    user_email: "francisco.martinez@geimser.cl",
     asset_name: "Lenovo ThinkPad T14",
     asset_type: "notebook",
     asset_tag: "ACT-LAP-LEN-FRAN",

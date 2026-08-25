@@ -1,6 +1,6 @@
 # Portal de soporte inteligente ITSM
 
-Producto enterprise en Next.js para presentar a SONDA una experiencia dual de soporte TI asistido por IA:
+Producto enterprise en Next.js para presentar a GEIMSER una experiencia dual de soporte TI asistido por IA:
 
 - Portal corporativo para usuarios finales.
 - Consola administrativa para operaciones, gobierno y analítica ITSM.

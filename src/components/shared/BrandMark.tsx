@@ -1,7 +1,7 @@
 /** BrandMark — identidad visual del tenant Geimser. */
 
 /* ─── Wordmark Geimser ────────────────────────────────────────────── */
-export function SondaLogo({
+export function GeimserLogo({
   width = 120,
   inverted = false,
 }: {
@@ -46,7 +46,7 @@ export function SondaLogo({
 }
 
 /* ─── Logo usado como ícono flotante del bot ─────────────────────── */
-export function SondaBotIcon({
+export function GeimserBotIcon({
   width = 120,
   height = 42,
 }: {
@@ -55,7 +55,7 @@ export function SondaBotIcon({
 }) {
   return (
     <img
-      src="/sonda-chatbot-icon.svg"
+      src="/geimser-chatbot-icon.svg"
       width={width}
       height={height}
       aria-label="Geimser"
@@ -66,7 +66,7 @@ export function SondaBotIcon({
 }
 
 /* ─── Isotipo cuadrado pequeño para favicons / avatares ───────────── */
-export function SondaIcon({ size = 32 }: { size?: number }) {
+export function GeimserIcon({ size = 32 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -130,7 +130,7 @@ export function BrandMark({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <SondaLogo width={110} inverted={!isDark} />
+      <GeimserLogo width={110} inverted={!isDark} />
       {showTagline && (
         <p style={{
           margin: 0,
@@ -150,5 +150,5 @@ export function BrandMark({
 
 /* ─── Alias para compatibilidad hacia atrás ─────────────────────── */
 export function AtlasHexLogo({ size = 36 }: { size?: number }) {
-  return <SondaIcon size={size} />;
+  return <GeimserIcon size={size} />;
 }

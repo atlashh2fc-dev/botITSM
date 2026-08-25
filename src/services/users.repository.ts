@@ -12,13 +12,13 @@ const MOCK_USERS: DemoUser[] = [
   {
     id: "user-lilian",
     name: "Lilian Leon",
-    email: "lilian.leon@sonda.cl",
+    email: "lilian.leon@geimser.cl",
     area: "Operaciones"
   },
   {
     id: "user-francisco",
     name: "Francisco Martinez",
-    email: "francisco.martinez@sonda.cl",
+    email: "francisco.martinez@geimser.cl",
     area: "Soporte TI"
   }
 ];

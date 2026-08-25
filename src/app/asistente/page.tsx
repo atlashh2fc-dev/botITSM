@@ -1,4 +1,4 @@
-import { SondaAssistant } from "@/components/chat/AtlasAssistant";
+import { GeimserAssistant } from "@/components/chat/AtlasAssistant";
 import { getTenantByHost } from "@/lib/tenant/server";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -21,7 +21,7 @@ export default async function AssistantPage({
       aria-label="Asistente ITSM Forum"
       style={{ minHeight: "100dvh", overflow: "hidden", background: isDesktopClient ? "transparent" : "#07101d", display: isDesktopClient ? "grid" : undefined, placeItems: isDesktopClient ? "center" : undefined }}
     >
-      <SondaAssistant standalone desktop={isDesktopClient} tenantId={tenant.id} />
+      <GeimserAssistant standalone desktop={isDesktopClient} tenantId={tenant.id} />
     </main>
   );
 }

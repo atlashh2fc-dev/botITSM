@@ -1,6 +1,6 @@
 # Auditoría Técnica — Agente IA ITSM Enterprise
 **Fecha:** 2026-05-26  
-**Alcance:** Diagnóstico de capa IA, routing, base de conocimiento y propuesta de mejora para demo SONDA
+**Alcance:** Diagnóstico de capa IA, routing, base de conocimiento y propuesta de mejora para demo GEIMSER
 
 ---
 
@@ -139,7 +139,7 @@ DESPUÉS: LLM siempre (con KB inyectado) → reglas como validación
 
 ---
 
-## Para la demo SONDA
+## Para la demo GEIMSER
 
 Con estos cambios, el agente puede:
 

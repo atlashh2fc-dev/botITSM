@@ -1,16 +1,16 @@
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
-/* ── SONDA / Atlas Design System ─────────────────────────────────────── */
+/* ── GEIMSER / Atlas Design System ─────────────────────────────────────── */
 
 :root {
-  /* Navy base — colores corporativos SONDA */
-  --sonda-black:      #000000;
-  --sonda-navy-deep:  #070E1C;
-  --sonda-navy:       #0C1629;
-  --sonda-navy-mid:   #111F3A;
-  --sonda-navy-soft:  #172244;
-  --sonda-blue:       #1B3D8C;
+  /* Navy base — colores corporativos GEIMSER */
+  --geimser-black:      #000000;
+  --geimser-navy-deep:  #070E1C;
+  --geimser-navy:       #0C1629;
+  --geimser-navy-mid:   #111F3A;
+  --geimser-navy-soft:  #172244;
+  --geimser-blue:       #1B3D8C;
 
   /* Ámbar — acento diferenciador */
   --amber:            #F59E0B;
@@ -48,7 +48,7 @@
   --p4: #10B981;
 
   /* Legados compatibilidad */
-  --background: var(--sonda-navy-deep);
+  --background: var(--geimser-navy-deep);
   --foreground: var(--text-primary);
   --line: rgba(255,255,255,0.06);
 }
@@ -66,7 +66,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--sonda-navy-deep);
+  background: var(--geimser-navy-deep);
   color: var(--text-primary);
   font-family: "Outfit", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
   font-feature-settings: "cv11", "ss01";
@@ -131,10 +131,10 @@ button, input, textarea, select {
     0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
-/* ── Patrón topografía SONDA ────────────────────────────────────────── */
+/* ── Patrón topografía GEIMSER ────────────────────────────────────────── */
 
-.sonda-topo-bg {
-  background-color: var(--sonda-navy-deep);
+.geimser-topo-bg {
+  background-color: var(--geimser-navy-deep);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgba(27,61,140,0.35) 0%, transparent 60%),
     radial-gradient(ellipse 40% 30% at 80% 90%, rgba(245,158,11,0.08) 0%, transparent 55%),
@@ -801,16 +801,16 @@ button, input, textarea, select {
   line-height: 1;
 }
 
-@keyframes sonda-bot-float {
+@keyframes geimser-bot-float {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-2px) scale(1.004); }
 }
 
-.sonda-bot-launcher {
-  animation: sonda-bot-float 6s ease-in-out infinite;
+.geimser-bot-launcher {
+  animation: geimser-bot-float 6s ease-in-out infinite;
 }
 
-.sonda-bot-launcher::before {
+.geimser-bot-launcher::before {
   position: absolute;
   inset: -8px;
   z-index: -1;
@@ -821,7 +821,7 @@ button, input, textarea, select {
   content: "";
 }
 
-.sonda-bot-launcher::after {
+.geimser-bot-launcher::after {
   position: absolute;
   inset: 1px;
   border-radius: 11px;

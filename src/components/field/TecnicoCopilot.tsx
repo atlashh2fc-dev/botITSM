@@ -125,7 +125,7 @@ function createWelcomeMessage(): Message {
   return {
     id: "welcome",
     role: "assistant",
-    content: `**Copiloto Técnico SONDA** listo para asistirte.\n\nPuedes:\n- Describir una falla con texto\n- 📷 Fotografiar el equipo o error y lo analizo\n- Preguntar sobre procedimientos SONDA\n\n¿Qué falla estás enfrentando hoy?`,
+    content: `**Copiloto Técnico GEIMSER** listo para asistirte.\n\nPuedes:\n- Describir una falla con texto\n- 📷 Fotografiar el equipo o error y lo analizo\n- Preguntar sobre procedimientos GEIMSER\n\n¿Qué falla estás enfrentando hoy?`,
     createdAt: new Date().toISOString(),
   };
 }
@@ -344,7 +344,7 @@ export function TecnicoCopilot() {
             Copiloto Técnico
           </p>
           <p style={{ margin: "3px 0 0", fontSize: 11, color: C.accent, lineHeight: 1 }}>
-            ● En línea · Base de Conocimiento SONDA activa
+            ● En línea · Base de Conocimiento GEIMSER activa
           </p>
         </div>
 
@@ -576,7 +576,7 @@ export function TecnicoCopilot() {
         </div>
 
         <p style={{ margin: "6px 0 0", fontSize: 11, color: C.textMuted, textAlign: "center" }}>
-          Shift+Enter para nueva línea · El copiloto usa la base de conocimiento SONDA
+          Shift+Enter para nueva línea · El copiloto usa la base de conocimiento GEIMSER
         </p>
       </div>
 

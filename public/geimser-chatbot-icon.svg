@@ -19,9 +19,7 @@
   </defs>
 
   <rect width="1366" height="1068" fill="url(#bg)"/>
-  <text x="92" y="385" fill="#FFFFFF" font-family="Arial Rounded MT Bold, Avenir Next Heavy, Arial Black, Arial, sans-serif" font-size="330" font-weight="900">S</text>
-  <text x="323" y="385" fill="#21E6EA" font-family="Arial Rounded MT Bold, Avenir Next Heavy, Arial Black, Arial, sans-serif" font-size="330" font-weight="900">ON</text>
-  <text x="840" y="385" fill="#FFFFFF" font-family="Arial Rounded MT Bold, Avenir Next Heavy, Arial Black, Arial, sans-serif" font-size="330" font-weight="900">DA</text>
+  <text x="118" y="350" fill="#FFFFFF" font-family="Arial Rounded MT Bold, Avenir Next Heavy, Arial Black, Arial, sans-serif" font-size="185" font-weight="900"><tspan fill="#21E6EA">G</tspan>EIMSER</text>
 
   <g filter="url(#softShadow)">
     <path d="M660 445C498 445 366 577 366 739C366 901 498 1033 660 1033C728 1033 792 1010 842 972L920 1001C939 1008 958 989 951 970L922 894C942 849 954 797 954 739C954 577 822 445 660 445Z" stroke="url(#cyan)" stroke-width="42" fill="#06152E"/>

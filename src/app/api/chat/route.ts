@@ -265,7 +265,7 @@ export async function POST(request: Request) {
         description: "Caso cerrado por confirmación del usuario tras aplicar descartes automáticos.",
         status: "resolved" as const,
         requesterName: sessionContext.collectedFields?.nombre || "Sin identificar",
-        requesterEmail: sessionContext.collectedFields?.correo || "sin-datos@sonda.cl",
+        requesterEmail: sessionContext.collectedFields?.correo || "sin-datos@geimser.cl",
         executedSteps: ["Reinicio", "Confirmación de usuario"],
         nextAction: "Cerrar caso",
         assignedTeam: "Atlas IA",
@@ -280,13 +280,13 @@ export async function POST(request: Request) {
         assignedTeam: draft.assignedTeam || "Atlas IA",
         estimatedSla: draft.estimatedSla || "8 horas hábiles",
         requesterName: draft.requesterName || sessionContext.collectedFields?.nombre || "Sin identificar",
-        requesterEmail: draft.requesterEmail || sessionContext.collectedFields?.correo || "sin-datos@sonda.cl",
+        requesterEmail: draft.requesterEmail || sessionContext.collectedFields?.correo || "sin-datos@geimser.cl",
       };
 
       const assistantChatMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Caso cerrado:\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte SONDA.",
+        content: "Caso cerrado:\n\nPerfecto, registraré la solución y dejaré el cierre documentado en soporte GEIMSER.",
         createdAt: new Date().toISOString(),
         metadata: {
           intent: resolvedDraft.type,
@@ -820,7 +820,7 @@ function enrichRequesterDraft(
     ?? knownEmail
     ?? fields.correo
     ?? memory?.email
-    ?? "sin-datos@sonda.cl";
+    ?? "sin-datos@geimser.cl";
   const businessArea = normalizePendingValue(draft.businessArea)
     ?? fields.area
     ?? memory?.area

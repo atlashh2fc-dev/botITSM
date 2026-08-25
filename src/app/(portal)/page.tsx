@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Monitor, Wrench, LayoutDashboard, RadioTower } from "lucide-react";
-import { SondaLogo } from "@/components/shared/BrandMark";
+import { GeimserLogo } from "@/components/shared/BrandMark";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -23,7 +23,7 @@ export default function LandingPage() {
     >
       {/* Logo */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-        <SondaLogo width={140} />
+        <GeimserLogo width={140} />
         <p style={{ color: "#4B6A9B", margin: 0, fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase" }}>
           Plataforma IA de Soporte
         </p>
@@ -151,7 +151,7 @@ export default function LandingPage() {
               Copiloto Técnico
             </h2>
             <p style={{ margin: "10px 0 0", fontSize: 14, color: "#5A9668", lineHeight: 1.5 }}>
-              IA para técnicos en terreno. Fotografía una falla y obtén diagnóstico con procedimientos SONDA.
+              IA para técnicos en terreno. Fotografía una falla y obtén diagnóstico con procedimientos GEIMSER.
             </p>
           </div>
           <span style={{ marginTop: 4, fontSize: 13, color: "#22C55E", fontWeight: 600 }}>
@@ -208,7 +208,7 @@ export default function LandingPage() {
       </div>
 
       <p style={{ color: "#1E2E3D", fontSize: 12, margin: 0, textAlign: "center" }}>
-        SONDA IA Platform · Demo Interna
+        GEIMSER IA Platform · Demo Interna
       </p>
     </main>
   );

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import type { ChatMessage, ITSMResponse, OperationalStatus, SessionContext, Ticket } from "@/lib/itsm/types";
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
-import { ForumIcon, ForumLogo, SondaBotIcon, SondaIcon } from "@/components/shared/BrandMark";
+import { ForumIcon, ForumLogo, GeimserBotIcon, GeimserIcon } from "@/components/shared/BrandMark";
 import { InternalChatPanel } from "@/components/chat/InternalChatPanel";
 import { getClientTenant, tenantStorageKey } from "@/lib/tenant/client";
 import type { TenantId } from "@/lib/tenant/hosts";
@@ -198,7 +198,7 @@ const demoScreenshots = [
 ];
 
 const initialMessage: ChatMessage = {
-  id: "sonda-welcome",
+  id: "geimser-welcome",
   role: "assistant",
   createdAt: new Date().toISOString(),
   content: "Hola:\n\nEscríbeme qué falla y te guío con el siguiente paso.",
@@ -226,7 +226,7 @@ function getForumDesktopBridge() {
   return (window as Window & { forumDesktop?: ForumDesktopBridge }).forumDesktop;
 }
 
-export function SondaAssistant({
+export function GeimserAssistant({
   standalone = false,
   desktop = false,
   tenantId,
@@ -237,7 +237,7 @@ export function SondaAssistant({
 }) {
   const tenant = getClientTenant(tenantId);
   const isForum = tenant.id === "forum";
-  const brandName = isForum ? "Forum" : "SONDA";
+  const brandName = isForum ? "Forum" : "GEIMSER";
   const storedIdentity = readStoredIdentity();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const storedContext = readStoredSessionContext();
@@ -541,7 +541,7 @@ export function SondaAssistant({
     };
 
     const greetingMsg: ChatMessage = {
-      id: "sonda-welcome-personal",
+      id: "geimser-welcome-personal",
       role: "assistant",
       createdAt: new Date().toISOString(),
       content: `Listo, quedaste conectado con ITSM como ${name} (${email}).\n\nPuedo revisar tus tickets actuales o registrar uno nuevo a tu nombre.`,
@@ -720,7 +720,7 @@ export function SondaAssistant({
       };
 
       const greetingMsg: ChatMessage = {
-        id: "sonda-welcome-personal",
+        id: "geimser-welcome-personal",
         role: "assistant",
         createdAt: new Date().toISOString(),
         content: selectedUserName
@@ -786,7 +786,7 @@ export function SondaAssistant({
         type="button"
         onPointerDown={openAssistant}
         onClick={openAssistant}
-        className={`sonda-bot-launcher group relative grid place-items-center overflow-hidden p-0 transition-all duration-200${desktop ? " h-[60px] w-[60px] rounded-2xl" : " h-[50px] w-[66px] rounded-xl"}`}
+        className={`geimser-bot-launcher group relative grid place-items-center overflow-hidden p-0 transition-all duration-200${desktop ? " h-[60px] w-[60px] rounded-2xl" : " h-[50px] w-[66px] rounded-xl"}`}
         style={{
           background: "rgba(7, 13, 24, 0.82)",
           border: "1px solid rgba(226, 232, 240, 0.18)",
@@ -806,7 +806,7 @@ export function SondaAssistant({
         aria-label={`Abrir soporte ${brandName}`}
         title={`Abrir soporte ${brandName}`}
       >
-        {isForum ? (desktop ? <ForumIcon size={42} /> : <ForumLogo width={58} height={34} />) : <SondaBotIcon width={62} height={46} />}
+        {isForum ? (desktop ? <ForumIcon size={42} /> : <ForumLogo width={58} height={34} />) : <GeimserBotIcon width={62} height={46} />}
         <span
           aria-hidden
           className="absolute -right-px -top-px size-3 rounded-full"
@@ -851,14 +851,14 @@ export function SondaAssistant({
               background: "rgba(5, 10, 18, 0.84)",
             }}
           >
-            {isForum ? <ForumLogo width={42} height={26} /> : <SondaBotIcon width={44} height={34} />}
+            {isForum ? <ForumLogo width={42} height={26} /> : <GeimserBotIcon width={44} height={34} />}
           </span>
           <div>
             <h1
               className="text-[13px] font-semibold leading-tight"
               style={{ color: "#FFFFFF" }}
             >
-              Mesa de Ayuda {isForum ? "Forum" : "SONDA"}
+              Mesa de Ayuda {isForum ? "Forum" : "GEIMSER"}
             </h1>
             <p className="text-[10px] font-medium" style={{ color: "rgba(203, 213, 225, 0.72)" }}>
               Asistente TI {brandName}
@@ -1320,7 +1320,7 @@ function SmartActionCard({
 function Bubble({ message, isForum, onReply }: { message: ChatMessage; isForum: boolean; onReply?: (message: string) => void }) {
   const isUser = message.role === "user";
 
-  const welcomeIds = ["sonda-welcome", "sonda-welcome-personal", "atlas-welcome", "atlas-welcome-personal"];
+  const welcomeIds = ["geimser-welcome", "geimser-welcome-personal", "atlas-welcome", "atlas-welcome-personal"];
   if (welcomeIds.includes(message.id)) {
     return (
       <div
@@ -1346,7 +1346,7 @@ function Bubble({ message, isForum, onReply }: { message: ChatMessage; isForum: 
             background: "rgba(85, 244, 255, 0.06)",
           }}
         >
-          {isForum ? <ForumIcon size={14} /> : <SondaIcon size={14} />}
+          {isForum ? <ForumIcon size={14} /> : <GeimserIcon size={14} />}
         </span>
       ) : null}
 
@@ -1442,12 +1442,12 @@ function TypingIndicator({ isForum }: { isForum: boolean }) {
             borderRadius: "50%",
             background: "#00FFFF",
             boxShadow: "0 0 6px rgba(0, 255, 255, 0.6)",
-            animation: `sonda-dot-blink 1.4s ease-in-out ${i * 0.18}s infinite`,
+            animation: `geimser-dot-blink 1.4s ease-in-out ${i * 0.18}s infinite`,
             display: "inline-block",
           }} />
         ))}
       </span>
-      <span style={{ fontStyle: "italic" }}>{isForum ? "Equipo Forum está escribiendo..." : "Equipo SONDA está escribiendo..."}</span>
+      <span style={{ fontStyle: "italic" }}>{isForum ? "Equipo Forum está escribiendo..." : "Equipo GEIMSER está escribiendo..."}</span>
     </div>
   );
 }
@@ -1610,7 +1610,7 @@ function RegisteredCase({ ticket }: { ticket: Ticket }) {
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate" style={{ color: "#FFFFFF" }}>{ticket.attachmentName}</p>
               <p className="text-[10.5px] italic mt-0.5 leading-4" style={{ color: "rgba(255,255,255,0.7)" }}>
-                {ticket.attachmentAnalysis || "Análisis técnico completado por soporte SONDA"}
+                {ticket.attachmentAnalysis || "Análisis técnico completado por soporte GEIMSER"}
               </p>
             </div>
           </div>
@@ -1751,7 +1751,7 @@ function normalizeEmail(email: string) {
 function readStoredIdentity() {
   if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.localStorage.getItem(tenantStorageKey("sonda-itsm-identity"));
+    const raw = window.localStorage.getItem(tenantStorageKey("geimser-itsm-identity"));
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as ITSMIdentity;
     return parsed.email ? parsed : undefined;
@@ -1762,18 +1762,18 @@ function readStoredIdentity() {
 
 function storeIdentity(identity: ITSMIdentity) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(tenantStorageKey("sonda-itsm-identity"), JSON.stringify(identity));
+  window.localStorage.setItem(tenantStorageKey("geimser-itsm-identity"), JSON.stringify(identity));
 }
 
 function clearStoredIdentity() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(tenantStorageKey("sonda-itsm-identity"));
+  window.localStorage.removeItem(tenantStorageKey("geimser-itsm-identity"));
 }
 
 function readStoredSessionContext() {
   if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.localStorage.getItem(tenantStorageKey("sonda-active-session-context"));
+    const raw = window.localStorage.getItem(tenantStorageKey("geimser-active-session-context"));
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as SessionContext;
     return Array.isArray(parsed.messages) && Array.isArray(parsed.stepsExecuted) ? parsed : undefined;
@@ -1784,10 +1784,10 @@ function readStoredSessionContext() {
 
 function storeSessionContext(sessionContext: SessionContext) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(tenantStorageKey("sonda-active-session-context"), JSON.stringify(sessionContext));
+  window.localStorage.setItem(tenantStorageKey("geimser-active-session-context"), JSON.stringify(sessionContext));
 }
 
 function clearStoredSessionContext() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(tenantStorageKey("sonda-active-session-context"));
+  window.localStorage.removeItem(tenantStorageKey("geimser-active-session-context"));
 }

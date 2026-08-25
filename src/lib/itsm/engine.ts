@@ -217,7 +217,7 @@ export function extractFields(message: string, context: SessionContext): Session
     collected.activo = "Pantalla integrada del notebook";
   } else if (!collected.activo && hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton", "teclado", "monitor", "pantalla", "impresora", "implresora", "inpresora", "imprimir", "imprimit", "improimit", "inprimir", "printer", "equipo", "notebook", "laptop"])) {
     const userEmail = collected.correo || "";
-    if (userEmail.toLowerCase() === "lilian.leon@sonda.cl") {
+    if (userEmail.toLowerCase() === "lilian.leon@geimser.cl") {
       if (hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton"])) {
         collected.activo = "Mouse HP Cableado de Escritorio";
       } else if (hasAny(normalizedText, ["notebook", "laptop", "equipo"])) {
@@ -225,7 +225,7 @@ export function extractFields(message: string, context: SessionContext): Session
       } else {
         collected.activo = inferAssetFromText(normalizedText);
       }
-    } else if (userEmail.toLowerCase() === "francisco.martinez@sonda.cl") {
+    } else if (userEmail.toLowerCase() === "francisco.martinez@geimser.cl") {
       if (hasAny(normalizedText, ["mouse", "moouse", "mause", "mouuse", "raton"])) {
         collected.activo = "Mouse Inalámbrico Logitech MX Master";
       } else if (hasAny(normalizedText, ["notebook", "laptop", "equipo"])) {

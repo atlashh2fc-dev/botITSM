@@ -32,7 +32,7 @@ function getRelevantKB(userMessage: string): string {
 
   if (!scored.length) return "";
 
-  return "\n## Procedimientos SONDA aplicables:\n" + scored.map(({ a }) =>
+  return "\n## Procedimientos GEIMSER aplicables:\n" + scored.map(({ a }) =>
     `**${a.title}**: ${a.resolutionSteps.slice(0, 3).map((s, i) => `${i + 1}) ${s}`).join(" → ")}. Escalar si: ${a.escalationCriteria[0]}.`
   ).join("\n");
 }
@@ -42,7 +42,7 @@ function getRelevantKB(userMessage: string): string {
 function buildSystemPrompt(userMessage: string, hasImage: boolean): string {
   const kb = getRelevantKB(userMessage);
 
-  return `Eres el Copiloto Técnico de SONDA. Eres un experto técnico en terreno, no un agente de mesa de ayuda.
+  return `Eres el Copiloto Técnico de GEIMSER. Eres un experto técnico en terreno, no un agente de mesa de ayuda.
 
 REGLAS ABSOLUTAS:
 - Máximo 100 palabras. Sé directo y práctico.
@@ -57,7 +57,7 @@ REGLAS ABSOLUTAS:
   3. [paso]
   🔴 Escalar si: [cuándo llamar a soporte]
 ${hasImage ? "- Hay foto adjunta. Describe lo que ves y basa el diagnóstico en la imagen." : ""}
-${kb ? "\nReferencia técnica SONDA (úsala como guía, no copies textual):\n" + kb : ""}`;
+${kb ? "\nReferencia técnica GEIMSER (úsala como guía, no copies textual):\n" + kb : ""}`;
 }
 
 // ─── Claude con visión ────────────────────────────────────────────────────────

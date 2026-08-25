@@ -31,7 +31,7 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { SondaIcon } from "@/components/shared/BrandMark";
+import { GeimserIcon } from "@/components/shared/BrandMark";
 import type { ITSMResponse, SessionContext, Ticket } from "@/lib/itsm/types";
 import { FormattedMessage } from "@/components/shared/FormattedMessage";
 
@@ -62,32 +62,32 @@ type FieldTurn = {
   createdAt: string;
 };
 
-const sessionKey = "sonda-field-copilot-session";
-const contextKey = "sonda-field-copilot-context";
-const historyKey = "sonda-field-copilot-history";
+const sessionKey = "geimser-field-copilot-session";
+const contextKey = "geimser-field-copilot-context";
+const historyKey = "geimser-field-copilot-history";
 
 const demoTechnicians: TechnicianSession[] = [
   {
     name: "Valentina Rojas",
-    email: "valentina.rojas@sonda.cl",
+    email: "valentina.rojas@geimser.cl",
     role: "tecnico terreno",
     zone: "Santiago Centro",
   },
   {
     name: "Cristian Mora",
-    email: "cristian.mora@sonda.cl",
+    email: "cristian.mora@geimser.cl",
     role: "residente",
     zone: "Cliente Banca Norte",
   },
   {
     name: "Paula Fuentes",
-    email: "paula.fuentes@sonda.cl",
+    email: "paula.fuentes@geimser.cl",
     role: "supervisor",
     zone: "Operaciones Field",
   },
   {
     name: "Admin Field",
-    email: "admin.field@sonda.cl",
+    email: "admin.field@geimser.cl",
     role: "admin",
     zone: "Gobernanza ITSM",
   },
@@ -215,7 +215,7 @@ function FieldBootScreen() {
     <main className="grid min-h-dvh place-items-center bg-[#111827] px-5 py-8 text-white">
       <section className="w-full max-w-[440px] rounded-[28px] border border-white/10 bg-white/5 px-6 py-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.28)]">
         <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-white/15 bg-white/10">
-          <SondaIcon size={24} />
+          <GeimserIcon size={24} />
         </span>
         <p className="mt-4 text-sm font-bold">Field IT Copilot</p>
         <p className="mt-1 text-xs text-blue-100">Validando sesión segura</p>
@@ -239,7 +239,7 @@ function FieldLogin({ onLogin }: { onLogin: (technician: TechnicianSession) => v
         <div className="bg-[#12315A] px-6 pb-7 pt-6 text-white">
           <div className="flex items-center justify-between">
             <span className="grid size-11 place-items-center rounded-2xl border border-white/15 bg-white/10">
-              <SondaIcon size={23} />
+              <GeimserIcon size={23} />
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-100">
               <LockKeyhole size={12} />
@@ -317,7 +317,7 @@ function FieldHome({
         <div className="flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/10">
-              <SondaIcon size={20} />
+              <GeimserIcon size={20} />
             </span>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-blue-100">Hola, {technician.name.split(" ")[0]}</p>
