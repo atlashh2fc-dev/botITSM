@@ -16,6 +16,7 @@ import { getTenantByHost } from "../src/lib/tenant/server";
 
 test("official and previously installed Forum desktop hosts remain Forum", () => {
   for (const host of [
+    "portal.demoitsm.cl",
     "iabot.demoitsm.cl",
     "iabot.mda.demoitsm.cl",
     "iabot.atlasitsm.geimser.cl",

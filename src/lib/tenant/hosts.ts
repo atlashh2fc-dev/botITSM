@@ -10,6 +10,7 @@ export type TenantId = (typeof TENANT_IDS)[number];
 export const BUILT_IN_TENANT_HOSTS: Record<TenantId, readonly string[]> = {
   geimser: ["iabot.geimser.cl"],
   forum: [
+    "portal.demoitsm.cl",
     "iabot.demoitsm.cl",
     "iabot.mda.demoitsm.cl",
     "iabot.atlasitsm.geimser.cl",
