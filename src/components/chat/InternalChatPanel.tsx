@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { ArrowLeft, RefreshCw, Send, Users } from "lucide-react";
+import { FormEvent, useEffect, useState, type CSSProperties } from "react";
+import { ArrowLeft, Minus, Plus, RefreshCw, Send, Users } from "lucide-react";
 
 type Participant = { id: number; name: string; role: string };
 type Message = {
@@ -11,6 +11,9 @@ type Message = {
   recipient_id: number;
   sender: { id: number; name: string };
 };
+
+const FONT_SCALE_STORAGE_KEY = "geimser-internal-chat-font-scale";
+const MESSAGE_FONT_SIZES = [11, 13, 15] as const;
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/intranet-chat/${path}`, {
@@ -31,6 +34,25 @@ export function InternalChatPanel({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fontScale, setFontScale] = useState(() => {
+    if (typeof window === "undefined") return 1;
+    const stored = Number(window.localStorage.getItem(FONT_SCALE_STORAGE_KEY));
+    return Number.isInteger(stored) && stored >= 0 && stored < MESSAGE_FONT_SIZES.length ? stored : 1;
+  });
+
+  const messageFontSize = MESSAGE_FONT_SIZES[fontScale];
+
+  useEffect(() => {
+    window.localStorage.setItem(FONT_SCALE_STORAGE_KEY, String(fontScale));
+  }, [fontScale]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const loadParticipants = async () => {
     try {
@@ -77,11 +99,20 @@ export function InternalChatPanel({ onClose }: { onClose: () => void }) {
 
   const selected = participants.find(item => item.id === selectedId);
   return (
-    <section className="absolute inset-0 z-20 flex flex-col" style={{ background: "#08111e" }} aria-label="Conversaciones internas">
+    <section
+      className="absolute inset-0 z-20 flex flex-col"
+      style={{ background: "#08111e", WebkitAppRegion: "no-drag" } as CSSProperties}
+      aria-label="Conversaciones internas"
+    >
       <header className="flex shrink-0 items-center gap-2 border-b px-3.5 py-3" style={{ borderColor: "rgba(148,163,184,.15)" }}>
-        <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-slate-300 hover:bg-white/10" title="Volver al asistente"><ArrowLeft size={16} /></button>
+        <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-slate-300 hover:bg-white/10" title="Volver al asistente" aria-label="Volver al asistente"><ArrowLeft size={16} /></button>
         <span className="grid size-8 place-items-center rounded-lg" style={{ background: "rgba(85,244,255,.1)", color: "#55F4FF" }}><Users size={15} /></span>
         <div className="min-w-0 flex-1"><p className="text-xs font-bold text-white">Conversaciones internas</p><p className="truncate text-[10px] text-slate-400">{selected ? `Chat privado con ${selected.name}` : "Selecciona un integrante"}</p></div>
+        <div className="flex items-center rounded-lg border" style={{ borderColor: "rgba(148,163,184,.16)" }} aria-label="Tamaño de texto">
+          <button type="button" onClick={() => setFontScale(current => Math.max(0, current - 1))} disabled={fontScale === 0} className="grid size-7 place-items-center text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-35" title="Reducir tamaño de letra" aria-label="Reducir tamaño de letra"><Minus size={13} /></button>
+          <span className="w-5 text-center text-[10px] font-bold text-cyan-200" aria-label={`Tamaño de letra ${fontScale + 1} de ${MESSAGE_FONT_SIZES.length}`}>A</span>
+          <button type="button" onClick={() => setFontScale(current => Math.min(MESSAGE_FONT_SIZES.length - 1, current + 1))} disabled={fontScale === MESSAGE_FONT_SIZES.length - 1} className="grid size-7 place-items-center text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-35" title="Aumentar tamaño de letra" aria-label="Aumentar tamaño de letra"><Plus size={13} /></button>
+        </div>
         <button type="button" onClick={() => void loadParticipants()} className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-white/10" title="Actualizar integrantes"><RefreshCw size={14} /></button>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-[132px_minmax(0,1fr)]">
@@ -91,9 +122,9 @@ export function InternalChatPanel({ onClose }: { onClose: () => void }) {
         <div className="flex min-h-0 flex-col">
           <div className="thin-scrollbar flex-1 space-y-2 overflow-y-auto p-3">
             {error ? <p className="rounded-lg bg-red-500/10 p-2 text-[10px] text-red-300">{error}</p> : null}
-            {!selectedId ? <p className="py-14 text-center text-xs text-slate-500">Elige una persona para iniciar una conversación privada.</p> : messages.length === 0 ? <p className="py-14 text-center text-xs text-slate-500">Sin mensajes todavía.</p> : messages.map(message => <article key={message.id} className="max-w-[84%]" style={{ marginLeft: message.recipient_id === selectedId ? "auto" : undefined }}><p className="mb-1 text-[9px] text-slate-500">{message.sender.name}</p><p className="rounded-lg px-2.5 py-2 text-[11px] leading-relaxed" style={{ background: message.recipient_id === selectedId ? "#049DD9" : "rgba(255,255,255,.08)", color: "#fff" }}>{message.content}</p></article>)}
+            {!selectedId ? <p className="py-14 text-center text-xs text-slate-500">Elige una persona para iniciar una conversación privada.</p> : messages.length === 0 ? <p className="py-14 text-center text-xs text-slate-500">Sin mensajes todavía.</p> : messages.map(message => <article key={message.id} className="max-w-[84%]" style={{ marginLeft: message.recipient_id === selectedId ? "auto" : undefined }}><p className="mb-1 text-[10px] text-slate-500">{message.sender.name}</p><p className="rounded-lg px-2.5 py-2 leading-relaxed" style={{ background: message.recipient_id === selectedId ? "#049DD9" : "rgba(255,255,255,.08)", color: "#fff", fontSize: messageFontSize }}>{message.content}</p></article>)}
           </div>
-          <form onSubmit={send} className="flex gap-2 border-t p-2.5" style={{ borderColor: "rgba(148,163,184,.14)" }}><input value={text} onChange={event => setText(event.target.value)} disabled={!selectedId} maxLength={2000} placeholder={selectedId ? "Escribe un mensaje..." : "Selecciona una persona"} className="min-w-0 flex-1 rounded-lg border bg-slate-900 px-2.5 py-2 text-xs text-white outline-none disabled:opacity-50" style={{ borderColor: "rgba(148,163,184,.2)" }} /><button type="submit" disabled={!selectedId || !text.trim()} className="grid size-9 place-items-center rounded-lg bg-cyan-300 text-slate-950 disabled:opacity-40" title="Enviar"><Send size={14} /></button></form>
+          <form onSubmit={send} className="flex gap-2 border-t p-2.5" style={{ borderColor: "rgba(148,163,184,.14)" }}><input value={text} onChange={event => setText(event.target.value)} disabled={!selectedId} maxLength={2000} placeholder={selectedId ? "Escribe un mensaje..." : "Selecciona una persona"} className="min-w-0 flex-1 rounded-lg border bg-slate-900 px-2.5 py-2 text-white outline-none disabled:opacity-50" style={{ borderColor: "rgba(148,163,184,.2)", fontSize: messageFontSize }} /><button type="submit" disabled={!selectedId || !text.trim()} className="grid size-9 place-items-center rounded-lg bg-cyan-300 text-slate-950 disabled:opacity-40" title="Enviar"><Send size={14} /></button></form>
         </div>
       </div>
     </section>
