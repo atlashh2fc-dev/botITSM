@@ -867,7 +867,7 @@ export function GeimserAssistant({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
+          {!isForum ? <button
             type="button"
             onClick={() => setShowInternalChat(true)}
             title="Conversaciones internas"
@@ -876,7 +876,7 @@ export function GeimserAssistant({
             aria-label="Conversaciones internas"
           >
             <MessageSquareText size={14} aria-hidden />
-          </button>
+          </button> : null}
           {(!standalone || desktop) ? <button
             type="button"
             onClick={startNewChat}
@@ -1262,7 +1262,7 @@ export function GeimserAssistant({
           </div>
         </>
       ) : null}
-      {showInternalChat ? <InternalChatPanel onClose={() => setShowInternalChat(false)} /> : null}
+      {!isForum && showInternalChat ? <InternalChatPanel onClose={() => setShowInternalChat(false)} /> : null}
     </section>
   );
 }

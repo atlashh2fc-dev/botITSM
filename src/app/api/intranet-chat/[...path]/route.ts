@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCurrentITSMIdentity, withApiAuth } from "@/lib/auth/apiAuth";
 import { intranetBridgeRequest } from "@/lib/intranet/bridge";
+import { requireTenant } from "@/lib/tenant/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,13 @@ export const dynamic = "force-dynamic";
 type RouteContext = { params: Promise<{ path: string[] }> };
 
 async function proxy(request: Request, context: RouteContext) {
+  // Forum no utiliza mensajería interna: la comunicación operativa se
+  // mantiene en los tickets. Bloqueamos también la ruta para que el panel no
+  // pueda abrirse mediante una petición manual aunque no exista el botón.
+  if (requireTenant(request).id === "forum") {
+    return NextResponse.json({ error: "El chat interno no está disponible en Forum." }, { status: 404 });
+  }
+
   return withApiAuth(request, { roles: ["agent"] }, async () => {
     const identity = requireCurrentITSMIdentity();
     const { path } = await context.params;
